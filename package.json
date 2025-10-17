@@ -1,0 +1,16 @@
+{
+  "name": "scribby",
+  "version": "1.0.0",
+  "description": "An open source text editor made with the intent to be plugged into any frontend",
+  "main": "scribby.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "tsc -p tsconfig.json",
+    "watch": "tsc -w -p tsconfig.json"
+  },
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "typescript": "^5.9.3"
+  }
+}
