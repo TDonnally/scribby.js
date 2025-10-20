@@ -1,0 +1,13 @@
+.scribby{
+    position: relative;
+}
+.toolbar{
+    position: relative;
+    top: 0px;
+    left: 0px;
+    background-color: grey;
+
+    display: flex;
+    flex-direction: row;
+    gap: 1rem;
+}

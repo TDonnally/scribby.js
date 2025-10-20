@@ -3,6 +3,8 @@ class Scribby{
     content: string;
     el!: HTMLDivElement;
     toolbar!: Toolbar;
+    textElement: string;
+    styleElements: Set<string>;
 
     constructor(
         selector = "",
@@ -15,22 +17,76 @@ class Scribby{
         this.el;
         this.content = content;
         this.toolbar;
+        this.textElement = "p";
+        this.styleElements = new Set;
     }
     mount(){
-        const el = document.querySelector<HTMLDivElement>(`${this.selector}`);
-        if (!el){
+        const container = document.querySelector<HTMLDivElement>(`${this.selector}`);
+        if (!container){
             throw new Error(`No element with selector: ${this.selector}`);
         }
-        this.el = el
+
+        this.el = document.createElement("div");
+        this.el.contentEditable = 'true';
         this.el.classList.add("scribby");
         this.el.innerHTML = this.content;
 
+        container.appendChild(this.el);
+
         // mount toolbar
         this.toolbar = new Toolbar(this).mount();
-        this.el.appendChild(this.toolbar.el);
+        this.el.insertAdjacentElement("beforebegin",this.toolbar.el);
+
+        this.el.addEventListener("keydown",(e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                const sel = window.getSelection();
+                if (!sel || sel.rangeCount === 0) return;
+                const range = sel.getRangeAt(0);
+                range.deleteContents(); 
+
+                if (e.shiftKey){
+                    const br = document.createElement("br");
+                    range.insertNode(br);
+
+                    const spacer = document.createTextNode("\u200B"); 
+                    br.after(spacer);
+
+                    const newRange = document.createRange();
+                    newRange.setStartAfter(spacer);
+                    newRange.collapse(true);
+
+                    sel.removeAllRanges();
+                    sel.addRange(newRange);
+                }
+                else{
+                    const newLineEl = document.createElement(this.textElement);
+                    let cursorEl = newLineEl;
+                    const spacer = document.createTextNode("\u200B");
+                    for (const element of this.styleElements){
+                        const el = document.createElement(element);
+                        cursorEl.append(el);
+                        cursorEl = el;
+                    }
+
+                    
+                    cursorEl.appendChild(spacer);
+
+                    this.el.appendChild(newLineEl)
+
+                    const newRange = document.createRange();
+                    newRange.setStart(spacer, spacer.length);
+                    newRange.collapse(true);
+
+                    sel.removeAllRanges();
+                    sel.addRange(newRange);
+                }
+            }
+        })
         
         return this
     }
+
 }
 class Toolbar{
     scribby!: Scribby;
@@ -97,10 +153,19 @@ class ToolbarButton{
         this.el.classList.add("toolbar-button");
         this.el.innerHTML = this.innerContent;
         this.el.addEventListener("click", (e) => {
-            this.scribby.selector = this.wrapperElement;
-            console.log(this.scribby);
+            if(this.scribby.styleElements.has(this.wrapperElement)){
+                this.scribby.styleElements.delete(this.wrapperElement)
+            }
+            else{
+                this.scribby.styleElements.add(this.wrapperElement)
+            }
+            console.log(this.scribby.styleElements)
         })
     }
+}
+
+function addElemet(){
+
 }
 
 /*
