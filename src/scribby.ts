@@ -83,6 +83,12 @@ class Scribby{
                 }
             }
         })
+        this.el.addEventListener("click",(e) => {
+            const sel = window.getSelection();
+            if (!sel || sel.rangeCount === 0) return;
+            const range = sel.getRangeAt(0);
+            console.log(getAllTags(range.startContainer.parentElement));
+        })
         
         return this
     }
@@ -153,21 +159,114 @@ class ToolbarButton{
         this.el.classList.add("toolbar-button");
         this.el.innerHTML = this.innerContent;
         this.el.addEventListener("click", (e) => {
+            const sel = window.getSelection();
+            if (!sel || sel.rangeCount === 0) return;
+            const range = sel.getRangeAt(0);
+            let node = range.startContainer;
+            const startEl = node.parentElement;
+            if (startEl == null){
+                return
+            }
+            let cur: Element | null  = startEl;
+
+            const tagElExcerpt = checkForTag(this.wrapperElement, startEl);
+            if(tagElExcerpt){
+                let newExcerpt = range.cloneContents();
+                let node: Element | null = cur;
+                while (node){
+                    const rLeft = document.createRange();
+                    rLeft.selectNodeContents(node);
+                    rLeft.setEnd(range.startContainer, range.startOffset);
+                    const leftFrag = rLeft.cloneContents();
+
+                    const rRight = document.createRange();
+                    rRight.selectNodeContents(node);
+                    rRight.setStart(range.endContainer, range.endOffset);
+                    const rightFrag = rRight.cloneContents();
+                    cur = node.parentElement;
+
+                    const assembled = document.createDocumentFragment();
+
+                    
+                    if(leftFrag.textContent != ""){
+                        const leftEl = document.createElement(node.tagName);
+                        leftEl.append(leftFrag);
+                        assembled.append(leftEl);
+                        console.log("left:", leftEl);
+                    }
+                    
+
+                    if (node !== tagElExcerpt) {
+                        const midEl = document.createElement(node.tagName);
+                        midEl.append(newExcerpt);
+                        assembled.append(midEl);
+                        console.log("middle:", midEl);
+                    } else {
+                        assembled.append(newExcerpt);
+                        console.log("middle (unwrapped at stop):", assembled);
+                    }
+
+                    
+
+                    if(rightFrag.textContent != ""){
+                        const rightEl = document.createElement(node.tagName);
+                        rightEl.append(rightFrag);
+                        assembled.append(rightEl);
+                        console.log("right:", rightEl);
+                    }
+                    
+                    newExcerpt = assembled;
+                    if (node === tagElExcerpt) break;
+                    node = node.parentElement;
+                }
+                tagElExcerpt.replaceWith(newExcerpt);
+            }
+            else{
+                console.log("hit");
+                const styleEl = document.createElement(this.wrapperElement);
+                styleEl.append(range.cloneContents());
+                console.log(styleEl);
+                range.deleteContents(); 
+                range.insertNode(styleEl);
+            }
+
             if(this.scribby.styleElements.has(this.wrapperElement)){
                 this.scribby.styleElements.delete(this.wrapperElement)
             }
             else{
                 this.scribby.styleElements.add(this.wrapperElement)
             }
-            console.log(this.scribby.styleElements)
         })
     }
 }
 
-function addElemet(){
+function checkForTag(tag: string, startEl: HTMLElement): Element | null{
+    const outerBlocks = "p,h1,h2,h3,h4,h5,h6,li,blockquote,pre,div";
+    if (!startEl) return null;
 
+    let block = startEl.closest(outerBlocks);
+    let cur: Element | null = startEl;
+    while (cur && cur !== block) {
+        if (cur.tagName.toLowerCase() == tag) {
+            return cur; 
+        }
+        cur = cur.parentElement;
+    }
+    return null;
 }
+function getAllTags(startEl: HTMLElement | null): Set<string> | null{
+    const outerBlocks = "p,h1,h2,h3,h4,h5,h6,li,blockquote,pre,div";
+    if (!startEl) return null;
 
+    const tags = new Set<string>();
+    let block = startEl.closest(outerBlocks);
+    let cur: Element | null = startEl;
+    while (cur && cur !== block) {
+        tags.add(cur.tagName.toLowerCase());
+        cur = cur.parentElement;
+    }
+    return tags;
+}
 /*
 class ToolbarDropdownButton{
     innerContent: string;
