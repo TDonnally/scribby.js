@@ -11,3 +11,21 @@
     flex-direction: row;
     gap: 1rem;
 }
+.toolbar-button{
+    transition: all .4s;
+}
+.toolbar-button.active{
+    background-color: aquamarine;
+}
+span{
+    transition: background-color .4s;
+}
+span:hover{
+    background-color: #E0F2FD;
+}
+span>span:hover{
+    background-color: #F6E1FC;
+}
+span>span>span:hover{
+    background-color: #E8FCE0;
+}
