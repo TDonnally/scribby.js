@@ -256,6 +256,8 @@ class ToolbarButton{
             if (!sel || sel.rangeCount === 0) return;
             const range = sel.getRangeAt(0);
             let startEl = range.startContainer.parentElement;
+            if (startEl == null) return;
+            let block = getBlock(startEl, this.scribby.el);
             if (startEl?.tagName.toLowerCase() != "span"){
                 const newEl = document.createElement("span");
                 for (const [k, v] of Object.entries(this.attributes)){
@@ -283,6 +285,22 @@ class ToolbarButton{
                     startEl.replaceWith(frag);
                 }
             }
+
+            // cleanup
+            const children = block.children;
+            
+            for (let i = 0; i < children.length-1;) {
+                const child = children[i]
+                const nextChild = children[i+1]
+                const adjacent = areSiblingsAdjacent(child, nextChild);
+                const equal = areSiblingsEqual(child, nextChild);
+                if(adjacent && equal){
+                    mergeElementBintoElementA(child, nextChild);
+                }
+                else{
+                    i++;
+                }   
+            }
             
         })
     }
@@ -291,6 +309,37 @@ class ToolbarButton{
 function getBlock(el: HTMLElement, root: HTMLElement): HTMLElement {
     const block = el.closest(BLOCK_SELECTOR);
     return (block as HTMLElement) ?? (root as HTMLElement);
+}
+function getElementAttributes(element: HTMLElement): [classes: Set<string>, styles: Map<string, string>]{
+    const classes = new Set(element.className.split(/\s+/).filter(c => c));
+
+    const styles = new Map<string, string>();
+    for (let i = 0; i < element.style.length; i++) {
+        const prop = element.style[i];
+        styles.set(prop, element.style.getPropertyValue(prop));
+    }
+
+    return [classes, styles];
+}
+function areSiblingsAdjacent(a: Node, b: Node): boolean {
+    const mid = a.nextSibling;
+    if (mid?.nodeValue === null) return false;
+    return (mid === b || mid?.nodeValue.length === 0)
+}
+function areSiblingsEqual(a: Element, b: Element): boolean {
+    const [aClasses, aStyles] = getElementAttributes(a as HTMLElement);
+    const [bClasses, bStyles] = getElementAttributes(b as HTMLElement);
+
+    // compare classes, styles, and tags.
+    return (aClasses.size === bClasses.size && [...aClasses].every(x => bClasses.has(x)) && 
+            aStyles.size === bStyles.size && [...aStyles].every(([k,v]) => bStyles.get(k) === v) &&
+            a.tagName === b.tagName)
+}
+function mergeElementBintoElementA(a: Element, b: Element): Element {
+    while (b.firstChild) a.appendChild(b.firstChild);
+    a.normalize();
+    b.remove();
+    return a;
 }
 function placeCaretAtStart(el: HTMLElement) {
     const sel = window.getSelection();
