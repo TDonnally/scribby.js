@@ -14,6 +14,8 @@ class Scribby {
         content = `
             <h1>Hi there!</h1>
             <p>Jot something down.</p>
+            <p>Jot <span style = "font-weight: bold;">something</span> down.</p>
+            <p>Jot something down.</p>
         `,
     ) {
         this.selector = selector;
@@ -162,6 +164,7 @@ class Scribby {
             if (startEl == null) return;
             const styles = startEl.style;
             this.styleElements = new Map;
+            console.log(getBlockRanges(range, this.el));
 
             for (let i = 0; i < styles.length; i++) {
                 const value = styles.getPropertyValue(styles[i]);
@@ -255,126 +258,127 @@ class ToolbarButton {
             const sel = this.scribby.selection;
             if (!sel || sel.rangeCount === 0) return;
             const range = sel.getRangeAt(0);
-            const rangeOffset = range.startOffset;
-            let startEl = range.startContainer.parentElement;
-            if (startEl == null) return;
-            const block = getBlock(startEl, this.scribby.el);
-
-
+            const blockRanges = getBlockRanges(range, this.scribby.el)
             /**
              * 1. extract range
              * 2. manipulate nodes
              * 3. replace
              * 4. cleanup
              */
-            console.log(rangeOffset)
-            if (range.toString().length > 0) {
-                const extractedContents = range.extractContents();
-                for (const node of extractedContents.childNodes) {
-                    console.log(node);
-                    if (node.nodeType === Node.TEXT_NODE) {
-                        const span = document.createElement('span');
-                        let parentClasses: Set<string> | null = null;
-                        let parentStyles: Map<string, string> | null = null;
-                        if (range.startContainer === range.endContainer && startEl?.tagName === 'SPAN') {
-                            const [parentClassesSet, parentStylesMap] = getElementAttributes(startEl as HTMLElement);
-                            parentStyles = parentStylesMap;
-                            parentClasses = parentClassesSet
+            blockRanges.forEach(({ block, blockRange }) => {
+                const rangeOffset = blockRange.startOffset;
+                let startEl = blockRange.startContainer.nodeType === Node.ELEMENT_NODE
+                    ? blockRange.startContainer as HTMLElement
+                    : blockRange.startContainer.parentElement;
+                if (startEl == null) return;
+                if (blockRange.toString().length > 0) {
+                    const extractedContents = blockRange.extractContents();
+                    for (const node of extractedContents.childNodes) {
+                        console.log(node);
+                        if (node.nodeType === Node.TEXT_NODE) {
+                            const span = document.createElement('span');
+                            let parentClasses: Set<string> | null = null;
+                            let parentStyles: Map<string, string> | null = null;
+                            if (blockRange.startContainer === blockRange.endContainer && startEl?.tagName === 'SPAN') {
+                                const [parentClassesSet, parentStylesMap] = getElementAttributes(startEl as HTMLElement);
+                                parentStyles = parentStylesMap;
+                                parentClasses = parentClassesSet
+
+                            }
+
+                            if (parentStyles) {
+                                for (const [prop, value] of parentStyles) {
+                                    span.style.setProperty(prop, value);
+                                }
+                            }
+                            if (parentClasses) {
+                                for (const elClass of parentClasses) {
+                                    span.classList.add(elClass);
+                                }
+                            }
+                            for (const [k, v] of Object.entries(this.attributes)) {
+                                if (span.style.getPropertyValue(k) != v) {
+                                    span.style.setProperty(k, String(v));
+                                }
+                                else {
+                                    span.style.removeProperty(k);
+                                }
+
+                            }
+
+                            span.textContent = node.textContent;
+                            node.replaceWith(span);
+                            console.log(node);
 
                         }
+                        else if (node.nodeType === Node.ELEMENT_NODE && (node as Element).tagName === 'SPAN') {
+                            const span = node as HTMLSpanElement;
 
-                        if (parentStyles) {
-                            for (const [prop, value] of parentStyles) {
-                                span.style.setProperty(prop, value);
-                            }
-                        }
-                        if (parentClasses) {
-                            for (const elClass of parentClasses) {
-                                span.classList.add(elClass);
-                            }
-                        }
-                        for (const [k, v] of Object.entries(this.attributes)) {
-                            if (span.style.getPropertyValue(k) != v) {
+                            for (const [k, v] of Object.entries(this.attributes)) {
                                 span.style.setProperty(k, String(v));
                             }
-                            else {
-                                span.style.removeProperty(k);
-                            }
-
-                        }
-
-                        span.textContent = node.textContent;
-                        node.replaceWith(span);
-                        console.log(node);
-
-                    }
-                    else if (node.nodeType === Node.ELEMENT_NODE && (node as Element).tagName === 'SPAN') {
-                        const span = node as HTMLSpanElement;
-
-                        for (const [k, v] of Object.entries(this.attributes)) {
-                            span.style.setProperty(k, String(v));
                         }
                     }
-                }
-                if (range.startContainer === range.endContainer && startEl != block) {
-                    console.log(extractedContents);
-                    const lastSpan = startEl.cloneNode(true);
-                    lastSpan.textContent = startEl.textContent?.substring(rangeOffset);
-                    startEl.textContent = startEl.textContent?.substring(0, rangeOffset);
-                    startEl.after(extractedContents, lastSpan);
-                }
-                else {
-                    console.log(extractedContents);
-                    const referenceNode = document.createTextNode('');
-                    range.insertNode(referenceNode);
-                    referenceNode.replaceWith(extractedContents);
-                }
-
-                range.selectNodeContents(extractedContents);
-                range.collapse(true);
-            }
-
-            else if (range.toString().length == 0 && startEl.tagName === "SPAN") {
-
-                for (const [k, v] of Object.entries(this.attributes)) {
-                    if (startEl.style.getPropertyValue(k) == v) {
-                        startEl.style.removeProperty(k);
+                    if (blockRange.startContainer === blockRange.endContainer && startEl != block) {
+                        console.log(extractedContents);
+                        const lastSpan = startEl.cloneNode(true);
+                        lastSpan.textContent = startEl.textContent?.substring(rangeOffset);
+                        startEl.textContent = startEl.textContent?.substring(0, rangeOffset);
+                        startEl.after(extractedContents, lastSpan);
                     }
                     else {
-                        startEl.style.setProperty(k, String(v));
+                        console.log(extractedContents);
+                        const referenceNode = document.createTextNode('');
+                        blockRange.insertNode(referenceNode);
+                        referenceNode.replaceWith(extractedContents);
+                    }
+
+                    blockRange.selectNodeContents(extractedContents);
+                    blockRange.collapse(true);
+                }
+
+                else if (blockRange.toString().length == 0 && startEl.tagName === "SPAN") {
+
+                    for (const [k, v] of Object.entries(this.attributes)) {
+                        if (startEl.style.getPropertyValue(k) == v) {
+                            startEl.style.removeProperty(k);
+                        }
+                        else {
+                            startEl.style.setProperty(k, String(v));
+                        }
+                    }
+                    if (startEl.style.length == 0) {
+                        const innerHtml = startEl.innerHTML;
+                        const frag = document.createRange().createContextualFragment(innerHtml);
+                        startEl.replaceWith(frag);
                     }
                 }
-                if (startEl.style.length == 0) {
-                    const innerHtml = startEl.innerHTML;
-                    const frag = document.createRange().createContextualFragment(innerHtml);
-                    startEl.replaceWith(frag);
-                }
-            }
 
-            // cleanup
-            removeEmptyTextNodes(block);
-            const children = block.children;
+                // cleanup
+                removeEmptyTextNodes(block);
+                const children = block.children;
 
-            for (let i = 0; i < children.length;) {
-                const child = children[i]
-                if (child.innerHTML.length == 0) {
-                    child.remove();
+                for (let i = 0; i < children.length;) {
+                    const child = children[i]
+                    if (child.innerHTML.length == 0) {
+                        child.remove();
+                    }
+                    if (i >= children.length - 1) {
+                        break;
+                    }
+                    const nextChild = children[i + 1]
+                    const adjacent = areSiblingsAdjacent(child, nextChild);
+                    const equal = areSiblingsEqual(child, nextChild);
+                    console.log(`Adjacent: ${adjacent} Equal: ${equal}`);
+                    if (adjacent && equal) {
+                        mergeElementBintoElementA(child, nextChild);
+                    }
+                    else {
+                        i++;
+                    }
                 }
-                if (i >= children.length - 1) {
-                    break;
-                }
-                const nextChild = children[i + 1]
-                const adjacent = areSiblingsAdjacent(child, nextChild);
-                const equal = areSiblingsEqual(child, nextChild);
-                console.log(`Adjacent: ${adjacent} Equal: ${equal}`);
-                if (adjacent && equal) {
-                    mergeElementBintoElementA(child, nextChild);
-                }
-                else {
-                    i++;
-                }
-            }
-            block.normalize();
+                block.normalize();
+            });
         })
     }
 }
@@ -382,6 +386,39 @@ class ToolbarButton {
 function getBlock(el: HTMLElement, root: HTMLElement): HTMLElement {
     const block = el.closest(BLOCK_SELECTOR);
     return (block as HTMLElement) ?? (root as HTMLElement);
+}
+function getBlockRanges(range: Range, root: HTMLElement): Array<{ block: HTMLElement, blockRange: Range }> {
+    const result = new Array();
+
+    const container = range.commonAncestorContainer.parentElement!;
+
+    const blocks = Array.from(container.querySelectorAll(BLOCK_SELECTOR))
+        .filter(block => range.intersectsNode(block));
+
+    if (blocks.length === 0) {
+        blocks.push(getBlock(range.startContainer.parentElement as HTMLElement, root));
+    }
+
+    blocks.forEach((block, index) => {
+        const blockRange = document.createRange();
+
+        if (blocks.length === 1) {
+            blockRange.setStart(range.startContainer, range.startOffset);
+            blockRange.setEnd(range.endContainer, range.endOffset);
+        } else if (index === 0) {
+            blockRange.setStart(range.startContainer, range.startOffset);
+            blockRange.setEndAfter(block.lastChild || block);
+        } else if (index === blocks.length - 1) {
+            blockRange.setStartBefore(block.firstChild || block);
+            blockRange.setEnd(range.endContainer, range.endOffset);
+        } else {
+            blockRange.selectNodeContents(block);
+        }
+
+        result.push({ block, blockRange });
+    });
+
+    return result;
 }
 function getElementAttributes(element: HTMLElement): [classes: Set<string>, styles: Map<string, string>] {
     const classes = new Set(element.className.split(/\s+/).filter(c => c));
