@@ -1,4 +1,5 @@
-const BLOCK_SELECTOR = "p,h1,h2,h3,h4,h5,h6,li,blockquote";
+const BLOCK_SELECTOR = "p,img,h1,h2,h3,h4,h5,h6,li,blockquote";
+const parser = new DOMParser();
 
 class Scribby {
     selector: string;
@@ -8,23 +9,28 @@ class Scribby {
     textElement: string;
     styleElements: Map<string, string>;
     selection!: Selection | null;
+    allowedBlockStyles: Set<string>;
+    allowedSpanStyles: Set<string>;
 
     constructor(
         selector = "",
         content = `
             <h1>Hi there!</h1>
             <p>Jot something down.</p>
-            <p>Jot <span style = "font-weight: bold;">something</span> down.</p>
-            <p>Jot something down.</p>
+            <p>This is a <span style = "font-weight: bold;">test</span> paragraph</p>
+            <p>Another paragraph</p>
+            <p>And a paragraph with <a href = "https://google.com">some link</a> inline</p>
         `,
     ) {
         this.selector = selector;
         this.el;
         this.content = content;
-        this.toolbar;
         this.textElement = "p";
         this.styleElements = new Map;
         this.selection;
+        this.allowedBlockStyles = new Set;
+        this.allowedSpanStyles = new Set;
+        this.toolbar = new Toolbar(this).mount();
     }
     mount() {
         const container = document.querySelector<HTMLDivElement>(`${this.selector}`);
@@ -39,8 +45,6 @@ class Scribby {
 
         container.appendChild(this.el);
 
-        // mount toolbar
-        this.toolbar = new Toolbar(this).mount();
         this.el.insertAdjacentElement("beforebegin", this.toolbar.el);
 
         this.el.addEventListener("keydown", (e) => {
@@ -108,6 +112,7 @@ class Scribby {
                     }
                     // middle of block
                     else {
+                        // This doesn't work if the range covers multiple blocks. Will need to use getBlockRanges() method
                         const tailRange = range.cloneRange();
                         tailRange.setEndAfter(block);
 
@@ -164,7 +169,8 @@ class Scribby {
             if (startEl == null) return;
             const styles = startEl.style;
             this.styleElements = new Map;
-            console.log(getBlockRanges(range, this.el));
+            const blockRanges = getBlockRanges(range, this.el);
+            console.log(blockRanges);
 
             for (let i = 0; i < styles.length; i++) {
                 const value = styles.getPropertyValue(styles[i]);
@@ -182,7 +188,207 @@ class Scribby {
                 }
             })
         })
+        this.el.addEventListener("paste", (e) => {
+            /**
+             * steps:
+             * 1. Grab blocks
+             * 2. If no blocks, extract text content 
+             * 3. Retain links/images in both cases
+             * 4. Remove any hot allowed block styles 
+             * 5. If cursor is at end of block or at new block, paste as blocks
+             * 6. Else if, cursor is within block, paste as plain text within block
+             * */
+            e.preventDefault();
+            this.selection = window.getSelection();
+            const sel = this.selection;
+            if (!sel || sel.rangeCount === 0) return;
+            const range = sel.getRangeAt(0);
+            const blockRanges = getBlockRanges(range, this.el);
+            console.log(range.startContainer.parentElement);
 
+            const lastBlock = blockRanges[blockRanges.length-1];
+            const tailRange = document.createRange();
+            tailRange.setStart(lastBlock.blockRange.endContainer, lastBlock.blockRange.endOffset); 
+            tailRange.setEnd(lastBlock.block, lastBlock.block.childNodes.length);
+            const tailFrag = tailRange.extractContents();
+
+            const marker = document.createTextNode('');
+
+            if (e.clipboardData == null) {
+                return;
+            }
+            let html = e.clipboardData?.getData('text/html') || '';
+            const plain = e.clipboardData?.getData('text/plain') || '';
+
+            const frag = document.createDocumentFragment();
+
+            if (!html && plain) {
+                console.log("no html")
+                html = '<p>' + plain
+                    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+                    .replace(/\r\n/g, '\n')
+                    .replace(/\n{2,}/g, '</p><p>')
+                    .replace(/\n/g, '<br>') + '</p>';
+            }
+
+            const snippet = parser.parseFromString(html, 'text/html');
+            const snippetBlocks = snippet.querySelectorAll(BLOCK_SELECTOR);
+
+            if (snippetBlocks.length > 0) {
+                snippetBlocks.forEach((el) => {
+                    const htmlEl = el as HTMLElement;
+                    htmlEl.querySelectorAll('*:not(a, img, span)').forEach(child => {
+                        const text = child.textContent || '';
+                        if (text) {
+                            const textNode = document.createTextNode(text);
+                            child.replaceWith(textNode);
+                        }
+                    });
+
+                    htmlEl.querySelectorAll('a').forEach(anchor => {
+                        const href = anchor.getAttribute('href');
+                        while (anchor.attributes.length > 0) {
+                            anchor.removeAttribute(anchor.attributes[0].name);
+                        }
+                        if (href) {
+                            anchor.setAttribute('href', href);
+                        } else {
+                            const text = anchor.textContent || '';
+                            anchor.replaceWith(document.createTextNode(text));
+                        }
+                    });
+                    
+                    htmlEl.querySelectorAll('img').forEach(img => {
+                        img.removeAttribute('style');
+                        img.removeAttribute('class');
+                    });
+
+                    htmlEl.querySelectorAll('span').forEach(span => {
+                        const [spanClassesSet, spanStylesMap] = getElementAttributes(span);
+                        if (spanStylesMap) {
+                            for (const [prop, value] of spanStylesMap) {
+                                if (!this.allowedSpanStyles.has(prop)) {
+                                    span.style.removeProperty(prop);
+                                }
+
+                            }
+                        }
+                        span.innerHTML = span.textContent;
+                    });
+
+                    const [elClassesSet, elStylesMap] = getElementAttributes(htmlEl);
+                    if (elStylesMap) {
+                        for (const [prop, value] of elStylesMap) {
+                            if (!this.allowedBlockStyles.has(prop)) {
+                                htmlEl.style.removeProperty(prop);
+                            }
+
+                        }
+                    }
+
+                    
+                    for (const name of htmlEl.getAttributeNames()) {
+                        htmlEl.removeAttribute(name);
+                    }
+                    const clone = document.importNode(el, true);
+                    frag.appendChild(clone);
+                })
+                // insertion
+                const startBlock = range.startContainer.parentElement;
+                let lastInserted = startBlock;
+                range.deleteContents();
+
+                let i = 0;
+                while (frag.firstChild) {
+                    const node = frag.firstChild as Node;  
+
+                    if (i === 0) {
+                        if (node.nodeType === Node.ELEMENT_NODE) {
+                            
+                            while ((node as Element).firstChild) {
+                                startBlock!.appendChild((node as Element).firstChild!);
+                            }
+                            (node as Element).remove();
+                        } else {
+                            marker.appendChild(node);
+                        }
+                        lastInserted = startBlock;
+                    } else {
+                        lastInserted!.after(node);              
+                        if (node.nodeType === Node.ELEMENT_NODE) {
+                            lastInserted = node as HTMLElement;  
+                        }
+                    }
+
+                    i++;
+                }
+                while (tailFrag.firstChild) {
+                    lastInserted!.appendChild(tailFrag.firstChild);
+                }
+                
+                
+                
+            }
+            // no blocks; just text/spans/anchors/images
+            else if (snippetBlocks.length == 0) {
+                console.log("no blocks");
+                const temp = document.createElement('div');
+                temp.innerHTML = snippet.body?.innerHTML || '';
+
+                temp.querySelectorAll('*:not(a, img, span)').forEach(child => {
+                    const text = child.textContent || '';
+                    if (text) {
+                        const textNode = document.createTextNode(text);
+                        child.replaceWith(textNode);
+                    }
+                });
+                temp.querySelectorAll('a').forEach(anchor => {
+                    const href = anchor.getAttribute('href');
+                    while (anchor.attributes.length > 0) {
+                        anchor.removeAttribute(anchor.attributes[0].name);
+                    }
+                    if (href) {
+                        anchor.setAttribute('href', href);
+                    } else {
+                        const text = anchor.textContent || '';
+                        anchor.replaceWith(document.createTextNode(text));
+                    }
+                });
+                temp.querySelectorAll('img').forEach(img => {
+                    img.removeAttribute('style');
+                    img.removeAttribute('class');
+                });
+                temp.querySelectorAll('span').forEach(span => {
+                    const [spanClassesSet, spanStylesMap] = getElementAttributes(span);
+                    if (spanStylesMap) {
+                        for (const [prop, value] of spanStylesMap) {
+                            if (!this.allowedSpanStyles.has(prop)) {
+                                span.style.removeProperty(prop);
+                            }
+
+                        }
+                    }
+                    span.innerHTML = span.textContent;
+
+                });
+                while (temp.firstChild) {
+                    temp.firstChild.normalize();
+                    frag.appendChild(temp.firstChild);
+                }
+                // insertion
+                range.deleteContents();
+                range.insertNode(marker);
+                marker.before(frag, tailFrag);
+            }
+            
+            const newRange = document.createRange();
+            newRange.setStartAfter(marker);
+            newRange.collapse(true);
+            sel.removeAllRanges();
+            sel.addRange(newRange);
+            marker.remove();
+
+        })
         return this
     }
 
@@ -194,6 +400,7 @@ class Toolbar {
     bold: ToolbarButton;
     italic: ToolbarButton;
     underline: ToolbarButton;
+    strikethrough: ToolbarButton;
     //code: ToolbarButton;
     //codeBlock: ToolbarButton;
     //insert: ToolbarButton;
@@ -207,6 +414,7 @@ class Toolbar {
         this.bold = new ToolbarButton(scribby, "B", { "font-weight": "bold" });
         this.italic = new ToolbarButton(scribby, "I", { "font-style": "italic" });
         this.underline = new ToolbarButton(scribby, "U", { "text-decoration": "underline" });
+        this.strikethrough = new ToolbarButton(scribby, "S", { "text-decoration": "line-through" });
         //this.code = new ToolbarButton(scribby, "<>", "code");
         //this.codeBlock = new ToolbarButton(scribby, "[</>]", "chroma");
         //this.insert = document.createElement("button");
@@ -216,40 +424,55 @@ class Toolbar {
         this.bold.mount();
         this.italic.mount();
         this.underline.mount();
+        this.strikethrough.mount();
         //this.code.mount();
         //this.codeBlock.mount();
 
         this.el.appendChild(this.bold.el)
         this.el.appendChild(this.italic.el)
         this.el.appendChild(this.underline.el)
+        this.el.appendChild(this.strikethrough.el)
         //this.el.appendChild(this.code.el)
         //this.el.appendChild(this.codeBlock.el)
 
         return this;
     }
 }
-
+enum affectedElementType {
+    Block = "block",
+    Span = "span",
+}
 class ToolbarButton {
     scribby: Scribby
     innerContent: string;
     attributes: Record<string, string>;
     el!: HTMLButtonElement;
+    affectedElType: affectedElementType;
+
     constructor(
         scribby: Scribby,
         innerContent = "",
         attributes = {},
+        affectedElType = affectedElementType.Span,
         el = document.createElement("button"),
     ) {
         this.scribby = scribby;
         this.el = el;
         this.innerContent = innerContent;
         this.attributes = attributes;
+        this.affectedElType = affectedElType;
     }
     mount() {
         this.el.classList.add("toolbar-button");
         this.el.innerHTML = this.innerContent;
         let dataAttributeString: string = "";
         for (const [k, v] of Object.entries(this.attributes)) {
+            if (this.affectedElType === affectedElementType.Block) {
+                this.scribby.allowedBlockStyles.add(k);
+            }
+            else if (this.affectedElType === affectedElementType.Span) {
+                this.scribby.allowedSpanStyles.add(k);
+            }
             dataAttributeString += v;
         }
 
@@ -274,18 +497,16 @@ class ToolbarButton {
                 if (blockRange.toString().length > 0) {
                     const extractedContents = blockRange.extractContents();
                     for (const node of extractedContents.childNodes) {
-                        console.log(node);
                         if (node.nodeType === Node.TEXT_NODE) {
                             const span = document.createElement('span');
                             let parentClasses: Set<string> | null = null;
                             let parentStyles: Map<string, string> | null = null;
-                            if (blockRange.startContainer === blockRange.endContainer && startEl?.tagName === 'SPAN') {
+                            if (blockRange.startContainer === blockRange.endContainer && startEl?.tagName === 'SPAN' && startEl.contains(blockRange.startContainer)) {
                                 const [parentClassesSet, parentStylesMap] = getElementAttributes(startEl as HTMLElement);
                                 parentStyles = parentStylesMap;
                                 parentClasses = parentClassesSet
 
                             }
-
                             if (parentStyles) {
                                 for (const [prop, value] of parentStyles) {
                                     span.style.setProperty(prop, value);
@@ -308,26 +529,28 @@ class ToolbarButton {
 
                             span.textContent = node.textContent;
                             node.replaceWith(span);
-                            console.log(node);
 
                         }
                         else if (node.nodeType === Node.ELEMENT_NODE && (node as Element).tagName === 'SPAN') {
                             const span = node as HTMLSpanElement;
 
                             for (const [k, v] of Object.entries(this.attributes)) {
-                                span.style.setProperty(k, String(v));
+                                if (span.style.getPropertyValue(k) != v) {
+                                    span.style.setProperty(k, String(v));
+                                }
+                                else {
+                                    span.style.removeProperty(k);
+                                }
                             }
                         }
                     }
                     if (blockRange.startContainer === blockRange.endContainer && startEl != block) {
-                        console.log(extractedContents);
                         const lastSpan = startEl.cloneNode(true);
                         lastSpan.textContent = startEl.textContent?.substring(rangeOffset);
                         startEl.textContent = startEl.textContent?.substring(0, rangeOffset);
                         startEl.after(extractedContents, lastSpan);
                     }
                     else {
-                        console.log(extractedContents);
                         const referenceNode = document.createTextNode('');
                         blockRange.insertNode(referenceNode);
                         referenceNode.replaceWith(extractedContents);
@@ -369,7 +592,6 @@ class ToolbarButton {
                     const nextChild = children[i + 1]
                     const adjacent = areSiblingsAdjacent(child, nextChild);
                     const equal = areSiblingsEqual(child, nextChild);
-                    console.log(`Adjacent: ${adjacent} Equal: ${equal}`);
                     if (adjacent && equal) {
                         mergeElementBintoElementA(child, nextChild);
                     }
@@ -484,8 +706,6 @@ class ToolbarDropdownButton{
 /* text Hierarchy toggle */
 
 /* lists */
-
-/* make bold/italic/underlines/strikethrough */
 
 /* links */
 
