@@ -1,4 +1,4 @@
-const BLOCK_SELECTOR = "p,img,h1,h2,h3,h4,h5,h6,li,blockquote";
+const BLOCK_SELECTOR = "p,img,h1,h2,h3,h4,h5,h6,li,blockquote, code";
 const parser = new DOMParser();
 
 class Scribby {
@@ -396,11 +396,14 @@ class Scribby {
 class Toolbar {
     scribby!: Scribby;
     el!: HTMLDivElement;
-    //textType: ToolbarButton;
+    textType: ToolbarDropdownButton;
     bold: ToolbarButton;
     italic: ToolbarButton;
     underline: ToolbarButton;
     strikethrough: ToolbarButton;
+    alignLeft: ToolbarButton;
+    alignCenter: ToolbarButton;
+    alignRight: ToolbarButton;
     //code: ToolbarButton;
     //codeBlock: ToolbarButton;
     //insert: ToolbarButton;
@@ -410,28 +413,46 @@ class Toolbar {
     ) {
         this.scribby = scribby
         this.el = document.createElement("div");
-        //this.insert = document.createElement("button");
+        this.textType = new ToolbarDropdownButton(scribby, "Choose Font", [
+            new ToolbarButton(scribby, "Header 1", {}, affectedElementType.Block, "h1"),
+            new ToolbarButton(scribby, "Header 2", {}, affectedElementType.Block, "h2"),
+            new ToolbarButton(scribby, "Header 3", {}, affectedElementType.Block, "h3"),
+            new ToolbarButton(scribby, "Header 4", {}, affectedElementType.Block, "h4"),
+            new ToolbarButton(scribby, "Header 5", {}, affectedElementType.Block, "h5"),
+            new ToolbarButton(scribby, "Header 6", {}, affectedElementType.Block, "h6"),
+            new ToolbarButton(scribby, "p", {}, affectedElementType.Block, "p"),
+        ]);
         this.bold = new ToolbarButton(scribby, "B", { "font-weight": "bold" });
         this.italic = new ToolbarButton(scribby, "I", { "font-style": "italic" });
         this.underline = new ToolbarButton(scribby, "U", { "text-decoration": "underline" });
         this.strikethrough = new ToolbarButton(scribby, "S", { "text-decoration": "line-through" });
+        this.alignLeft = new ToolbarButton(scribby, "L", { "text-align": "left" }, affectedElementType.Block);
+        this.alignCenter = new ToolbarButton(scribby, "=", { "text-align": "center" }, affectedElementType.Block);
+        this.alignRight = new ToolbarButton(scribby, "R", { "text-align": "right" }, affectedElementType.Block);
         //this.code = new ToolbarButton(scribby, "<>", "code");
         //this.codeBlock = new ToolbarButton(scribby, "[</>]", "chroma");
         //this.insert = document.createElement("button");
     }
     mount() {
         this.el.classList.add("toolbar");
+        this.textType.mount();
         this.bold.mount();
         this.italic.mount();
         this.underline.mount();
         this.strikethrough.mount();
+        this.alignLeft.mount();
+        this.alignCenter.mount();
+        this.alignRight.mount();
         //this.code.mount();
         //this.codeBlock.mount();
-
+        this.el.appendChild(this.textType.el);
         this.el.appendChild(this.bold.el)
         this.el.appendChild(this.italic.el)
         this.el.appendChild(this.underline.el)
         this.el.appendChild(this.strikethrough.el)
+        this.el.appendChild(this.alignLeft.el)
+        this.el.appendChild(this.alignCenter.el)
+        this.el.appendChild(this.alignRight.el)
         //this.el.appendChild(this.code.el)
         //this.el.appendChild(this.codeBlock.el)
 
@@ -442,18 +463,21 @@ enum affectedElementType {
     Block = "block",
     Span = "span",
 }
+
 class ToolbarButton {
     scribby: Scribby
     innerContent: string;
     attributes: Record<string, string>;
     el!: HTMLButtonElement;
     affectedElType: affectedElementType;
+    tag: string | null
 
     constructor(
         scribby: Scribby,
         innerContent = "",
         attributes = {},
         affectedElType = affectedElementType.Span,
+        tag:string | null = null,
         el = document.createElement("button"),
     ) {
         this.scribby = scribby;
@@ -461,6 +485,7 @@ class ToolbarButton {
         this.innerContent = innerContent;
         this.attributes = attributes;
         this.affectedElType = affectedElType;
+        this.tag = tag;
     }
     mount() {
         this.el.classList.add("toolbar-button");
@@ -489,6 +514,29 @@ class ToolbarButton {
              * 4. cleanup
              */
             blockRanges.forEach(({ block, blockRange }) => {
+                // handle block buttons
+                if (this.affectedElType == "block" && this.tag == null){
+                    for (const [k, v] of Object.entries(this.attributes)) {
+                        if (block.style.getPropertyValue(k) != v) {
+                            block.style.setProperty(k, String(v));
+                        }
+                        else {
+                            block.style.removeProperty(k);
+                        }
+                    }
+                    return
+                }
+                else if (this.affectedElType == "block" && this.tag){
+                    const newTagEl = document.createElement(this.tag);
+                    for (const { name, value } of Array.from(block.attributes)) {
+                        newTagEl.setAttribute(name, value);
+                    }
+                    while (block.firstChild){
+                        newTagEl.appendChild(block.firstChild);
+                    }
+                    block.replaceWith(newTagEl);
+                    return
+                }
                 const rangeOffset = blockRange.startOffset;
                 let startEl = blockRange.startContainer.nodeType === Node.ELEMENT_NODE
                     ? blockRange.startContainer as HTMLElement
@@ -604,6 +652,37 @@ class ToolbarButton {
         })
     }
 }
+class ToolbarDropdownButton{
+    scribby!: Scribby;
+    el!: HTMLDivElement;
+    innerContent: string;
+    dropdownMenuButtons: ToolbarButton[];
+    constructor(
+        scribby: Scribby,
+        innerContent: string,
+        dropdownMenuButtons: ToolbarButton[],
+    ){
+        this.scribby = scribby;
+        this.innerContent = innerContent;
+        this.dropdownMenuButtons = dropdownMenuButtons;
+        this.el;
+    }
+    mount(){
+        this.el = document.createElement("div");
+        this.el.classList.add("dropdown-menu-container");
+        const openButton = document.createElement("button");
+        
+        const buttonsContainer = document.createElement("div");
+        buttonsContainer.classList.add("dropdown-menu");
+        this.dropdownMenuButtons.forEach(btn => {
+            btn.mount();
+            buttonsContainer.appendChild(btn.el);
+        })
+        openButton.innerText = this.dropdownMenuButtons[0].el.innerText;
+        this.el.append(openButton, buttonsContainer)
+    }
+
+}
 
 function getBlock(el: HTMLElement, root: HTMLElement): HTMLElement {
     const block = el.closest(BLOCK_SELECTOR);
@@ -695,15 +774,6 @@ function removeEmptyTextNodes(parent: Node) {
         }
     });
 }
-
-/*
-class ToolbarDropdownButton{
-    innerContent: string;
-    dropdownMenu: ToolbarButton[];
-}
-*/
-
-/* text Hierarchy toggle */
 
 /* lists */
 
