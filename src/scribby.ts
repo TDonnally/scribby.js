@@ -17,9 +17,9 @@ class Scribby {
         content = `
             <h1>Hi there!</h1>
             <p>Jot something down.</p>
-            <p>This is a <span style = "font-weight: bold;">test</span> paragraph</p>
+            <p>This is a <span style = "font-weight: bold;"><a href = "https://google.com">test</span> paragraph</p>
             <p>Another paragraph</p>
-            <p>And a paragraph with <a href = "https://google.com">some link</a> inline</p>
+            <p>And a paragraph with some link</a> inline</p>
         `,
     ) {
         this.selector = selector;
@@ -397,16 +397,18 @@ class Toolbar {
     scribby!: Scribby;
     el!: HTMLDivElement;
     textType: ToolbarDropdownButton;
-    bold: ToolbarButton;
-    italic: ToolbarButton;
-    underline: ToolbarButton;
-    strikethrough: ToolbarButton;
-    alignLeft: ToolbarButton;
-    alignCenter: ToolbarButton;
-    alignRight: ToolbarButton;
-    //code: ToolbarButton;
-    //codeBlock: ToolbarButton;
-    //insert: ToolbarButton;
+    bold: ToolbarStyleButton;
+    italic: ToolbarStyleButton;
+    underline: ToolbarStyleButton;
+    strikethrough: ToolbarStyleButton;
+    alignLeft: ToolbarStyleButton;
+    alignCenter: ToolbarStyleButton;
+    alignRight: ToolbarStyleButton;
+    codeBlock: ToolbarStyleButton;
+    inlineCode: ToolbarStyleButton;
+    anchor: ToolbarInsertButton;
+    orderedList: ToolbarInsertButton;
+    unorderedList: ToolbarInsertButton;
 
     constructor(
         scribby = new Scribby()
@@ -414,23 +416,33 @@ class Toolbar {
         this.scribby = scribby
         this.el = document.createElement("div");
         this.textType = new ToolbarDropdownButton(scribby, "Choose Font", [
-            new ToolbarButton(scribby, "Header 1", {}, affectedElementType.Block, "h1"),
-            new ToolbarButton(scribby, "Header 2", {}, affectedElementType.Block, "h2"),
-            new ToolbarButton(scribby, "Header 3", {}, affectedElementType.Block, "h3"),
-            new ToolbarButton(scribby, "Header 4", {}, affectedElementType.Block, "h4"),
-            new ToolbarButton(scribby, "Header 5", {}, affectedElementType.Block, "h5"),
-            new ToolbarButton(scribby, "Header 6", {}, affectedElementType.Block, "h6"),
-            new ToolbarButton(scribby, "p", {}, affectedElementType.Block, "p"),
+            new ToolbarStyleButton(scribby, "Header 1", null, affectedElementType.Block, "h1"),
+            new ToolbarStyleButton(scribby, "Header 2", null, affectedElementType.Block, "h2"),
+            new ToolbarStyleButton(scribby, "Header 3", null, affectedElementType.Block, "h3"),
+            new ToolbarStyleButton(scribby, "Header 4", null, affectedElementType.Block, "h4"),
+            new ToolbarStyleButton(scribby, "Header 5", null, affectedElementType.Block, "h5"),
+            new ToolbarStyleButton(scribby, "Header 6", null, affectedElementType.Block, "h6"),
+            new ToolbarStyleButton(scribby, "p", null, affectedElementType.Block, "p"),
         ]);
-        this.bold = new ToolbarButton(scribby, "B", { "font-weight": "bold" });
-        this.italic = new ToolbarButton(scribby, "I", { "font-style": "italic" });
-        this.underline = new ToolbarButton(scribby, "U", { "text-decoration": "underline" });
-        this.strikethrough = new ToolbarButton(scribby, "S", { "text-decoration": "line-through" });
-        this.alignLeft = new ToolbarButton(scribby, "L", { "text-align": "left" }, affectedElementType.Block);
-        this.alignCenter = new ToolbarButton(scribby, "=", { "text-align": "center" }, affectedElementType.Block);
-        this.alignRight = new ToolbarButton(scribby, "R", { "text-align": "right" }, affectedElementType.Block);
-        //this.code = new ToolbarButton(scribby, "<>", "code");
-        //this.codeBlock = new ToolbarButton(scribby, "[</>]", "chroma");
+        this.bold = new ToolbarStyleButton(scribby, "B", new Map([["font-weight", "bold"]]));
+        this.italic = new ToolbarStyleButton(scribby, "I", new Map([["font-style", "italic"]]));
+        this.underline = new ToolbarStyleButton(scribby, "U", new Map([["text-decoration", "underline"]]));
+        this.strikethrough = new ToolbarStyleButton(scribby, "S", new Map([["text-decoration", "line-through"]]));
+        this.alignLeft = new ToolbarStyleButton(scribby, "L", new Map([["text-align", "left"]]), affectedElementType.Block);
+        this.alignCenter = new ToolbarStyleButton(scribby, "=", new Map([["text-align", "center"]]), affectedElementType.Block);
+        this.alignRight = new ToolbarStyleButton(scribby, "R", new Map([["text-align", "right"]]), affectedElementType.Block);
+        this.codeBlock = new ToolbarStyleButton(scribby, "{}", null, affectedElementType.Block, "code");
+        this.inlineCode = new ToolbarStyleButton(scribby, "<>",
+            new Map([
+                ["background-color", "#f4f4f4"],
+                ["padding", "2px 4px"],
+                ["font-family", "Courier New', monospace;"],
+                ["color", "#c7254e"]
+            ]))
+        this.anchor = new ToolbarInsertButton(scribby, "a", null, insertElementType.Anchor);
+        this.orderedList = new ToolbarInsertButton(scribby, "ol", null, insertElementType.OrderedList);
+        this.unorderedList = new ToolbarInsertButton(scribby, "ul", null, insertElementType.UnorderedList);
+        //this.code = new ToolbarStyleButton(scribby, "<>", "code");
         //this.insert = document.createElement("button");
     }
     mount() {
@@ -443,31 +455,38 @@ class Toolbar {
         this.alignLeft.mount();
         this.alignCenter.mount();
         this.alignRight.mount();
-        //this.code.mount();
-        //this.codeBlock.mount();
+        this.codeBlock.mount();
+        this.inlineCode.mount();
+        this.anchor.mount();
+        this.orderedList.mount();
+        this.unorderedList.mount();
+
         this.el.appendChild(this.textType.el);
-        this.el.appendChild(this.bold.el)
-        this.el.appendChild(this.italic.el)
-        this.el.appendChild(this.underline.el)
-        this.el.appendChild(this.strikethrough.el)
-        this.el.appendChild(this.alignLeft.el)
-        this.el.appendChild(this.alignCenter.el)
-        this.el.appendChild(this.alignRight.el)
-        //this.el.appendChild(this.code.el)
-        //this.el.appendChild(this.codeBlock.el)
+        this.el.appendChild(this.bold.el);
+        this.el.appendChild(this.italic.el);
+        this.el.appendChild(this.underline.el);
+        this.el.appendChild(this.strikethrough.el);
+        this.el.appendChild(this.alignLeft.el);
+        this.el.appendChild(this.alignCenter.el);
+        this.el.appendChild(this.alignRight.el);
+        this.el.appendChild(this.codeBlock.el);
+        this.el.appendChild(this.inlineCode.el);
+        this.el.appendChild(this.anchor.el);
+        this.el.appendChild(this.orderedList.el);
+        this.el.appendChild(this.unorderedList.el);
 
         return this;
     }
 }
+
 enum affectedElementType {
     Block = "block",
     Span = "span",
 }
-
-class ToolbarButton {
+class ToolbarStyleButton {
     scribby: Scribby
     innerContent: string;
-    attributes: Record<string, string>;
+    attributes: Map<string, string> | null;
     el!: HTMLButtonElement;
     affectedElType: affectedElementType;
     tag: string | null
@@ -475,7 +494,7 @@ class ToolbarButton {
     constructor(
         scribby: Scribby,
         innerContent = "",
-        attributes = {},
+        attributes: Map<string, string> | null = null,
         affectedElType = affectedElementType.Span,
         tag:string | null = null,
         el = document.createElement("button"),
@@ -491,15 +510,18 @@ class ToolbarButton {
         this.el.classList.add("toolbar-button");
         this.el.innerHTML = this.innerContent;
         let dataAttributeString: string = "";
-        for (const [k, v] of Object.entries(this.attributes)) {
-            if (this.affectedElType === affectedElementType.Block) {
-                this.scribby.allowedBlockStyles.add(k);
+        if (this.attributes){
+            for (const [k, v] of this.attributes) {
+                if (this.affectedElType === affectedElementType.Block) {
+                    this.scribby.allowedBlockStyles.add(k);
+                }
+                else if (this.affectedElType === affectedElementType.Span) {
+                    this.scribby.allowedSpanStyles.add(k);
+                }
+                dataAttributeString += v;
             }
-            else if (this.affectedElType === affectedElementType.Span) {
-                this.scribby.allowedSpanStyles.add(k);
-            }
-            dataAttributeString += v;
         }
+        
 
         this.el.setAttribute("data-attribute", dataAttributeString);
         this.el.addEventListener("click", (e) => {
@@ -515,8 +537,8 @@ class ToolbarButton {
              */
             blockRanges.forEach(({ block, blockRange }) => {
                 // handle block buttons
-                if (this.affectedElType == "block" && this.tag == null){
-                    for (const [k, v] of Object.entries(this.attributes)) {
+                if (this.affectedElType == "block" && !this.tag && this.attributes){
+                    for (const [k, v] of this.attributes) {
                         if (block.style.getPropertyValue(k) != v) {
                             block.style.setProperty(k, String(v));
                         }
@@ -565,31 +587,34 @@ class ToolbarButton {
                                     span.classList.add(elClass);
                                 }
                             }
-                            for (const [k, v] of Object.entries(this.attributes)) {
-                                if (span.style.getPropertyValue(k) != v) {
-                                    span.style.setProperty(k, String(v));
-                                }
-                                else {
-                                    span.style.removeProperty(k);
-                                }
+                            if(this.attributes){
+                                for (const [k, v] of this.attributes) {
+                                    if (span.style.getPropertyValue(k) != v) {
+                                        span.style.setProperty(k, String(v));
+                                    }
+                                    else {
+                                        span.style.removeProperty(k);
+                                    }
 
+                                }
                             }
-
                             span.textContent = node.textContent;
                             node.replaceWith(span);
 
                         }
                         else if (node.nodeType === Node.ELEMENT_NODE && (node as Element).tagName === 'SPAN') {
                             const span = node as HTMLSpanElement;
-
-                            for (const [k, v] of Object.entries(this.attributes)) {
-                                if (span.style.getPropertyValue(k) != v) {
-                                    span.style.setProperty(k, String(v));
-                                }
-                                else {
-                                    span.style.removeProperty(k);
+                            if (this.attributes){
+                                for (const [k, v] of this.attributes) {
+                                    if (span.style.getPropertyValue(k) != v) {
+                                        span.style.setProperty(k, String(v));
+                                    }
+                                    else {
+                                        span.style.removeProperty(k);
+                                    }
                                 }
                             }
+                            
                         }
                     }
                     if (blockRange.startContainer === blockRange.endContainer && startEl != block) {
@@ -609,15 +634,17 @@ class ToolbarButton {
                 }
 
                 else if (blockRange.toString().length == 0 && startEl.tagName === "SPAN") {
-
-                    for (const [k, v] of Object.entries(this.attributes)) {
-                        if (startEl.style.getPropertyValue(k) == v) {
-                            startEl.style.removeProperty(k);
-                        }
-                        else {
-                            startEl.style.setProperty(k, String(v));
+                    if(this.attributes){
+                        for (const [k, v] of this.attributes) {
+                            if (startEl.style.getPropertyValue(k) == v) {
+                                startEl.style.removeProperty(k);
+                            }
+                            else {
+                                startEl.style.setProperty(k, String(v));
+                            }
                         }
                     }
+                    
                     if (startEl.style.length == 0) {
                         const innerHtml = startEl.innerHTML;
                         const frag = document.createRange().createContextualFragment(innerHtml);
@@ -652,15 +679,129 @@ class ToolbarButton {
         })
     }
 }
+enum insertElementType {
+    Anchor = "a",
+    Image = "img",
+    Video = "video",
+    Canvas = "canvas",
+    OrderedList = "ol",
+    UnorderedList = "ul",
+}
+class ToolbarInsertButton{
+    scribby!: Scribby;
+    innerContent: string;
+    attributes: Map<string, string> | null;
+    insertElType: insertElementType;
+    el!: HTMLButtonElement;
+    constructor(
+        scribby: Scribby,
+        innerContent: string,
+        attributes: Map<string, string> | null,
+        insertElType: insertElementType,
+    ){
+        this.scribby = scribby;
+        this.el = document.createElement("button");
+        this.innerContent = innerContent;
+        this.attributes = attributes;
+        this.insertElType = insertElType;
+    }
+    mount(){
+        this.el.classList.add("toolbar-button");
+        this.el.innerHTML = this.innerContent;
+        this.el.addEventListener("click", async (e) => {
+            const sel = this.scribby.selection;
+            if (!sel || sel.rangeCount === 0) return;
+            const range = sel.getRangeAt(0);
+            /**
+             * 1. extract range
+             * 2. if anchor, insert anchor tag into each block
+             * 3. if list, wrap blocks in type and wrap all elements in li
+             * 4. if other insert type delete range and insert that element
+             */
+            if (this.insertElType === insertElementType.Anchor){
+                const modal = new InsertModal(
+                    `
+                    <label>
+                        URL
+                        <input name="href" type="url" required />
+                    </label>
+                    <label>
+                        Title
+                        <input name="title" type="text" />
+                    </label>
+                    `
+                );
+                this.scribby.el.append(modal.modalForm);
+                const values = await modal.submission();
+                console.log(values)
+                const blockRanges = getBlockRanges(range, this.scribby.el);
+                for (const block in blockRanges){
+
+                }
+
+            }
+            else if (this.insertElType === (insertElementType.OrderedList || insertElementType.UnorderedList)){
+
+            }
+            else{
+
+            }
+            
+        })
+    }
+}
+class InsertModal{
+    scribby!: Scribby;
+    innerContent: string;
+    modalForm: HTMLFormElement;
+    submitButton: HTMLButtonElement;
+    resolveFn!: (value: Record<string, string> | null) => void;
+    constructor(
+        innerContent: string,
+    ){
+        this.innerContent = innerContent;
+        this.modalForm = document.createElement("form");
+        this.submitButton = document.createElement("button");
+        this.submitButton.type = "submit"
+        this.submitButton.innerText = "Create";
+        this.modalForm.addEventListener("submit", (e) => {
+            e.preventDefault();
+            const formData = new FormData(this.modalForm);
+            const values: Record<string, string> = {};
+            
+            for (const [key, value] of formData.entries()) {
+                values[key] = value.toString();
+            }
+            
+            this.resolveFn(values);
+            this.unmount();
+        });
+    }
+    mount(){
+        this.modalForm.classList.add("modal");
+        this.modalForm.innerHTML = this.innerContent;
+        this.modalForm.append(this.submitButton);
+    }
+    unmount() {
+        this.modalForm.remove();
+    }
+    submission(): Promise<Record<string, string> | null> {
+        return new Promise((resolve) => {
+            this.resolveFn = resolve;
+            this.mount();
+        });
+
+    }
+}
 class ToolbarDropdownButton{
     scribby!: Scribby;
     el!: HTMLDivElement;
     innerContent: string;
-    dropdownMenuButtons: ToolbarButton[];
+    dropdownMenuButtons: (ToolbarStyleButton | ToolbarInsertButton)[];
     constructor(
         scribby: Scribby,
         innerContent: string,
-        dropdownMenuButtons: ToolbarButton[],
+        dropdownMenuButtons: (ToolbarStyleButton | ToolbarInsertButton)[],
     ){
         this.scribby = scribby;
         this.innerContent = innerContent;
@@ -681,8 +822,10 @@ class ToolbarDropdownButton{
         openButton.innerText = this.dropdownMenuButtons[0].el.innerText;
         this.el.append(openButton, buttonsContainer)
     }
+    
 
 }
+
 
 function getBlock(el: HTMLElement, root: HTMLElement): HTMLElement {
     const block = el.closest(BLOCK_SELECTOR);
@@ -732,6 +875,17 @@ function getElementAttributes(element: HTMLElement): [classes: Set<string>, styl
 
     return [classes, styles];
 }
+function createElement(tag: string, attributes: Map<string, string>, classes: Set<string>): HTMLElement{
+    const newEl = document.createElement(tag);
+    for(const [k, v] of attributes){
+        newEl.setAttribute(k, v)
+    }
+    for(const c of classes){
+        newEl.classList.add(c)
+    }
+    return newEl
+}
+
 function areSiblingsAdjacent(a: Node, b: Node): boolean {
     return a.nextSibling === b;
 }
@@ -774,6 +928,7 @@ function removeEmptyTextNodes(parent: Node) {
         }
     });
 }
+
 
 /* lists */
 
