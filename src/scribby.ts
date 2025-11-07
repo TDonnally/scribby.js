@@ -12,6 +12,8 @@ class Scribby {
     allowedBlockStyles: Set<string>;
     allowedSpanStyles: Set<string>;
 
+    currentModal: InsertModal | null = null;
+
     constructor(
         selector = "",
         content = `
@@ -389,6 +391,12 @@ class Scribby {
             marker.remove();
 
         })
+        this.el.addEventListener("focusin", (e) => {
+            if (this.currentModal){
+                this.currentModal.unmount();
+                this.currentModal = null;
+            }
+        })
         return this
     }
 
@@ -709,6 +717,10 @@ class ToolbarInsertButton{
         this.el.classList.add("toolbar-button");
         this.el.innerHTML = this.innerContent;
         this.el.addEventListener("click", async (e) => {
+            if (this.scribby.currentModal){
+                this.scribby.currentModal.unmount();
+            }
+            
             const sel = this.scribby.selection;
             if (!sel || sel.rangeCount === 0) return;
             const range = sel.getRangeAt(0);
@@ -719,25 +731,52 @@ class ToolbarInsertButton{
              * 4. if other insert type delete range and insert that element
              */
             if (this.insertElType === insertElementType.Anchor){
-                const modal = new InsertModal(
+
+                this.scribby.currentModal = new InsertModal(
+                    this.scribby,
                     `
                     <label>
                         URL
-                        <input name="href" type="url" required />
+                        <input name="href" type="text" required />
                     </label>
+                    ${range.toString().length > 0 ? '' : `
                     <label>
                         Title
                         <input name="title" type="text" />
                     </label>
-                    `
+                    `}
+                    `,
+                    range.getBoundingClientRect(),
                 );
-                this.scribby.el.append(modal.modalForm);
+                const modal = this.scribby.currentModal;
+
                 const values = await modal.submission();
                 console.log(values)
-                const blockRanges = getBlockRanges(range, this.scribby.el);
-                for (const block in blockRanges){
+                if (range.toString().length > 0){
+                    const blockRanges = getBlockRanges(range, this.scribby.el);
+                    blockRanges.forEach(({ block, blockRange }) => {
+                        const anchor = document.createElement("a");
+                        anchor.href = values!.href;
+                        const extractedContents = blockRange.extractContents();
 
+                        // replace the nested anchors
+                        const nestedAnchors = extractedContents.querySelectorAll("a");
+                        nestedAnchors.forEach(nestedAnchor => {
+                            const textNode = document.createTextNode(nestedAnchor.textContent || "");
+                            nestedAnchor.replaceWith(textNode);
+                        });
+
+                        anchor.appendChild(extractedContents);
+                        blockRange.insertNode(anchor);
+                    })
                 }
+                else{
+                    const anchor = document.createElement("a");
+                    anchor.href = values!.href;
+                    anchor.innerText = values!.title;
+                    range.insertNode(anchor);
+                }
+                
 
             }
             else if (this.insertElType === (insertElementType.OrderedList || insertElementType.UnorderedList)){
@@ -755,15 +794,21 @@ class InsertModal{
     innerContent: string;
     modalForm: HTMLFormElement;
     submitButton: HTMLButtonElement;
+    rangeRect: DOMRect;
     resolveFn!: (value: Record<string, string> | null) => void;
     constructor(
+        scribby: Scribby,
         innerContent: string,
+        rangeRect: DOMRect
     ){
+        this.scribby = scribby;
         this.innerContent = innerContent;
+        this.rangeRect = rangeRect;
         this.modalForm = document.createElement("form");
         this.submitButton = document.createElement("button");
         this.submitButton.type = "submit"
         this.submitButton.innerText = "Create";
+        
         this.modalForm.addEventListener("submit", (e) => {
             e.preventDefault();
             const formData = new FormData(this.modalForm);
@@ -781,6 +826,19 @@ class InsertModal{
         this.modalForm.classList.add("modal");
         this.modalForm.innerHTML = this.innerContent;
         this.modalForm.append(this.submitButton);
+        this.scribby.el.parentElement!.append(this.modalForm);
+        // positioning
+        const modalRect = this.modalForm.getBoundingClientRect();
+        const left = this.rangeRect.left + (this.rangeRect.width / 2) - (modalRect.width / 2);
+        const top = this.rangeRect.top - modalRect.height - 10;
+        const adjustedLeft = Math.max(10, Math.min(left, window.innerWidth - modalRect.width - 10));
+        const adjustedTop = Math.max(10, top);
+        
+        this.modalForm.style.left = `${adjustedLeft}px`;
+        this.modalForm.style.top = `${adjustedTop}px`;
+        
+        const firstInput = this.modalForm.querySelector("input");
+        firstInput!.focus();
     }
     unmount() {
         this.modalForm.remove();

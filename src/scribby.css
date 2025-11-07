@@ -29,3 +29,6 @@ span>span:hover{
 span>span>span:hover{
     background-color: #E8FCE0;
 }
+.modal{
+    position: absolute;
+}
