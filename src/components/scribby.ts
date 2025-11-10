@@ -19,9 +19,18 @@ class Scribby {
         content = `
             <h1>Hi there!</h1>
             <p>Jot something down.</p>
-            <p>This is a <span style = "font-weight: bold;"><a href = "https://google.com">test</span> paragraph</p>
+            <p>This is a <span style = "font-weight: bold;">test</span> paragraph</p>
             <p>Another paragraph</p>
-            <p>And a paragraph with some link</a> inline</p>
+            <p>And a paragraph with some <a href = "https://google.com">link</a> inline</p>
+            <a href><p></p></a>
+            <ol>
+            <ul>
+            <li>test</li>
+            </ul
+            <li><h3>test
+            </h3>
+            <p>test<p/>
+            </li>
         `,
     ) {
         this.selector = selector;
@@ -724,6 +733,7 @@ class ToolbarInsertButton{
             const sel = this.scribby.selection;
             if (!sel || sel.rangeCount === 0) return;
             const range = sel.getRangeAt(0);
+            const blockRanges = getBlockRanges(range, this.scribby.el);
             /**
              * 1. extract range
              * 2. if anchor, insert anchor tag into each block
@@ -753,7 +763,7 @@ class ToolbarInsertButton{
                 const values = await modal.submission();
                 console.log(values)
                 if (range.toString().length > 0){
-                    const blockRanges = getBlockRanges(range, this.scribby.el);
+                    
                     blockRanges.forEach(({ block, blockRange }) => {
                         const anchor = document.createElement("a");
                         anchor.href = values!.href;
@@ -779,11 +789,22 @@ class ToolbarInsertButton{
                 
 
             }
-            else if (this.insertElType === (insertElementType.OrderedList || insertElementType.UnorderedList)){
+            else if (this.insertElType === insertElementType.OrderedList || this.insertElType === insertElementType.UnorderedList){
+                console.log("inserting list");
+                const list = document.createElement(this.insertElType);
+                blockRanges.forEach(({ block, blockRange }) => {
+                    const listEl = document.createElement("li");
+                    const extractedContents = blockRange.extractContents();
 
+                    listEl.appendChild(extractedContents);
+                    list.appendChild(listEl);
+                })
+                range.deleteContents();
+                range.insertNode(list);
             }
             else{
-
+                const newEl = document.createElement(this.insertElType);
+                range.insertNode(newEl);
             }
             
         })
