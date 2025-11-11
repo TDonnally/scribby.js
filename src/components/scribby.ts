@@ -1,7 +1,15 @@
-const BLOCK_SELECTOR = "p,img,h1,h2,h3,h4,h5,h6,li,blockquote, code";
+import { Normailzer } from "../normalizer/normalizer.js";
+
+import { Toolbar } from "./Toolbar.js";
+import { InsertModal } from "./Modal.js";
+
+import * as utils from "../utilities/utilities.js"
+
+
 const parser = new DOMParser();
 
-class Scribby {
+
+export class Scribby {
     selector: string;
     content: string;
     el!: HTMLDivElement;
@@ -11,6 +19,7 @@ class Scribby {
     selection!: Selection | null;
     allowedBlockStyles: Set<string>;
     allowedSpanStyles: Set<string>;
+    normalizer!: Normailzer;
 
     currentModal: InsertModal | null = null;
 
@@ -22,15 +31,18 @@ class Scribby {
             <p>This is a <span style = "font-weight: bold;">test</span> paragraph</p>
             <p>Another paragraph</p>
             <p>And a paragraph with some <a href = "https://google.com">link</a> inline</p>
-            <a href><p></p></a>
+            <a href><p>tester</p></a>
+            <li>test</li>
             <ol>
             <ul>
+            <p>test</p>
             <li>test</li>
-            </ul
+            </ul>
             <li><h3>test
             </h3>
-            <p>test<p/>
+            <p>test</p>
             </li>
+            </ol>
         `,
     ) {
         this.selector = selector;
@@ -42,6 +54,7 @@ class Scribby {
         this.allowedBlockStyles = new Set;
         this.allowedSpanStyles = new Set;
         this.toolbar = new Toolbar(this).mount();
+        this.normalizer;
     }
     mount() {
         const container = document.querySelector<HTMLDivElement>(`${this.selector}`);
@@ -53,8 +66,10 @@ class Scribby {
         this.el.contentEditable = 'true';
         this.el.classList.add("scribby");
         this.el.innerHTML = this.content;
+        
 
         container.appendChild(this.el);
+        this.normalizer = new Normailzer(this.el);
 
         this.el.insertAdjacentElement("beforebegin", this.toolbar.el);
 
@@ -70,7 +85,7 @@ class Scribby {
                 if (startEl == null) {
                     return
                 }
-                const block = getBlock(startEl, this.el);
+                const block = utils.getBlock(startEl, this.el);
 
                 if (e.shiftKey) {
                     const br = document.createElement("br");
@@ -129,7 +144,7 @@ class Scribby {
 
                         const tailFrag = tailRange.extractContents();
 
-                        const newBlock = cloneBlockShallow(block);
+                        const newBlock = utils.cloneBlockShallow(block);
 
                         let caretTarget: HTMLElement = newBlock;
                         if (this.styleElements && (this.styleElements as Map<string, string>).size > 0) {
@@ -164,7 +179,7 @@ class Scribby {
                         newBlock.normalize();
 
 
-                        placeCaretAtStart(caretTarget);
+                        utils.placeCaretAtStart(caretTarget);
                     }
 
 
@@ -180,7 +195,7 @@ class Scribby {
             if (startEl == null) return;
             const styles = startEl.style;
             this.styleElements = new Map;
-            const blockRanges = getBlockRanges(range, this.el);
+            const blockRanges = utils.getBlockRanges(range, this.el);
             console.log(blockRanges);
 
             for (let i = 0; i < styles.length; i++) {
@@ -214,7 +229,7 @@ class Scribby {
             const sel = this.selection;
             if (!sel || sel.rangeCount === 0) return;
             const range = sel.getRangeAt(0);
-            const blockRanges = getBlockRanges(range, this.el);
+            const blockRanges = utils.getBlockRanges(range, this.el);
             console.log(range.startContainer.parentElement);
 
             const lastBlock = blockRanges[blockRanges.length-1];
@@ -243,7 +258,7 @@ class Scribby {
             }
 
             const snippet = parser.parseFromString(html, 'text/html');
-            const snippetBlocks = snippet.querySelectorAll(BLOCK_SELECTOR);
+            const snippetBlocks = snippet.querySelectorAll(utils.BLOCK_SELECTOR);
 
             if (snippetBlocks.length > 0) {
                 snippetBlocks.forEach((el) => {
@@ -275,7 +290,7 @@ class Scribby {
                     });
 
                     htmlEl.querySelectorAll('span').forEach(span => {
-                        const [spanClassesSet, spanStylesMap] = getElementAttributes(span);
+                        const [spanClassesSet, spanStylesMap] = utils.getElementAttributes(span);
                         if (spanStylesMap) {
                             for (const [prop, value] of spanStylesMap) {
                                 if (!this.allowedSpanStyles.has(prop)) {
@@ -287,7 +302,7 @@ class Scribby {
                         span.innerHTML = span.textContent;
                     });
 
-                    const [elClassesSet, elStylesMap] = getElementAttributes(htmlEl);
+                    const [elClassesSet, elStylesMap] = utils.getElementAttributes(htmlEl);
                     if (elStylesMap) {
                         for (const [prop, value] of elStylesMap) {
                             if (!this.allowedBlockStyles.has(prop)) {
@@ -370,7 +385,7 @@ class Scribby {
                     img.removeAttribute('class');
                 });
                 temp.querySelectorAll('span').forEach(span => {
-                    const [spanClassesSet, spanStylesMap] = getElementAttributes(span);
+                    const [spanClassesSet, spanStylesMap] = utils.getElementAttributes(span);
                     if (spanStylesMap) {
                         for (const [prop, value] of spanStylesMap) {
                             if (!this.allowedSpanStyles.has(prop)) {
@@ -406,608 +421,14 @@ class Scribby {
                 this.currentModal = null;
             }
         })
+        this.el.addEventListener("input", (e) => {
+            const outOfOrderNodes = this.normalizer.flagNodeHierarchyViolations(this.el);
+        })
+        
         return this
     }
 
 }
-class Toolbar {
-    scribby!: Scribby;
-    el!: HTMLDivElement;
-    textType: ToolbarDropdownButton;
-    bold: ToolbarStyleButton;
-    italic: ToolbarStyleButton;
-    underline: ToolbarStyleButton;
-    strikethrough: ToolbarStyleButton;
-    alignLeft: ToolbarStyleButton;
-    alignCenter: ToolbarStyleButton;
-    alignRight: ToolbarStyleButton;
-    codeBlock: ToolbarStyleButton;
-    inlineCode: ToolbarStyleButton;
-    anchor: ToolbarInsertButton;
-    orderedList: ToolbarInsertButton;
-    unorderedList: ToolbarInsertButton;
-
-    constructor(
-        scribby = new Scribby()
-    ) {
-        this.scribby = scribby
-        this.el = document.createElement("div");
-        this.textType = new ToolbarDropdownButton(scribby, "Choose Font", [
-            new ToolbarStyleButton(scribby, "Header 1", null, affectedElementType.Block, "h1"),
-            new ToolbarStyleButton(scribby, "Header 2", null, affectedElementType.Block, "h2"),
-            new ToolbarStyleButton(scribby, "Header 3", null, affectedElementType.Block, "h3"),
-            new ToolbarStyleButton(scribby, "Header 4", null, affectedElementType.Block, "h4"),
-            new ToolbarStyleButton(scribby, "Header 5", null, affectedElementType.Block, "h5"),
-            new ToolbarStyleButton(scribby, "Header 6", null, affectedElementType.Block, "h6"),
-            new ToolbarStyleButton(scribby, "p", null, affectedElementType.Block, "p"),
-        ]);
-        this.bold = new ToolbarStyleButton(scribby, "B", new Map([["font-weight", "bold"]]));
-        this.italic = new ToolbarStyleButton(scribby, "I", new Map([["font-style", "italic"]]));
-        this.underline = new ToolbarStyleButton(scribby, "U", new Map([["text-decoration", "underline"]]));
-        this.strikethrough = new ToolbarStyleButton(scribby, "S", new Map([["text-decoration", "line-through"]]));
-        this.alignLeft = new ToolbarStyleButton(scribby, "L", new Map([["text-align", "left"]]), affectedElementType.Block);
-        this.alignCenter = new ToolbarStyleButton(scribby, "=", new Map([["text-align", "center"]]), affectedElementType.Block);
-        this.alignRight = new ToolbarStyleButton(scribby, "R", new Map([["text-align", "right"]]), affectedElementType.Block);
-        this.codeBlock = new ToolbarStyleButton(scribby, "{}", null, affectedElementType.Block, "code");
-        this.inlineCode = new ToolbarStyleButton(scribby, "<>",
-            new Map([
-                ["background-color", "#f4f4f4"],
-                ["padding", "2px 4px"],
-                ["font-family", "Courier New', monospace;"],
-                ["color", "#c7254e"]
-            ]))
-        this.anchor = new ToolbarInsertButton(scribby, "a", null, insertElementType.Anchor);
-        this.orderedList = new ToolbarInsertButton(scribby, "ol", null, insertElementType.OrderedList);
-        this.unorderedList = new ToolbarInsertButton(scribby, "ul", null, insertElementType.UnorderedList);
-        //this.code = new ToolbarStyleButton(scribby, "<>", "code");
-        //this.insert = document.createElement("button");
-    }
-    mount() {
-        this.el.classList.add("toolbar");
-        this.textType.mount();
-        this.bold.mount();
-        this.italic.mount();
-        this.underline.mount();
-        this.strikethrough.mount();
-        this.alignLeft.mount();
-        this.alignCenter.mount();
-        this.alignRight.mount();
-        this.codeBlock.mount();
-        this.inlineCode.mount();
-        this.anchor.mount();
-        this.orderedList.mount();
-        this.unorderedList.mount();
-
-        this.el.appendChild(this.textType.el);
-        this.el.appendChild(this.bold.el);
-        this.el.appendChild(this.italic.el);
-        this.el.appendChild(this.underline.el);
-        this.el.appendChild(this.strikethrough.el);
-        this.el.appendChild(this.alignLeft.el);
-        this.el.appendChild(this.alignCenter.el);
-        this.el.appendChild(this.alignRight.el);
-        this.el.appendChild(this.codeBlock.el);
-        this.el.appendChild(this.inlineCode.el);
-        this.el.appendChild(this.anchor.el);
-        this.el.appendChild(this.orderedList.el);
-        this.el.appendChild(this.unorderedList.el);
-
-        return this;
-    }
-}
-
-enum affectedElementType {
-    Block = "block",
-    Span = "span",
-}
-class ToolbarStyleButton {
-    scribby: Scribby
-    innerContent: string;
-    attributes: Map<string, string> | null;
-    el!: HTMLButtonElement;
-    affectedElType: affectedElementType;
-    tag: string | null
-
-    constructor(
-        scribby: Scribby,
-        innerContent = "",
-        attributes: Map<string, string> | null = null,
-        affectedElType = affectedElementType.Span,
-        tag:string | null = null,
-        el = document.createElement("button"),
-    ) {
-        this.scribby = scribby;
-        this.el = el;
-        this.innerContent = innerContent;
-        this.attributes = attributes;
-        this.affectedElType = affectedElType;
-        this.tag = tag;
-    }
-    mount() {
-        this.el.classList.add("toolbar-button");
-        this.el.innerHTML = this.innerContent;
-        let dataAttributeString: string = "";
-        if (this.attributes){
-            for (const [k, v] of this.attributes) {
-                if (this.affectedElType === affectedElementType.Block) {
-                    this.scribby.allowedBlockStyles.add(k);
-                }
-                else if (this.affectedElType === affectedElementType.Span) {
-                    this.scribby.allowedSpanStyles.add(k);
-                }
-                dataAttributeString += v;
-            }
-        }
-        
-
-        this.el.setAttribute("data-attribute", dataAttributeString);
-        this.el.addEventListener("click", (e) => {
-            const sel = this.scribby.selection;
-            if (!sel || sel.rangeCount === 0) return;
-            const range = sel.getRangeAt(0);
-            const blockRanges = getBlockRanges(range, this.scribby.el)
-            /**
-             * 1. extract range
-             * 2. manipulate nodes
-             * 3. replace
-             * 4. cleanup
-             */
-            blockRanges.forEach(({ block, blockRange }) => {
-                // handle block buttons
-                if (this.affectedElType == "block" && !this.tag && this.attributes){
-                    for (const [k, v] of this.attributes) {
-                        if (block.style.getPropertyValue(k) != v) {
-                            block.style.setProperty(k, String(v));
-                        }
-                        else {
-                            block.style.removeProperty(k);
-                        }
-                    }
-                    return
-                }
-                else if (this.affectedElType == "block" && this.tag){
-                    const newTagEl = document.createElement(this.tag);
-                    for (const { name, value } of Array.from(block.attributes)) {
-                        newTagEl.setAttribute(name, value);
-                    }
-                    while (block.firstChild){
-                        newTagEl.appendChild(block.firstChild);
-                    }
-                    block.replaceWith(newTagEl);
-                    return
-                }
-                const rangeOffset = blockRange.startOffset;
-                let startEl = blockRange.startContainer.nodeType === Node.ELEMENT_NODE
-                    ? blockRange.startContainer as HTMLElement
-                    : blockRange.startContainer.parentElement;
-                if (startEl == null) return;
-                if (blockRange.toString().length > 0) {
-                    const extractedContents = blockRange.extractContents();
-                    for (const node of extractedContents.childNodes) {
-                        if (node.nodeType === Node.TEXT_NODE) {
-                            const span = document.createElement('span');
-                            let parentClasses: Set<string> | null = null;
-                            let parentStyles: Map<string, string> | null = null;
-                            if (blockRange.startContainer === blockRange.endContainer && startEl?.tagName === 'SPAN' && startEl.contains(blockRange.startContainer)) {
-                                const [parentClassesSet, parentStylesMap] = getElementAttributes(startEl as HTMLElement);
-                                parentStyles = parentStylesMap;
-                                parentClasses = parentClassesSet
-
-                            }
-                            if (parentStyles) {
-                                for (const [prop, value] of parentStyles) {
-                                    span.style.setProperty(prop, value);
-                                }
-                            }
-                            if (parentClasses) {
-                                for (const elClass of parentClasses) {
-                                    span.classList.add(elClass);
-                                }
-                            }
-                            if(this.attributes){
-                                for (const [k, v] of this.attributes) {
-                                    if (span.style.getPropertyValue(k) != v) {
-                                        span.style.setProperty(k, String(v));
-                                    }
-                                    else {
-                                        span.style.removeProperty(k);
-                                    }
-
-                                }
-                            }
-                            span.textContent = node.textContent;
-                            node.replaceWith(span);
-
-                        }
-                        else if (node.nodeType === Node.ELEMENT_NODE && (node as Element).tagName === 'SPAN') {
-                            const span = node as HTMLSpanElement;
-                            if (this.attributes){
-                                for (const [k, v] of this.attributes) {
-                                    if (span.style.getPropertyValue(k) != v) {
-                                        span.style.setProperty(k, String(v));
-                                    }
-                                    else {
-                                        span.style.removeProperty(k);
-                                    }
-                                }
-                            }
-                            
-                        }
-                    }
-                    if (blockRange.startContainer === blockRange.endContainer && startEl != block) {
-                        const lastSpan = startEl.cloneNode(true);
-                        lastSpan.textContent = startEl.textContent?.substring(rangeOffset);
-                        startEl.textContent = startEl.textContent?.substring(0, rangeOffset);
-                        startEl.after(extractedContents, lastSpan);
-                    }
-                    else {
-                        const referenceNode = document.createTextNode('');
-                        blockRange.insertNode(referenceNode);
-                        referenceNode.replaceWith(extractedContents);
-                    }
-
-                    blockRange.selectNodeContents(extractedContents);
-                    blockRange.collapse(true);
-                }
-
-                else if (blockRange.toString().length == 0 && startEl.tagName === "SPAN") {
-                    if(this.attributes){
-                        for (const [k, v] of this.attributes) {
-                            if (startEl.style.getPropertyValue(k) == v) {
-                                startEl.style.removeProperty(k);
-                            }
-                            else {
-                                startEl.style.setProperty(k, String(v));
-                            }
-                        }
-                    }
-                    
-                    if (startEl.style.length == 0) {
-                        const innerHtml = startEl.innerHTML;
-                        const frag = document.createRange().createContextualFragment(innerHtml);
-                        startEl.replaceWith(frag);
-                    }
-                }
-
-                // cleanup
-                removeEmptyTextNodes(block);
-                const children = block.children;
-
-                for (let i = 0; i < children.length;) {
-                    const child = children[i]
-                    if (child.innerHTML.length == 0) {
-                        child.remove();
-                    }
-                    if (i >= children.length - 1) {
-                        break;
-                    }
-                    const nextChild = children[i + 1]
-                    const adjacent = areSiblingsAdjacent(child, nextChild);
-                    const equal = areSiblingsEqual(child, nextChild);
-                    if (adjacent && equal) {
-                        mergeElementBintoElementA(child, nextChild);
-                    }
-                    else {
-                        i++;
-                    }
-                }
-                block.normalize();
-            });
-        })
-    }
-}
-enum insertElementType {
-    Anchor = "a",
-    Image = "img",
-    Video = "video",
-    Canvas = "canvas",
-    OrderedList = "ol",
-    UnorderedList = "ul",
-}
-class ToolbarInsertButton{
-    scribby!: Scribby;
-    innerContent: string;
-    attributes: Map<string, string> | null;
-    insertElType: insertElementType;
-    el!: HTMLButtonElement;
-    constructor(
-        scribby: Scribby,
-        innerContent: string,
-        attributes: Map<string, string> | null,
-        insertElType: insertElementType,
-    ){
-        this.scribby = scribby;
-        this.el = document.createElement("button");
-        this.innerContent = innerContent;
-        this.attributes = attributes;
-        this.insertElType = insertElType;
-    }
-    mount(){
-        this.el.classList.add("toolbar-button");
-        this.el.innerHTML = this.innerContent;
-        this.el.addEventListener("click", async (e) => {
-            if (this.scribby.currentModal){
-                this.scribby.currentModal.unmount();
-            }
-            
-            const sel = this.scribby.selection;
-            if (!sel || sel.rangeCount === 0) return;
-            const range = sel.getRangeAt(0);
-            const blockRanges = getBlockRanges(range, this.scribby.el);
-            /**
-             * 1. extract range
-             * 2. if anchor, insert anchor tag into each block
-             * 3. if list, wrap blocks in type and wrap all elements in li
-             * 4. if other insert type delete range and insert that element
-             */
-            if (this.insertElType === insertElementType.Anchor){
-
-                this.scribby.currentModal = new InsertModal(
-                    this.scribby,
-                    `
-                    <label>
-                        URL
-                        <input name="href" type="text" required />
-                    </label>
-                    ${range.toString().length > 0 ? '' : `
-                    <label>
-                        Title
-                        <input name="title" type="text" />
-                    </label>
-                    `}
-                    `,
-                    range.getBoundingClientRect(),
-                );
-                const modal = this.scribby.currentModal;
-
-                const values = await modal.submission();
-                console.log(values)
-                if (range.toString().length > 0){
-                    
-                    blockRanges.forEach(({ block, blockRange }) => {
-                        const anchor = document.createElement("a");
-                        anchor.href = values!.href;
-                        const extractedContents = blockRange.extractContents();
-
-                        // replace the nested anchors
-                        const nestedAnchors = extractedContents.querySelectorAll("a");
-                        nestedAnchors.forEach(nestedAnchor => {
-                            const textNode = document.createTextNode(nestedAnchor.textContent || "");
-                            nestedAnchor.replaceWith(textNode);
-                        });
-
-                        anchor.appendChild(extractedContents);
-                        blockRange.insertNode(anchor);
-                    })
-                }
-                else{
-                    const anchor = document.createElement("a");
-                    anchor.href = values!.href;
-                    anchor.innerText = values!.title;
-                    range.insertNode(anchor);
-                }
-                
-
-            }
-            else if (this.insertElType === insertElementType.OrderedList || this.insertElType === insertElementType.UnorderedList){
-                console.log("inserting list");
-                const list = document.createElement(this.insertElType);
-                blockRanges.forEach(({ block, blockRange }) => {
-                    const listEl = document.createElement("li");
-                    const extractedContents = blockRange.extractContents();
-
-                    listEl.appendChild(extractedContents);
-                    list.appendChild(listEl);
-                })
-                range.deleteContents();
-                range.insertNode(list);
-            }
-            else{
-                const newEl = document.createElement(this.insertElType);
-                range.insertNode(newEl);
-            }
-            
-        })
-    }
-}
-class InsertModal{
-    scribby!: Scribby;
-    innerContent: string;
-    modalForm: HTMLFormElement;
-    submitButton: HTMLButtonElement;
-    rangeRect: DOMRect;
-    resolveFn!: (value: Record<string, string> | null) => void;
-    constructor(
-        scribby: Scribby,
-        innerContent: string,
-        rangeRect: DOMRect
-    ){
-        this.scribby = scribby;
-        this.innerContent = innerContent;
-        this.rangeRect = rangeRect;
-        this.modalForm = document.createElement("form");
-        this.submitButton = document.createElement("button");
-        this.submitButton.type = "submit"
-        this.submitButton.innerText = "Create";
-        
-        this.modalForm.addEventListener("submit", (e) => {
-            e.preventDefault();
-            const formData = new FormData(this.modalForm);
-            const values: Record<string, string> = {};
-            
-            for (const [key, value] of formData.entries()) {
-                values[key] = value.toString();
-            }
-            
-            this.resolveFn(values);
-            this.unmount();
-        });
-    }
-    mount(){
-        this.modalForm.classList.add("modal");
-        this.modalForm.innerHTML = this.innerContent;
-        this.modalForm.append(this.submitButton);
-        this.scribby.el.parentElement!.append(this.modalForm);
-        // positioning
-        const modalRect = this.modalForm.getBoundingClientRect();
-        const left = this.rangeRect.left + (this.rangeRect.width / 2) - (modalRect.width / 2);
-        const top = this.rangeRect.top - modalRect.height - 10;
-        const adjustedLeft = Math.max(10, Math.min(left, window.innerWidth - modalRect.width - 10));
-        const adjustedTop = Math.max(10, top);
-        
-        this.modalForm.style.left = `${adjustedLeft}px`;
-        this.modalForm.style.top = `${adjustedTop}px`;
-        
-        const firstInput = this.modalForm.querySelector("input");
-        firstInput!.focus();
-    }
-    unmount() {
-        this.modalForm.remove();
-    }
-    submission(): Promise<Record<string, string> | null> {
-        return new Promise((resolve) => {
-            this.resolveFn = resolve;
-            this.mount();
-        });
-
-    }
-}
-class ToolbarDropdownButton{
-    scribby!: Scribby;
-    el!: HTMLDivElement;
-    innerContent: string;
-    dropdownMenuButtons: (ToolbarStyleButton | ToolbarInsertButton)[];
-    constructor(
-        scribby: Scribby,
-        innerContent: string,
-        dropdownMenuButtons: (ToolbarStyleButton | ToolbarInsertButton)[],
-    ){
-        this.scribby = scribby;
-        this.innerContent = innerContent;
-        this.dropdownMenuButtons = dropdownMenuButtons;
-        this.el;
-    }
-    mount(){
-        this.el = document.createElement("div");
-        this.el.classList.add("dropdown-menu-container");
-        const openButton = document.createElement("button");
-        
-        const buttonsContainer = document.createElement("div");
-        buttonsContainer.classList.add("dropdown-menu");
-        this.dropdownMenuButtons.forEach(btn => {
-            btn.mount();
-            buttonsContainer.appendChild(btn.el);
-        })
-        openButton.innerText = this.dropdownMenuButtons[0].el.innerText;
-        this.el.append(openButton, buttonsContainer)
-    }
-    
-
-}
-
-
-function getBlock(el: HTMLElement, root: HTMLElement): HTMLElement {
-    const block = el.closest(BLOCK_SELECTOR);
-    return (block as HTMLElement) ?? (root as HTMLElement);
-}
-function getBlockRanges(range: Range, root: HTMLElement): Array<{ block: HTMLElement, blockRange: Range }> {
-    const result = new Array();
-
-    const container = range.commonAncestorContainer.parentElement!;
-
-    const blocks = Array.from(container.querySelectorAll(BLOCK_SELECTOR))
-        .filter(block => range.intersectsNode(block));
-
-    if (blocks.length === 0) {
-        blocks.push(getBlock(range.startContainer.parentElement as HTMLElement, root));
-    }
-
-    blocks.forEach((block, index) => {
-        const blockRange = document.createRange();
-
-        if (blocks.length === 1) {
-            blockRange.setStart(range.startContainer, range.startOffset);
-            blockRange.setEnd(range.endContainer, range.endOffset);
-        } else if (index === 0) {
-            blockRange.setStart(range.startContainer, range.startOffset);
-            blockRange.setEndAfter(block.lastChild || block);
-        } else if (index === blocks.length - 1) {
-            blockRange.setStartBefore(block.firstChild || block);
-            blockRange.setEnd(range.endContainer, range.endOffset);
-        } else {
-            blockRange.selectNodeContents(block);
-        }
-
-        result.push({ block, blockRange });
-    });
-
-    return result;
-}
-function getElementAttributes(element: HTMLElement): [classes: Set<string>, styles: Map<string, string>] {
-    const classes = new Set(element.className.split(/\s+/).filter(c => c));
-
-    const styles = new Map<string, string>();
-    for (let i = 0; i < element.style.length; i++) {
-        const prop = element.style[i];
-        styles.set(prop, element.style.getPropertyValue(prop));
-    }
-
-    return [classes, styles];
-}
-function createElement(tag: string, attributes: Map<string, string>, classes: Set<string>): HTMLElement{
-    const newEl = document.createElement(tag);
-    for(const [k, v] of attributes){
-        newEl.setAttribute(k, v)
-    }
-    for(const c of classes){
-        newEl.classList.add(c)
-    }
-    return newEl
-}
-
-function areSiblingsAdjacent(a: Node, b: Node): boolean {
-    return a.nextSibling === b;
-}
-function areSiblingsEqual(a: Element, b: Element): boolean {
-    const [aClasses, aStyles] = getElementAttributes(a as HTMLElement);
-    const [bClasses, bStyles] = getElementAttributes(b as HTMLElement);
-
-    // compare classes, styles, and tags.
-    return (aClasses.size === bClasses.size && [...aClasses].every(x => bClasses.has(x)) &&
-        aStyles.size === bStyles.size && [...aStyles].every(([k, v]) => bStyles.get(k) === v) &&
-        a.tagName === b.tagName)
-}
-function mergeElementBintoElementA(a: Element, b: Element): Element {
-    while (b.firstChild) a.appendChild(b.firstChild);
-    a.normalize();
-    b.remove();
-    return a;
-}
-function placeCaretAtStart(el: HTMLElement) {
-    const sel = window.getSelection();
-    if (!sel) return;
-    if (!el.firstChild) el.appendChild(document.createTextNode(""));
-    const r = document.createRange();
-    r.setStart(el, 0);
-    r.collapse(true);
-    (el.closest<HTMLElement>("[contenteditable]") || el).focus();
-    sel.removeAllRanges();
-    sel.addRange(r);
-}
-function cloneBlockShallow(src: HTMLElement): HTMLElement {
-    const clone = src.cloneNode(false) as HTMLElement;
-    clone.removeAttribute("id");
-    return clone;
-}
-function removeEmptyTextNodes(parent: Node) {
-    const nodes = Array.from(parent.childNodes);
-    nodes.forEach(node => {
-        if (node.nodeType === Node.TEXT_NODE && !node.textContent) {
-            node.remove();
-        }
-    });
-}
-
 
 /* lists */
 
@@ -1025,9 +446,3 @@ parse html and create it afterwards and create the process back and forth.
 
 /* convert between md and html */
 
-(() => {
-    let scribby = new Scribby('#scribby-editor').mount();
-    let scribby2 = new Scribby('#scribby-editor2').mount();
-    console.log(scribby)
-    console.log("scribby!")
-})();
