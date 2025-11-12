@@ -71,12 +71,6 @@ export function areSiblingsEqual(a: Element, b: Element): boolean {
         aStyles.size === bStyles.size && [...aStyles].every(([k, v]) => bStyles.get(k) === v) &&
         a.tagName === b.tagName)
 }
-export function mergeElementBintoElementA(a: Element, b: Element): Element {
-    while (b.firstChild) a.appendChild(b.firstChild);
-    a.normalize();
-    b.remove();
-    return a;
-}
 export function placeCaretAtStart(el: HTMLElement) {
     const sel = window.getSelection();
     if (!sel) return;
@@ -93,11 +87,32 @@ export function cloneBlockShallow(src: HTMLElement): HTMLElement {
     clone.removeAttribute("id");
     return clone;
 }
-export function removeEmptyTextNodes(parent: Node) {
+
+
+
+/**
+ * utilities that involve DOM manipulation
+ */
+export function mergeElementBintoElementA(a: Element, b: Element): Element {
+    while (b.firstChild) a.appendChild(b.firstChild);
+    a.normalize();
+    b.remove();
+    return a;
+}
+export function removeEmptyTextNodes(parent: Node): void {
     const nodes = Array.from(parent.childNodes);
     nodes.forEach(node => {
         if (node.nodeType === Node.TEXT_NODE && !node.textContent) {
             node.remove();
         }
     });
+}
+export function replaceElementWithChildren(el: Element): void{
+    const children = el.childNodes;
+    const parent = el.parentElement;
+    if (!parent) return;
+    for (const child of children){
+        parent.insertBefore(child, el)
+    }
+    el.remove();
 }

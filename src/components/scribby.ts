@@ -43,6 +43,7 @@ export class Scribby {
             <p>test</p>
             </li>
             </ol>
+            <scroomble>test</scroomble>
         `,
     ) {
         this.selector = selector;
@@ -422,7 +423,10 @@ export class Scribby {
             }
         })
         this.el.addEventListener("input", (e) => {
+            this.normalizer.removeNotSupportedNodes(this.el);
             const outOfOrderNodes = this.normalizer.flagNodeHierarchyViolations(this.el);
+            console.log(outOfOrderNodes);
+            
         })
         
         return this
