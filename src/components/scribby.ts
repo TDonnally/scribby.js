@@ -32,18 +32,17 @@ export class Scribby {
             <p>Another paragraph</p>
             <p>And a paragraph with some <a href = "https://google.com">link</a> inline</p>
             <a href><p>tester</p></a>
-            <li>test</li>
             <ol>
+            <li><span>test</span> test</li>
             <ul>
             <p>test</p>
-            <li>test</li>
             </ul>
             <li><h3>test
             </h3>
             <p>test</p>
             </li>
             </ol>
-            <scroomble>test</scroomble>
+            <scroomble>test <span>test</span> test</scroomble>
         `,
     ) {
         this.selector = selector;
@@ -426,6 +425,7 @@ export class Scribby {
             this.normalizer.removeNotSupportedNodes(this.el);
             const outOfOrderNodes = this.normalizer.flagNodeHierarchyViolations(this.el);
             console.log(outOfOrderNodes);
+            this.normalizer.fixHierarchyViolations(outOfOrderNodes);
             
         })
         

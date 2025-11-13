@@ -1,4 +1,4 @@
-export const BLOCK_SELECTOR = "p,img,h1,h2,h3,h4,h5,h6,li,blockquote,code";
+export const BLOCK_SELECTOR = "p,img,h1,h2,h3,h4,h5,h6,blockquote,code";
 
 export function getBlock(el: HTMLElement, root: HTMLElement): HTMLElement {
     const block = el.closest(BLOCK_SELECTOR);
@@ -111,8 +111,13 @@ export function replaceElementWithChildren(el: Element): void{
     const children = el.childNodes;
     const parent = el.parentElement;
     if (!parent) return;
-    for (const child of children){
-        parent.insertBefore(child, el)
+    while (el.firstChild) {
+        parent.insertBefore(el.firstChild, el);
     }
     el.remove();
+}
+export function changeElementTag(el: Element, tag: string): void{
+    const newEl = document.createElement(tag);
+    newEl.appendChild(el);
+    replaceElementWithChildren(el);
 }

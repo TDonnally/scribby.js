@@ -4,7 +4,7 @@
  * Rules are based on schema map
  */
 import * as utils from "../utilities/utilities.js"
-import { schema } from "../schema/schema.js";
+import { schema, nodeHierarchy } from "../schema/schema.js";
 
 export class Normailzer{
     scribbyEl: HTMLDivElement;
@@ -28,8 +28,17 @@ export class Normailzer{
             utils.replaceElementWithChildren(el);
         }
     }
-    flagNodeHierarchyViolations(root: Node): Node[]{
-        const outOfOrderNodes = new Array();
+    
+    flagNodeHierarchyViolations(root: Node): Record<nodeHierarchy, Array<Node>>{
+        const outOfOrderNodes = Object.values(nodeHierarchy)
+            .filter(value => typeof value === 'number')
+            .reduce(
+                (acc, value) => {
+                    acc[value as nodeHierarchy] = [];
+                    return acc;
+                },
+                {} as Record<nodeHierarchy, Node[]>
+            );
         const startEl = root as HTMLElement;
         const children = Array.from(startEl.childNodes);
 
@@ -45,7 +54,7 @@ export class Normailzer{
                 const parent = child.parentNode as HTMLElement;
                 const parentTag = parent?.tagName.toLocaleLowerCase();
                 if(parent && !schema.get("text")?.allowedParents.has(parentTag)){
-                    outOfOrderNodes.push(child)
+                    outOfOrderNodes[nodeHierarchy.text].push(child)
                 }
                 continue;
             }
@@ -53,13 +62,118 @@ export class Normailzer{
             const childTag = childEl.tagName.toLowerCase();
             const parent = childEl.parentElement;
             const parentTag = parent?.tagName.toLocaleLowerCase();
+            const entry = schema.get(childTag);
+            if (!entry) {
+                continue;
+            }
+            const { hierarchyLabel, allowedParents } = entry;
 
-            if (parentTag && !schema.get(childTag)?.allowedParents.has(parentTag)){
-                outOfOrderNodes.push(child)
+            if (parentTag && !allowedParents.has(parentTag)){
+                outOfOrderNodes[hierarchyLabel].push(child)
             }
             const grandChildren = Array.from(childEl.childNodes);
             children.push(...grandChildren);
         }
         return outOfOrderNodes;
     }
+    /**
+     * I split up these methods because I do not want the behavior of each type of node to be connected
+     * The logic is slightly different for each so it feels cleaner this way even if it is more verbose
+     */
+    fixHierarchyViolations(outOfOrderNodes: Record<nodeHierarchy, Array<Node>>):void{
+        const nodes = outOfOrderNodes;
+        const nodeTypetoMethod: Record<nodeHierarchy, (node: Node) => void> = {
+            [nodeHierarchy.text]: fixTextNode,
+            [nodeHierarchy.anchor]: fixTextNode, 
+            [nodeHierarchy.textEl]: fixTextNode, 
+            [nodeHierarchy.listItem]: fixTextNode, 
+            [nodeHierarchy.lists]: fixTextNode, 
+            [nodeHierarchy.tableItem]: fixTextNode, 
+            [nodeHierarchy.tableRow]: fixTextNode, 
+            [nodeHierarchy.table]: fixTextNode,
+            [nodeHierarchy.blockquote]: fixTextNode,
+            [nodeHierarchy.media]: fixTextNode,  
+        }
+
+        for(const [k,array] of Object.entries(nodes)){
+            // walk backwards so that nodes deeper in hierarchy are fixed first
+            for (let i = array.length - 1; i >= 0; i--) {
+                const node = array[i];
+                const method = nodeTypetoMethod[Number(k) as nodeHierarchy];
+                if (method) {
+                    const siblings = new Array();
+                    siblings.push(node)
+                    const parent = node.parentElement
+                    const marker = document.createTextNode("");
+                    parent?.insertBefore(marker, node)
+                    // group adjacent bad nodes so that they can be wrapped together
+                    while (i > 0) {
+                        const next = array[i - 1];
+                        const curr = array[i];
+                        
+                        if (next.previousSibling === curr) {
+                            siblings.push(next);
+                            i--;
+                        } else {
+                            break;
+                        }
+                    }
+                    const fragment = document.createDocumentFragment();
+                    for (const node of siblings){
+                        fragment.appendChild(node);
+                    }
+                    
+                    const tempDiv = document.createElement("div");
+                    tempDiv.appendChild(fragment);
+                    marker.replaceWith(tempDiv)
+                    method.call(this, tempDiv);
+                }
+            }
+        }
+
+
+        function fixTextNode(textNode: Node):void{
+            console.log(textNode)
+            const parent = textNode.parentNode as HTMLElement;
+            const parentTag = parent?.tagName.toLocaleLowerCase();
+            if(parentTag === "ol" || parentTag === "ul"){
+                const list = document.createElement("li");
+                const textEl = document.createElement("p");
+                list.appendChild(textEl);
+
+                parent.insertBefore(list, textNode);
+                textEl.appendChild(textNode);
+            }
+            else if(parentTag === "li"){
+                const textEl = document.createElement("p");
+                parent.insertBefore(textEl, textNode);
+                textEl.appendChild(textNode);
+            }
+            else if(parentTag === "div"){
+                const textEl = document.createElement("p");
+                parent.insertBefore(textEl, textNode)
+                textEl.appendChild(textNode);
+            }
+            else if(parentTag === "table" || parentTag === "tr"){
+                parent.removeChild(textNode);
+            }
+            utils.replaceElementWithChildren(textNode as HTMLElement);
+        }
+        
+        function orgainzeAnchorNode(node: Node):void{
+
+        }
+        // text element nodes are defined as (h1-p)
+        function organizeTextElNode(node: Node):void{
+
+        }
+        function organizeListNode(node: Node):void{
+
+        }
+        function organizeTableNode(node: Node):void{
+
+        }
+    }
+    
+    
 }
