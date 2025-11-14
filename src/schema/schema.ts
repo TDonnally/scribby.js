@@ -9,16 +9,17 @@
  * nodes closer to root are organized last
  */
 export enum nodeHierarchy{
-    text,
-    anchor,
+    inline,
     textEl,
     listItem,
     lists,
+    /*
     tableItem,
     tableRow, 
     table,
     blockquote,
     media
+    */
 }
 interface NodeSchema {
     defaultParent: string;
@@ -70,29 +71,32 @@ export const schema: Map<string, NodeSchema> = new Map([
         allowedChildren: new Set(['span', 'a', 'text']),
         hierarchyLabel: nodeHierarchy.textEl
     }],
+    /*
     ["blockquote", {
         defaultParent: 'div',
         allowedParents: new Set(['div']),
         allowedChildren: new Set(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'span', 'a', 'text']),
         hierarchyLabel: nodeHierarchy.blockquote
     }],
+    */
+    //inline nodes
     ["a", {
         defaultParent: 'p',
         allowedParents: new Set(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'li', 'td', 'th']),
         allowedChildren: new Set(['span', 'text']),
-        hierarchyLabel: nodeHierarchy.anchor
+        hierarchyLabel: nodeHierarchy.inline
     }],
     ["span", {
         defaultParent: 'p',
         allowedParents: new Set(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'td', 'th']),
         allowedChildren: new Set(['text']),
-        hierarchyLabel: nodeHierarchy.text
+        hierarchyLabel: nodeHierarchy.inline
     }],
     ["text", {
         defaultParent: 'p',
         allowedParents: new Set(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'a','span', 'td', 'th']),
         allowedChildren: new Set([]),
-        hierarchyLabel: nodeHierarchy.text
+        hierarchyLabel: nodeHierarchy.inline
     }],
     // lists
     ["ol", {
@@ -113,6 +117,7 @@ export const schema: Map<string, NodeSchema> = new Map([
         allowedChildren: new Set(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'span', 'a', 'text']),
         hierarchyLabel: nodeHierarchy.listItem
     }],
+    /*
     // tables
     ["table", {
         defaultParent: 'div',
@@ -138,6 +143,7 @@ export const schema: Map<string, NodeSchema> = new Map([
         allowedChildren: new Set(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'span', 'a', 'text']),
         hierarchyLabel: nodeHierarchy.tableItem
     }],
+    
     // media
     ["image", {
         defaultParent: 'div',
@@ -157,4 +163,5 @@ export const schema: Map<string, NodeSchema> = new Map([
         allowedChildren: new Set(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'span', 'a', 'text']),
         hierarchyLabel: nodeHierarchy.media
     }],
+    */
 ])

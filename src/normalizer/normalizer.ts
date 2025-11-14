@@ -5,15 +5,16 @@
  */
 import * as utils from "../utilities/utilities.js"
 import { schema, nodeHierarchy } from "../schema/schema.js";
+const textTags = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'span'];
 
-export class Normailzer{
+export class Normailzer {
     scribbyEl: HTMLDivElement;
     constructor(
         scribbyEl: HTMLDivElement,
-    ){
+    ) {
         this.scribbyEl = scribbyEl;
     }
-    removeNotSupportedNodes(root: Node): void{
+    removeNotSupportedNodes(root: Node): void {
         const rootEl = root as HTMLElement;
         const allowedTags = new Set(
             Array.from(schema.keys()).map(k => k.toLowerCase())
@@ -24,12 +25,12 @@ export class Normailzer{
         const notInSchema = Array.from(allEls).filter(el =>
             !allowedTags.has(el.tagName.toLowerCase())
         );
-        for (const el of notInSchema){
+        for (const el of notInSchema) {
             utils.replaceElementWithChildren(el);
         }
     }
-    
-    flagNodeHierarchyViolations(root: Node): Record<nodeHierarchy, Array<Node>>{
+
+    flagNodeHierarchyViolations(root: Node): Record<nodeHierarchy, Array<Node>> {
         const outOfOrderNodes = Object.values(nodeHierarchy)
             .filter(value => typeof value === 'number')
             .reduce(
@@ -42,19 +43,19 @@ export class Normailzer{
         const startEl = root as HTMLElement;
         const children = Array.from(startEl.childNodes);
 
-        while(children.length){
+        while (children.length) {
             const child = children.pop();
-            if (!child){
+            if (!child) {
                 continue;
             }
-            if (child.nodeType === Node.TEXT_NODE){
-                if(child.nodeValue?.includes("\n")){
+            if (child.nodeType === Node.TEXT_NODE) {
+                if (child.nodeValue?.includes("\n")) {
                     continue;
                 }
                 const parent = child.parentNode as HTMLElement;
                 const parentTag = parent?.tagName.toLocaleLowerCase();
-                if(parent && !schema.get("text")?.allowedParents.has(parentTag)){
-                    outOfOrderNodes[nodeHierarchy.text].push(child)
+                if (parent && !schema.get("text")?.allowedParents.has(parentTag)) {
+                    outOfOrderNodes[nodeHierarchy.inline].push(child)
                 }
                 continue;
             }
@@ -68,7 +69,7 @@ export class Normailzer{
             }
             const { hierarchyLabel, allowedParents } = entry;
 
-            if (parentTag && !allowedParents.has(parentTag)){
+            if (parentTag && !allowedParents.has(parentTag)) {
                 outOfOrderNodes[hierarchyLabel].push(child)
             }
             const grandChildren = Array.from(childEl.childNodes);
@@ -80,22 +81,23 @@ export class Normailzer{
      * I split up these methods because I do not want the behavior of each type of node to be connected
      * The logic is slightly different for each so it feels cleaner this way even if it is more verbose
      */
-    fixHierarchyViolations(outOfOrderNodes: Record<nodeHierarchy, Array<Node>>):void{
+    fixHierarchyViolations(outOfOrderNodes: Record<nodeHierarchy, Array<Node>>): void {
         const nodes = outOfOrderNodes;
         const nodeTypetoMethod: Record<nodeHierarchy, (node: Node) => void> = {
-            [nodeHierarchy.text]: fixTextNode,
-            [nodeHierarchy.anchor]: fixTextNode, 
-            [nodeHierarchy.textEl]: fixTextNode, 
-            [nodeHierarchy.listItem]: fixTextNode, 
-            [nodeHierarchy.lists]: fixTextNode, 
-            [nodeHierarchy.tableItem]: fixTextNode, 
-            [nodeHierarchy.tableRow]: fixTextNode, 
-            [nodeHierarchy.table]: fixTextNode,
-            [nodeHierarchy.blockquote]: fixTextNode,
-            [nodeHierarchy.media]: fixTextNode,  
+            [nodeHierarchy.inline]: organizeTextNode,
+            [nodeHierarchy.textEl]: organizeTextElNode,
+            [nodeHierarchy.listItem]: organizeListItemNode,
+            [nodeHierarchy.lists]: organizeListNode,
+            /* 
+            [nodeHierarchy.tableItem]: organizeTextNode, 
+            [nodeHierarchy.tableRow]: organizeTextNode,
+            [nodeHierarchy.table]: organizeTextNode,
+            [nodeHierarchy.blockquote]: organizeTextNode,
+            [nodeHierarchy.media]: organizeTextNode,
+            */
         }
 
-        for(const [k,array] of Object.entries(nodes)){
+        for (const [k, array] of Object.entries(nodes)) {
             // walk backwards so that nodes deeper in hierarchy are fixed first
             for (let i = array.length - 1; i >= 0; i--) {
                 const node = array[i];
@@ -110,7 +112,7 @@ export class Normailzer{
                     while (i > 0) {
                         const next = array[i - 1];
                         const curr = array[i];
-                        
+
                         if (next.previousSibling === curr) {
                             siblings.push(next);
                             i--;
@@ -119,10 +121,10 @@ export class Normailzer{
                         }
                     }
                     const fragment = document.createDocumentFragment();
-                    for (const node of siblings){
+                    for (const node of siblings) {
                         fragment.appendChild(node);
                     }
-                    
+
                     const tempDiv = document.createElement("div");
                     tempDiv.appendChild(fragment);
                     marker.replaceWith(tempDiv)
@@ -132,11 +134,10 @@ export class Normailzer{
         }
 
 
-        function fixTextNode(textNode: Node):void{
-            console.log(textNode)
+        function organizeTextNode(textNode: Node): void {
             const parent = textNode.parentNode as HTMLElement;
             const parentTag = parent?.tagName.toLocaleLowerCase();
-            if(parentTag === "ol" || parentTag === "ul"){
+            if (parentTag === "ol" || parentTag === "ul") {
                 const list = document.createElement("li");
                 const textEl = document.createElement("p");
                 list.appendChild(textEl);
@@ -144,36 +145,66 @@ export class Normailzer{
                 parent.insertBefore(list, textNode);
                 textEl.appendChild(textNode);
             }
-            else if(parentTag === "li"){
+            else if (parentTag === "li") {
                 const textEl = document.createElement("p");
                 parent.insertBefore(textEl, textNode);
                 textEl.appendChild(textNode);
             }
-            else if(parentTag === "div"){
+            else if (parentTag === "div") {
                 const textEl = document.createElement("p");
                 parent.insertBefore(textEl, textNode)
                 textEl.appendChild(textNode);
             }
-            else if(parentTag === "table" || parentTag === "tr"){
+            else if (parentTag === "table" || parentTag === "tr") {
                 parent.removeChild(textNode);
             }
             utils.replaceElementWithChildren(textNode as HTMLElement);
         }
-        
-        function orgainzeAnchorNode(node: Node):void{
-
-        }
         // text element nodes are defined as (h1-p)
-        function organizeTextElNode(node: Node):void{
-
+        function organizeTextElNode(node: Node): void {
+            const parent = node.parentNode as HTMLElement;
+            const parentTag = parent?.tagName.toLocaleLowerCase();
+            if (parentTag === "ol" || parentTag === "ul") {
+                const list = document.createElement("li");
+                parent.insertBefore(list, node);
+                list.appendChild(node);
+            }
+            else if (parentTag === "a") {
+                for (const child of node.childNodes) {
+                    utils.replaceElementWithChildren(child as HTMLElement);
+                }
+            }
+            else if (parentTag === "table" || parentTag === "tr") {
+                parent.removeChild(node);
+            }
+            utils.replaceElementWithChildren(node as HTMLElement);
         }
-        function organizeListNode(node: Node):void{
-
+        function organizeListItemNode(node: Node): void {
+            const parent = node.parentNode as HTMLElement;
+            const parentTag = parent?.tagName.toLocaleLowerCase();
+            if (parentTag === "div") {
+                const list = document.createElement("ul");
+                parent.insertBefore(list, node);
+            }
+            else if (textTags.includes(parentTag)) {
+                for (const child of node.childNodes) {
+                    utils.replaceElementWithChildren(child as HTMLElement);
+                }
+            }
+            utils.replaceElementWithChildren(node as HTMLElement);
         }
-        function organizeTableNode(node: Node):void{
-
+        function organizeListNode(node: Node): void {
+            const parent = node.parentNode as HTMLElement;
+            const parentTag = parent?.tagName.toLocaleLowerCase();
+            if (parentTag === "ol" || parentTag === "ul") {
+                const listItem = document.createElement("li");
+                parent.insertBefore(listItem, node);
+                listItem.appendChild(node);
+            }
+            else if (textTags.includes(parentTag)) {
+                utils.makeChildSiblingofParent(node as HTMLElement);
+            }
+            utils.replaceElementWithChildren(node as HTMLElement);
         }
     }
-    
-    
 }

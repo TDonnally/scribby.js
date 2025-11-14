@@ -121,3 +121,37 @@ export function changeElementTag(el: Element, tag: string): void{
     newEl.appendChild(el);
     replaceElementWithChildren(el);
 }
+export function makeChildSiblingofParent(el: HTMLElement): void {
+    const parent = el.parentElement;
+    if (!parent || !parent.parentElement) {
+        return;
+    }
+    const children = Array.from(parent.childNodes);
+    const childIndex = children.indexOf(el);
+    if (childIndex === -1) {
+        return
+    }
+    const nodesBefore = children.slice(0, childIndex);
+    const nodesAfter = children.slice(childIndex + 1);
+
+    let beforeParent: HTMLElement | null = null;
+    if (nodesBefore.length > 0) {
+        beforeParent = parent.cloneNode(false) as HTMLElement;
+        nodesBefore.forEach(node => beforeParent!.appendChild(node));
+    }
+    let afterParent: HTMLElement | null = null;
+    if (nodesAfter.length > 0) {
+        afterParent = parent.cloneNode(false) as HTMLElement;
+        nodesAfter.forEach(node => afterParent!.appendChild(node));
+    }
+    const grandparent = parent.parentElement;
+
+    if (beforeParent) {
+        grandparent.insertBefore(beforeParent, parent);
+    }
+    grandparent.insertBefore(el, parent);
+    if (afterParent) {
+        grandparent.insertBefore(afterParent, parent);
+    }
+    parent.remove();
+}

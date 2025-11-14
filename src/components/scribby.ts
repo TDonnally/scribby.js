@@ -42,7 +42,7 @@ export class Scribby {
             <p>test</p>
             </li>
             </ol>
-            <scroomble>test <span>test</span> test</scroomble>
+            <scroomble>test <span>test</span> <a href><p>tester</p></a>test</scroomble>
         `,
     ) {
         this.selector = selector;
