@@ -59,21 +59,24 @@ export class Normailzer {
                 }
                 continue;
             }
-            const childEl = child as HTMLElement;
-            const childTag = childEl.tagName.toLowerCase();
-            const parent = childEl.parentElement;
-            const parentTag = parent?.tagName.toLocaleLowerCase();
-            const entry = schema.get(childTag);
-            if (!entry) {
-                continue;
-            }
-            const { hierarchyLabel, allowedParents } = entry;
+            else if (child.nodeType === Node.ELEMENT_NODE){
+                const childEl = child as HTMLElement;
+                const childTag = childEl.tagName.toLowerCase();
+                const parent = childEl.parentElement;
+                const parentTag = parent?.tagName.toLocaleLowerCase();
+                const entry = schema.get(childTag);
+                if (!entry) {
+                    continue;
+                }
+                const { hierarchyLabel, allowedParents } = entry;
 
-            if (parentTag && !allowedParents.has(parentTag)) {
-                outOfOrderNodes[hierarchyLabel].push(child)
+                if (parentTag && !allowedParents.has(parentTag)) {
+                    outOfOrderNodes[hierarchyLabel].push(child)
+                }
+                const grandChildren = Array.from(childEl.childNodes);
+                children.push(...grandChildren);
             }
-            const grandChildren = Array.from(childEl.childNodes);
-            children.push(...grandChildren);
+            
         }
         return outOfOrderNodes;
     }
@@ -168,6 +171,9 @@ export class Normailzer {
                 const list = document.createElement("li");
                 parent.insertBefore(list, node);
                 list.appendChild(node);
+            }
+            else if(textTags.includes(parentTag)){
+                utils.makeChildSiblingofParent(node as HTMLElement);
             }
             else if (parentTag === "a") {
                 for (const child of node.childNodes) {

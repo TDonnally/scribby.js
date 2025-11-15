@@ -1,4 +1,4 @@
-export const BLOCK_SELECTOR = "p,img,h1,h2,h3,h4,h5,h6,blockquote,code";
+export const BLOCK_SELECTOR = "p,img,h1,h2,h3,h4,h5,h6,li,blockquote,code";
 
 export function getBlock(el: HTMLElement, root: HTMLElement): HTMLElement {
     const block = el.closest(BLOCK_SELECTOR);
@@ -122,6 +122,7 @@ export function changeElementTag(el: Element, tag: string): void{
     replaceElementWithChildren(el);
 }
 export function makeChildSiblingofParent(el: HTMLElement): void {
+    console.log(el)
     const parent = el.parentElement;
     if (!parent || !parent.parentElement) {
         return;

@@ -217,36 +217,21 @@ export class Scribby {
         this.el.addEventListener("paste", (e) => {
             /**
              * steps:
-             * 1. Grab blocks
-             * 2. If no blocks, extract text content 
-             * 3. Retain links/images in both cases
-             * 4. Remove any hot allowed block styles 
-             * 5. If cursor is at end of block or at new block, paste as blocks
-             * 6. Else if, cursor is within block, paste as plain text within block
+             * 1. Clean clipboard
+             * 2. Insert into DOM
+             * 3. Normalize
              * */
             e.preventDefault();
             this.selection = window.getSelection();
             const sel = this.selection;
             if (!sel || sel.rangeCount === 0) return;
             const range = sel.getRangeAt(0);
-            const blockRanges = utils.getBlockRanges(range, this.el);
-            console.log(range.startContainer.parentElement);
-
-            const lastBlock = blockRanges[blockRanges.length-1];
-            const tailRange = document.createRange();
-            tailRange.setStart(lastBlock.blockRange.endContainer, lastBlock.blockRange.endOffset); 
-            tailRange.setEnd(lastBlock.block, lastBlock.block.childNodes.length);
-            const tailFrag = tailRange.extractContents();
-
-            const marker = document.createTextNode('');
 
             if (e.clipboardData == null) {
                 return;
             }
             let html = e.clipboardData?.getData('text/html') || '';
             const plain = e.clipboardData?.getData('text/plain') || '';
-
-            const frag = document.createDocumentFragment();
 
             if (!html && plain) {
                 console.log("no html")
@@ -258,162 +243,20 @@ export class Scribby {
             }
 
             const snippet = parser.parseFromString(html, 'text/html');
-            const snippetBlocks = snippet.querySelectorAll(utils.BLOCK_SELECTOR);
-
-            if (snippetBlocks.length > 0) {
-                snippetBlocks.forEach((el) => {
-                    const htmlEl = el as HTMLElement;
-                    htmlEl.querySelectorAll('*:not(a, img, span)').forEach(child => {
-                        const text = child.textContent || '';
-                        if (text) {
-                            const textNode = document.createTextNode(text);
-                            child.replaceWith(textNode);
-                        }
-                    });
-
-                    htmlEl.querySelectorAll('a').forEach(anchor => {
-                        const href = anchor.getAttribute('href');
-                        while (anchor.attributes.length > 0) {
-                            anchor.removeAttribute(anchor.attributes[0].name);
-                        }
-                        if (href) {
-                            anchor.setAttribute('href', href);
-                        } else {
-                            const text = anchor.textContent || '';
-                            anchor.replaceWith(document.createTextNode(text));
-                        }
-                    });
-                    
-                    htmlEl.querySelectorAll('img').forEach(img => {
-                        img.removeAttribute('style');
-                        img.removeAttribute('class');
-                    });
-
-                    htmlEl.querySelectorAll('span').forEach(span => {
-                        const [spanClassesSet, spanStylesMap] = utils.getElementAttributes(span);
-                        if (spanStylesMap) {
-                            for (const [prop, value] of spanStylesMap) {
-                                if (!this.allowedSpanStyles.has(prop)) {
-                                    span.style.removeProperty(prop);
-                                }
-
-                            }
-                        }
-                        span.innerHTML = span.textContent;
-                    });
-
-                    const [elClassesSet, elStylesMap] = utils.getElementAttributes(htmlEl);
-                    if (elStylesMap) {
-                        for (const [prop, value] of elStylesMap) {
-                            if (!this.allowedBlockStyles.has(prop)) {
-                                htmlEl.style.removeProperty(prop);
-                            }
-
-                        }
-                    }
-
-                    
-                    for (const name of htmlEl.getAttributeNames()) {
-                        htmlEl.removeAttribute(name);
-                    }
-                    const clone = document.importNode(el, true);
-                    frag.appendChild(clone);
-                })
-                // insertion
-                const startBlock = range.startContainer.parentElement;
-                let lastInserted = startBlock;
-                range.deleteContents();
-
-                let i = 0;
-                while (frag.firstChild) {
-                    const node = frag.firstChild as Node;  
-
-                    if (i === 0) {
-                        if (node.nodeType === Node.ELEMENT_NODE) {
-                            
-                            while ((node as Element).firstChild) {
-                                startBlock!.appendChild((node as Element).firstChild!);
-                            }
-                            (node as Element).remove();
-                        } else {
-                            marker.appendChild(node);
-                        }
-                        lastInserted = startBlock;
-                    } else {
-                        lastInserted!.after(node);              
-                        if (node.nodeType === Node.ELEMENT_NODE) {
-                            lastInserted = node as HTMLElement;  
-                        }
-                    }
-
-                    i++;
-                }
-                while (tailFrag.firstChild) {
-                    lastInserted!.appendChild(tailFrag.firstChild);
-                }
-                
-                
-                
-            }
-            // no blocks; just text/spans/anchors/images
-            else if (snippetBlocks.length == 0) {
-                console.log("no blocks");
-                const temp = document.createElement('div');
-                temp.innerHTML = snippet.body?.innerHTML || '';
-
-                temp.querySelectorAll('*:not(a, img, span)').forEach(child => {
-                    const text = child.textContent || '';
-                    if (text) {
-                        const textNode = document.createTextNode(text);
-                        child.replaceWith(textNode);
-                    }
-                });
-                temp.querySelectorAll('a').forEach(anchor => {
-                    const href = anchor.getAttribute('href');
-                    while (anchor.attributes.length > 0) {
-                        anchor.removeAttribute(anchor.attributes[0].name);
-                    }
-                    if (href) {
-                        anchor.setAttribute('href', href);
-                    } else {
-                        const text = anchor.textContent || '';
-                        anchor.replaceWith(document.createTextNode(text));
-                    }
-                });
-                temp.querySelectorAll('img').forEach(img => {
-                    img.removeAttribute('style');
-                    img.removeAttribute('class');
-                });
-                temp.querySelectorAll('span').forEach(span => {
-                    const [spanClassesSet, spanStylesMap] = utils.getElementAttributes(span);
-                    if (spanStylesMap) {
-                        for (const [prop, value] of spanStylesMap) {
-                            if (!this.allowedSpanStyles.has(prop)) {
-                                span.style.removeProperty(prop);
-                            }
-
-                        }
-                    }
-                    span.innerHTML = span.textContent;
-
-                });
-                while (temp.firstChild) {
-                    temp.firstChild.normalize();
-                    frag.appendChild(temp.firstChild);
-                }
-                // insertion
-                range.deleteContents();
-                range.insertNode(marker);
-                marker.before(frag, tailFrag);
-            }
+            const fragment = document.createDocumentFragment();
             
-            const newRange = document.createRange();
-            newRange.setStartAfter(marker);
-            newRange.collapse(true);
-            sel.removeAllRanges();
-            sel.addRange(newRange);
-            marker.remove();
+            // normalize
+            this.normalizer.removeNotSupportedNodes(fragment);
+            
+            while (snippet.body.firstChild) {
+                fragment.appendChild(snippet.body.firstChild);
+            }
+            range.deleteContents();
+            range.insertNode(fragment);
 
+            const outOfOrderNodes = this.normalizer.flagNodeHierarchyViolations(range.commonAncestorContainer);
+            console.log(outOfOrderNodes)
+            this.normalizer.fixHierarchyViolations(outOfOrderNodes);
         })
         this.el.addEventListener("focusin", (e) => {
             if (this.currentModal){
@@ -421,32 +264,8 @@ export class Scribby {
                 this.currentModal = null;
             }
         })
-        this.el.addEventListener("input", (e) => {
-            this.normalizer.removeNotSupportedNodes(this.el);
-            const outOfOrderNodes = this.normalizer.flagNodeHierarchyViolations(this.el);
-            console.log(outOfOrderNodes);
-            this.normalizer.fixHierarchyViolations(outOfOrderNodes);
-            
-        })
         
         return this
     }
 
 }
-
-/* lists */
-
-/* links */
-
-/* tables (this is going to suck) */
-
-/* colors will be implemented like so:
-This is [important text]{style = [color: #0000]}
-
-Will need to:
-
-parse html and create it afterwards and create the process back and forth. 
-*/
-
-/* convert between md and html */
-
