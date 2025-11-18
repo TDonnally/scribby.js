@@ -3,6 +3,8 @@ import { Normailzer } from "../normalizer/normalizer.js";
 import { Toolbar } from "./Toolbar.js";
 import { InsertModal } from "./Modal.js";
 
+import { activateStyleButtons } from "../events/custom_events.js";
+
 import * as utils from "../utilities/utilities.js"
 
 
@@ -53,7 +55,6 @@ export class Scribby {
         this.selection;
         this.allowedBlockStyles = new Set;
         this.allowedSpanStyles = new Set;
-        this.toolbar = new Toolbar(this).mount();
         this.normalizer;
     }
     mount() {
@@ -69,6 +70,7 @@ export class Scribby {
         
 
         container.appendChild(this.el);
+        this.toolbar = new Toolbar(this).mount();
         this.normalizer = new Normailzer(this.el);
 
         this.el.insertAdjacentElement("beforebegin", this.toolbar.el);
@@ -87,32 +89,7 @@ export class Scribby {
             }
         })
         this.el.addEventListener("click", (e) => {
-            this.selection = window.getSelection();
-            const sel = this.selection;
-            if (!sel || sel.rangeCount === 0) return;
-            const range = sel.getRangeAt(0);
-            let startEl = range.startContainer.parentElement;
-            if (startEl == null) return;
-            const styles = startEl.style;
-            this.styleElements = new Map;
-            const blockRanges = utils.getBlockRanges(range, this.el);
-            console.log(blockRanges);
-
-            for (let i = 0; i < styles.length; i++) {
-                const value = styles.getPropertyValue(styles[i]);
-                this.styleElements.set(value, styles[i]);
-            }
-
-            const allButtons = document.querySelectorAll<HTMLElement>(`${this.selector} [data-attribute]`);
-            allButtons.forEach((el) => {
-                const key = el.dataset.attribute;
-                if (key && this.styleElements.has(key)) {
-                    el.classList.add("active");
-                }
-                else {
-                    el.classList.remove("active");
-                }
-            })
+            this.el.dispatchEvent(activateStyleButtons);
         })
         this.el.addEventListener("paste", (e) => {
             /**
@@ -166,8 +143,33 @@ export class Scribby {
                 this.currentModal = null;
             }
         })
-        
+        this.el.addEventListener("activateStyleButtons", (e) => {
+            this.selection = window.getSelection();
+            const sel = this.selection;
+            if (!sel || sel.rangeCount === 0) return;
+            const range = sel.getRangeAt(0);
+            let startEl = range.startContainer.parentElement;
+            if (startEl == null) return;
+            const styles = startEl.style;
+            this.styleElements = new Map;
+
+            for (let i = 0; i < styles.length; i++) {
+                const value = styles.getPropertyValue(styles[i]);
+                this.styleElements.set(value, styles[i]);
+            }
+
+            const allButtons = document.querySelectorAll<HTMLElement>(`${this.selector} [data-attribute]`);
+            allButtons.forEach((el) => {
+                const key = el.dataset.attribute;
+                if (key && this.styleElements.has(key)) {
+                    el.classList.add("active");
+                }
+                else {
+                    el.classList.remove("active");
+                }
+            })
+        })
+
         return this
     }
-
 }

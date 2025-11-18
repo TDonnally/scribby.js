@@ -1,5 +1,7 @@
 import { Scribby } from "./Scribby.js";
 
+import { activateStyleButtons } from "../events/custom_events.js";
+
 import * as utils from "../utilities/utilities.js"
 
 export enum affectedElementType {
@@ -199,6 +201,8 @@ export class ToolbarStyleButton {
                 }
                 block.normalize();
             });
+            
+            this.scribby.el.dispatchEvent(activateStyleButtons);
         })
     }
 }

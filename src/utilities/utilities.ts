@@ -88,8 +88,6 @@ export function cloneBlockShallow(src: HTMLElement): HTMLElement {
     return clone;
 }
 
-
-
 /**
  * utilities that involve DOM manipulation
  */
