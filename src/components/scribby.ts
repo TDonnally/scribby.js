@@ -75,115 +75,15 @@ export class Scribby {
 
         this.el.addEventListener("keydown", (e) => {
             if (e.key === 'Enter') {
-                e.preventDefault();
                 this.selection = window.getSelection();
                 const sel = this.selection;
                 if (!sel || sel.rangeCount === 0) return;
                 const range = sel.getRangeAt(0);
-                range.deleteContents();
-                const startEl = range.startContainer.parentElement;
-                if (startEl == null) {
-                    return
-                }
-                const block = utils.getBlock(startEl, this.el);
-
-                if (e.shiftKey) {
-                    const br = document.createElement("br");
-                    range.insertNode(br);
-
-                    const spacer = document.createTextNode("\u200B");
-                    br.after(spacer);
-
-                    const newRange = document.createRange();
-                    newRange.setStartAfter(spacer);
-                    newRange.collapse(true);
-
-                    sel.removeAllRanges();
-                    sel.addRange(newRange);
-                }
-                else {
-                    // check where we are in block
-                    const caretToEnd = sel.getRangeAt(0).cloneRange();
-                    const end = document.createRange();
-                    end.selectNodeContents(block);
-                    end.collapse(false);
-
-                    caretToEnd.setEnd(end.endContainer, end.endOffset);
-
-                    // end of block
-                    if (caretToEnd.toString().length === 0) {
-                        const newLineEl = document.createElement(this.textElement);
-                        let cursorEl = newLineEl;
-                        if (this.styleElements.size > 0) {
-                            const newLineSpan = document.createElement("span");
-                            for (const [k, v] of this.styleElements) {
-                                newLineSpan.style.setProperty(v, String(k));
-                            }
-                            cursorEl = newLineSpan;
-                            newLineEl.appendChild(newLineSpan);
-                        }
-
-
-                        const spacer = document.createTextNode("\u200B");
-                        cursorEl.appendChild(spacer);
-
-                        block.insertAdjacentElement("afterend", newLineEl);
-
-                        const newRange = document.createRange();
-                        newRange.setStart(spacer, spacer.length);
-                        newRange.collapse(true);
-
-                        sel.removeAllRanges();
-                        sel.addRange(newRange);
-                    }
-                    // middle of block
-                    else {
-                        // This doesn't work if the range covers multiple blocks. Will need to use getBlockRanges() method
-                        const tailRange = range.cloneRange();
-                        tailRange.setEndAfter(block);
-
-                        const tailFrag = tailRange.extractContents();
-
-                        const newBlock = utils.cloneBlockShallow(block);
-
-                        let caretTarget: HTMLElement = newBlock;
-                        if (this.styleElements && (this.styleElements as Map<string, string>).size > 0) {
-                            const span = document.createElement("span");
-                            for (const [prop, val] of this.styleElements as Map<string, string>) {
-                                span.style.setProperty(prop, String(val));
-                            }
-                            caretTarget = span;
-                            newBlock.appendChild(span);
-                        }
-                        if (tailFrag.childNodes.length) {
-                            while (tailFrag.firstChild) {
-                                // if span is created and the first node is inline text, put it inside the span
-                                if (caretTarget !== newBlock &&
-                                    (tailFrag.firstChild.nodeType === Node.TEXT_NODE ||
-                                        (tailFrag.firstChild as Element).nodeType === Node.ELEMENT_NODE)) {
-                                    caretTarget.appendChild(tailFrag.firstChild);
-                                } else {
-                                    newBlock.appendChild(tailFrag.firstChild);
-                                }
-                            }
-                        } else {
-                            (caretTarget === newBlock ? newBlock : caretTarget)
-                                .appendChild(document.createTextNode("\u200B"));
-                        }
-
-
-                        block.insertAdjacentElement("afterend", newBlock);
-
-
-                        block.normalize();
-                        newBlock.normalize();
-
-
-                        utils.placeCaretAtStart(caretTarget);
-                    }
-
-
-                }
+                // normalize after line break
+                console.log(range.commonAncestorContainer);
+                const outOfOrderNodes = this.normalizer.flagNodeHierarchyViolations(this.el);
+                console.log(outOfOrderNodes)
+                this.normalizer.fixHierarchyViolations(outOfOrderNodes);
             }
         })
         this.el.addEventListener("click", (e) => {
@@ -245,15 +145,17 @@ export class Scribby {
             const snippet = parser.parseFromString(html, 'text/html');
             const fragment = document.createDocumentFragment();
             
-            // normalize
+            // normalize fragment
             this.normalizer.removeNotSupportedNodes(fragment);
             
+            // insert
             while (snippet.body.firstChild) {
                 fragment.appendChild(snippet.body.firstChild);
             }
             range.deleteContents();
             range.insertNode(fragment);
 
+            // normalize after inserting
             const outOfOrderNodes = this.normalizer.flagNodeHierarchyViolations(range.commonAncestorContainer);
             console.log(outOfOrderNodes)
             this.normalizer.fixHierarchyViolations(outOfOrderNodes);

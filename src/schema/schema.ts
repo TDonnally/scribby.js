@@ -98,6 +98,12 @@ export const schema: Map<string, NodeSchema> = new Map([
         allowedChildren: new Set([]),
         hierarchyLabel: nodeHierarchy.inline
     }],
+    ["br", {
+        defaultParent: 'p',
+        allowedParents: new Set(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'a','span', 'td', 'th']),
+        allowedChildren: new Set([]),
+        hierarchyLabel: nodeHierarchy.inline
+    }],
     // lists
     ["ol", {
         defaultParent: 'div',
