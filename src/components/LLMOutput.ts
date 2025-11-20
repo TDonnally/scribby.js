@@ -46,8 +46,8 @@ export class LLMOutput {
 
                 range.deleteContents();
                 range.insertNode(fragment);
+                this.scribby.normalizer.removeNotSupportedNodes(this.scribby.el);
                 this.isGenerating = false;
-                
             }
             
         });

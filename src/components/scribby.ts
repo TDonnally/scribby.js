@@ -4,6 +4,7 @@ import { Toolbar } from "./Toolbar.js";
 import { InsertModal } from "./Modal.js";
 
 import { activateStyleButtons } from "../events/custom_events.js";
+import { HistoryManager, Snapshot } from "../history_manager/history_manager.js";
 
 import * as utils from "../utilities/utilities.js"
 
@@ -22,6 +23,10 @@ export class Scribby {
     allowedBlockStyles: Set<string>;
     allowedSpanStyles: Set<string>;
     normalizer!: Normailzer;
+    historyManager: HistoryManager;
+
+    timeoutId: number | null;
+    historyUpdateDelayonInput: number;
 
     currentModal: InsertModal | null = null;
 
@@ -41,6 +46,9 @@ export class Scribby {
         this.allowedBlockStyles = new Set;
         this.allowedSpanStyles = new Set;
         this.normalizer;
+        this.historyManager = new HistoryManager();
+        this.timeoutId = null;
+        this.historyUpdateDelayonInput = 1000;
     }
     mount() {
         const container = document.querySelector<HTMLDivElement>(`${this.selector}`);
@@ -52,7 +60,13 @@ export class Scribby {
         this.el.contentEditable = 'true';
         this.el.classList.add("scribby");
         this.el.innerHTML = this.content;
-        
+
+        const initSnapshot: Snapshot = {
+            timestamp: Date.now(),
+            html: this.content,
+        }
+
+        this.historyManager.push(initSnapshot);
 
         container.appendChild(this.el);
         this.toolbar = new Toolbar(this).mount();
@@ -71,6 +85,20 @@ export class Scribby {
                 const outOfOrderNodes = this.normalizer.flagNodeHierarchyViolations(this.el);
                 console.log(outOfOrderNodes)
                 this.normalizer.fixHierarchyViolations(outOfOrderNodes);
+            }
+            if (e.ctrlKey) {
+                if (e.key === "z") {
+                    e.preventDefault();
+                    const snapshot = this.historyManager.undo();
+                    if (!snapshot) return;
+                    this.el.innerHTML = snapshot.html;
+                }
+                else if (e.key === "y") {
+                    e.preventDefault();
+                    const snapshot = this.historyManager.redo();
+                    if (!snapshot) return;
+                    this.el.innerHTML = snapshot.html;
+                }
             }
         })
         this.el.addEventListener("click", (e) => {
@@ -106,10 +134,10 @@ export class Scribby {
 
             const snippet = parser.parseFromString(html, 'text/html');
             const fragment = document.createDocumentFragment();
-            
+
             // normalize fragment
             this.normalizer.removeNotSupportedNodes(fragment);
-            
+
             // insert
             while (snippet.body.firstChild) {
                 fragment.appendChild(snippet.body.firstChild);
@@ -123,11 +151,28 @@ export class Scribby {
             this.normalizer.fixHierarchyViolations(outOfOrderNodes);
         })
         this.el.addEventListener("focusin", (e) => {
-            if (this.currentModal){
+            if (this.currentModal) {
                 this.currentModal.unmount();
                 this.currentModal = null;
             }
         })
+
+        this.el.addEventListener("input", (e) => {
+            if (this.timeoutId !== null) {
+                clearTimeout(this.timeoutId);
+            }
+            this.timeoutId = window.setTimeout(() => {
+                this.timeoutId = null;
+
+                const html = this.el.innerHTML.toString();;
+
+                const snapshot: Snapshot = {
+                    timestamp: Date.now(),
+                    html,
+                };
+                this.historyManager.push(snapshot);
+            }, this.historyUpdateDelayonInput);
+        });
         this.el.addEventListener("activateStyleButtons", (e) => {
             this.selection = window.getSelection();
             const sel = this.selection;
@@ -156,5 +201,8 @@ export class Scribby {
         })
 
         return this
+    }
+    updateHistory() {
+
     }
 }
