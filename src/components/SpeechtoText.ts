@@ -16,7 +16,7 @@ export class SpeechToText {
     }
     private isListening = false;
     mount() {
-        this.el.classList.add("toolbar-button")
+        this.el.classList.add("toolbar-button");
         this.el.innerHTML = this.innerContent;
         
         

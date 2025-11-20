@@ -4,6 +4,7 @@ import { ToolbarDropdownButton } from "./DropdownButton.js";
 import { ToolbarStyleButton, affectedElementType } from "./StyleButton.js";
 import { ToolbarInsertButton, insertElementType } from "./InsertButton.js";
 import { SpeechToText } from "./SpeechtoText.js";
+import { LLMOutput } from "./LLMOutput.js";
 
 export class Toolbar {
     scribby!: Scribby;
@@ -22,6 +23,7 @@ export class Toolbar {
     orderedList: ToolbarInsertButton;
     unorderedList: ToolbarInsertButton;
     speechToText: SpeechToText;
+    LLMOutput: LLMOutput;
 
     constructor(
         scribby: Scribby,
@@ -56,6 +58,7 @@ export class Toolbar {
         this.orderedList = new ToolbarInsertButton(scribby, "ol", null, insertElementType.OrderedList);
         this.unorderedList = new ToolbarInsertButton(scribby, "ul", null, insertElementType.UnorderedList);
         this.speechToText = new SpeechToText(scribby, "listen!");
+        this.LLMOutput = new LLMOutput(scribby, "AI")
     }
     mount() {
         this.el.classList.add("toolbar");
@@ -73,6 +76,7 @@ export class Toolbar {
         this.orderedList.mount();
         this.unorderedList.mount();
         this.speechToText.mount();
+        this.LLMOutput.mount();
 
         this.el.appendChild(this.textType.el);
         this.el.appendChild(this.bold.el);
@@ -88,6 +92,7 @@ export class Toolbar {
         this.el.appendChild(this.orderedList.el);
         this.el.appendChild(this.unorderedList.el);
         this.el.appendChild(this.speechToText.el);
+        this.el.appendChild(this.LLMOutput.el);
 
         return this;
     }

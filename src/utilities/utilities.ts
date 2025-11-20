@@ -106,7 +106,6 @@ export function removeEmptyTextNodes(parent: Node): void {
     });
 }
 export function replaceElementWithChildren(el: Element): void{
-    const children = el.childNodes;
     const parent = el.parentElement;
     if (!parent) return;
     while (el.firstChild) {

@@ -1,6 +1,9 @@
 .scribby{
     position: relative;
 }
+.disabled{
+    opacity: .5;
+}
 .toolbar{
     position: relative;
     top: 0px;

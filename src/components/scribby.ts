@@ -30,21 +30,6 @@ export class Scribby {
         content = `
             <h1>Hi there!</h1>
             <p>Jot something down.</p>
-            <p>This is a <span style = "font-weight: bold;">test</span> paragraph</p>
-            <p>Another paragraph</p>
-            <p>And a paragraph with some <a href = "https://google.com">link</a> inline</p>
-            <a href><p>tester</p></a>
-            <ol>
-            <li><span>test</span> test</li>
-            <ul>
-            <p>test</p>
-            </ul>
-            <li><h3>test
-            </h3>
-            <p>test</p>
-            </li>
-            </ol>
-            <scroomble>test <span>test</span> <a href><p>tester</p></a>test</scroomble>
         `,
     ) {
         this.selector = selector;
