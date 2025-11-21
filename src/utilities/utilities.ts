@@ -71,17 +71,6 @@ export function areSiblingsEqual(a: Element, b: Element): boolean {
         aStyles.size === bStyles.size && [...aStyles].every(([k, v]) => bStyles.get(k) === v) &&
         a.tagName === b.tagName)
 }
-export function placeCaretAtStart(el: HTMLElement) {
-    const sel = window.getSelection();
-    if (!sel) return;
-    if (!el.firstChild) el.appendChild(document.createTextNode(""));
-    const r = document.createRange();
-    r.setStart(el, 0);
-    r.collapse(true);
-    (el.closest<HTMLElement>("[contenteditable]") || el).focus();
-    sel.removeAllRanges();
-    sel.addRange(r);
-}
 export function cloneBlockShallow(src: HTMLElement): HTMLElement {
     const clone = src.cloneNode(false) as HTMLElement;
     clone.removeAttribute("id");

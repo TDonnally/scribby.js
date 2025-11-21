@@ -31,43 +31,43 @@ export const schema: Map<string, NodeSchema> = new Map([
     // text
     ["h1", {
         defaultParent: 'div',
-        allowedParents: new Set(['div','li', 'blockquote', 'td', 'th']),
+        allowedParents: new Set(['div','blockquote', 'td', 'th']),
         allowedChildren: new Set(['span', 'a', 'text']),
         hierarchyLabel: nodeHierarchy.textEl
     }],
     ["h2", {
         defaultParent: 'div',
-        allowedParents: new Set(['div','li', 'blockquote', 'td', 'th']),
+        allowedParents: new Set(['div','blockquote', 'td', 'th']),
         allowedChildren: new Set(['span', 'a', 'text']),
         hierarchyLabel: nodeHierarchy.textEl
     }],
     ["h3", {
         defaultParent: 'div',
-        allowedParents: new Set(['div','li', 'blockquote', 'td', 'th']),
+        allowedParents: new Set(['div','blockquote', 'td', 'th']),
         allowedChildren: new Set(['span', 'a', 'text']),
         hierarchyLabel: nodeHierarchy.textEl
     }],
     ["h4", {
         defaultParent: 'div',
-        allowedParents: new Set(['div','li', 'blockquote', 'td', 'th']),
+        allowedParents: new Set(['div','blockquote', 'td', 'th']),
         allowedChildren: new Set(['span', 'a', 'text']),
         hierarchyLabel: nodeHierarchy.textEl
     }],
     ["h5", {
         defaultParent: 'div',
-        allowedParents: new Set(['div','li', 'blockquote', 'td', 'th']),
+        allowedParents: new Set(['div','blockquote', 'td', 'th']),
         allowedChildren: new Set(['span', 'a', 'text']),
         hierarchyLabel: nodeHierarchy.textEl
     }],
     ["h6", {
         defaultParent: 'div',
-        allowedParents: new Set(['div','li', 'blockquote', 'td', 'th']),
+        allowedParents: new Set(['div','blockquote', 'td', 'th']),
         allowedChildren: new Set(['span', 'a', 'text']),
         hierarchyLabel: nodeHierarchy.textEl
     }],
     ["p", {
         defaultParent: 'div',
-        allowedParents: new Set(['div','li', 'blockquote', 'td', 'th']),
+        allowedParents: new Set(['div','blockquote', 'td', 'th']),
         allowedChildren: new Set(['span', 'a', 'text']),
         hierarchyLabel: nodeHierarchy.textEl
     }],
@@ -94,7 +94,7 @@ export const schema: Map<string, NodeSchema> = new Map([
     }],
     ["text", {
         defaultParent: 'p',
-        allowedParents: new Set(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'a','span', 'td', 'th']),
+        allowedParents: new Set(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'a','span', 'td', 'th', 'li']),
         allowedChildren: new Set([]),
         hierarchyLabel: nodeHierarchy.inline
     }],
@@ -120,7 +120,7 @@ export const schema: Map<string, NodeSchema> = new Map([
     ["li", {
         defaultParent: 'ul',
         allowedParents: new Set(['ol', 'ul']),
-        allowedChildren: new Set(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'span', 'a', 'text']),
+        allowedChildren: new Set(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'span', 'a']),
         hierarchyLabel: nodeHierarchy.listItem
     }],
     /*

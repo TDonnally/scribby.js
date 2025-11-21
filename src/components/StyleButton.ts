@@ -56,9 +56,8 @@ export class ToolbarStyleButton {
 
         this.el.setAttribute("data-attribute", dataAttributeString);
         this.el.addEventListener("click", (e) => {
-            const sel = this.scribby.selection;
-            if (!sel || sel.rangeCount === 0) return;
-            const range = sel.getRangeAt(0);
+            const range = this.scribby.selection;
+            if(!range) return;
             const blockRanges = utils.getBlockRanges(range, this.scribby.el)
 
             const queryString = this.affectedElType == "block" ? utils.BLOCK_SELECTOR : "span";
@@ -255,6 +254,7 @@ export class ToolbarStyleButton {
             });
 
             this.scribby.el.dispatchEvent(activateStyleButtons);
+            this.scribby.el.dispatchEvent(new Event('input'));
         })
     }
 }

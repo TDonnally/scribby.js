@@ -68,19 +68,16 @@ export class SpeechToText {
             };
         }
         this.el.addEventListener("click", (e) => {
-            const sel = this.scribby.selection;
+            const range = this.scribby.selection;
             const output = document.createElement("p");
             this.outputEl = output;
-            if (!sel || sel.rangeCount === 0) {
+            if (!range) {
                 this.scribby.el.appendChild(output);
             } else {
-                const range = sel.getRangeAt(0);
                 range.deleteContents();
                 range.insertNode(output);
                 range.selectNodeContents(output);
                 range.collapse(true);
-                sel.removeAllRanges();
-                sel.addRange(range);
             }
             if (this.isListening) {
                 this.recognition.stop();

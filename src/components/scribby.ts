@@ -19,7 +19,7 @@ export class Scribby {
     toolbar!: Toolbar;
     textElement: string;
     styleElements: Map<string, string>;
-    selection!: Selection | null;
+    selection!: Range | null;
     allowedBlockStyles: Set<string>;
     allowedSpanStyles: Set<string>;
     normalizer!: Normailzer;
@@ -75,17 +75,6 @@ export class Scribby {
         this.el.insertAdjacentElement("beforebegin", this.toolbar.el);
 
         this.el.addEventListener("keydown", (e) => {
-            if (e.key === 'Enter') {
-                this.selection = window.getSelection();
-                const sel = this.selection;
-                if (!sel || sel.rangeCount === 0) return;
-                const range = sel.getRangeAt(0);
-                // normalize after line break
-                this.normalizer.removeNotSupportedNodes(this.el);
-                const outOfOrderNodes = this.normalizer.flagNodeHierarchyViolations(this.el);
-                console.log(outOfOrderNodes)
-                this.normalizer.fixHierarchyViolations(outOfOrderNodes);
-            }
             if (e.ctrlKey) {
                 if (e.key === "z") {
                     e.preventDefault();
@@ -100,10 +89,11 @@ export class Scribby {
                     this.el.innerHTML = snapshot.html;
                 }
             }
+            if (e.key === "Tab"){
+
+            }
         })
-        this.el.addEventListener("click", (e) => {
-            this.el.dispatchEvent(activateStyleButtons);
-        })
+        
         this.el.addEventListener("paste", (e) => {
             /**
              * steps:
@@ -112,10 +102,8 @@ export class Scribby {
              * 3. Normalize
              * */
             e.preventDefault();
-            this.selection = window.getSelection();
-            const sel = this.selection;
-            if (!sel || sel.rangeCount === 0) return;
-            const range = sel.getRangeAt(0);
+            const range = this.selection;
+            if (!range) return;
 
             if (e.clipboardData == null) {
                 return;
@@ -172,12 +160,14 @@ export class Scribby {
                 };
                 this.historyManager.push(snapshot);
             }, this.historyUpdateDelayonInput);
+            // normalize after input
+            this.normalizer.removeNotSupportedNodes(this.el);
+            const outOfOrderNodes = this.normalizer.flagNodeHierarchyViolations(this.el);
+            this.normalizer.fixHierarchyViolations(outOfOrderNodes);
         });
         this.el.addEventListener("activateStyleButtons", (e) => {
-            this.selection = window.getSelection();
-            const sel = this.selection;
-            if (!sel || sel.rangeCount === 0) return;
-            const range = sel.getRangeAt(0);
+            const range = this.selection;
+            if (!range) return;
             let startEl = range.startContainer.parentElement;
             if (startEl == null) return;
             const styles = startEl.style;
@@ -200,9 +190,21 @@ export class Scribby {
             })
         })
 
-        return this
-    }
-    updateHistory() {
+        document.addEventListener("selectionchange", () => {
+            const sel = window.getSelection();
+            if (!sel || sel.rangeCount === 0) {
+                this.selection = null;
+                return;
+            }
 
+            const range = sel.getRangeAt(0);
+            if(this.el.contains(range.commonAncestorContainer)){
+                this.selection = range;
+                this.el.dispatchEvent(activateStyleButtons);
+            }
+            
+        });
+
+        return this
     }
 }

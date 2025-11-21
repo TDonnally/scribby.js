@@ -24,9 +24,8 @@ export class LLMOutput {
 
                 const parser = new DOMParser();
 
-                const sel = this.scribby.selection;
-                if (!sel || sel.rangeCount === 0) return;
-                const range = sel.getRangeAt(0);
+                const range = this.scribby.selection;
+                if(!range) return;
                 const input = range.toString();
 
                 this.scribby.el.classList.add("disabled");
@@ -47,7 +46,11 @@ export class LLMOutput {
 
                 range.deleteContents();
                 range.insertNode(fragment);
+                
                 this.scribby.normalizer.removeNotSupportedNodes(this.scribby.el);
+                const outOfOrderNodes = this.scribby.normalizer.flagNodeHierarchyViolations(this.scribby.el);
+                this.scribby.normalizer.fixHierarchyViolations(outOfOrderNodes);
+
                 this.isGenerating = false;
             }
             

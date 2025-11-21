@@ -36,10 +36,8 @@ export class ToolbarInsertButton{
             if (this.scribby.currentModal){
                 this.scribby.currentModal.unmount();
             }
-            
-            const sel = this.scribby.selection;
-            if (!sel || sel.rangeCount === 0) return;
-            const range = sel.getRangeAt(0);
+            const range = this.scribby.selection;
+            if(!range) return;
             const blockRanges = utils.getBlockRanges(range, this.scribby.el);
             /**
              * 1. extract range
@@ -97,7 +95,7 @@ export class ToolbarInsertButton{
 
             }
             else if (this.insertElType === insertElementType.OrderedList || this.insertElType === insertElementType.UnorderedList){
-                console.log("inserting list");
+                
                 const list = document.createElement(this.insertElType);
                 blockRanges.forEach(({ block, blockRange }) => {
                     const listEl = document.createElement("li");
@@ -108,12 +106,17 @@ export class ToolbarInsertButton{
                 })
                 range.deleteContents();
                 range.insertNode(list);
+                
+                
+                
             }
             else{
                 const newEl = document.createElement(this.insertElType);
                 range.insertNode(newEl);
             }
-            
+            const outOfOrderNodes = this.scribby.normalizer.flagNodeHierarchyViolations(this.scribby.el)
+            console.log(outOfOrderNodes);
+            this.scribby.normalizer.fixHierarchyViolations(outOfOrderNodes)
         })
     }
 }

@@ -142,16 +142,9 @@ export class Normailzer {
             const parentTag = parent?.tagName.toLocaleLowerCase();
             if (parentTag === "ol" || parentTag === "ul") {
                 const list = document.createElement("li");
-                const textEl = document.createElement("p");
-                list.appendChild(textEl);
 
                 parent.insertBefore(list, textNode);
-                textEl.appendChild(textNode);
-            }
-            else if (parentTag === "li") {
-                const textEl = document.createElement("p");
-                parent.insertBefore(textEl, textNode);
-                textEl.appendChild(textNode);
+                list.appendChild(textNode);
             }
             else if (parentTag === "div") {
                 const textEl = document.createElement("p");
@@ -168,9 +161,14 @@ export class Normailzer {
             const parent = node.parentNode as HTMLElement;
             const parentTag = parent?.tagName.toLocaleLowerCase();
             if (parentTag === "ol" || parentTag === "ul") {
-                const list = document.createElement("li");
-                parent.insertBefore(list, node);
-                list.appendChild(node);
+                for (const child of node.childNodes) {
+                    utils.changeElementTag(child as HTMLElement, "li");
+                }
+            }
+            else if(parentTag === "li"){
+                for (const child of node.childNodes) {
+                    utils.replaceElementWithChildren(child as HTMLElement);
+                }
             }
             else if(textTags.includes(parentTag)){
                 utils.makeChildSiblingofParent(node as HTMLElement);
@@ -191,6 +189,7 @@ export class Normailzer {
             if (parentTag === "div") {
                 const list = document.createElement("ul");
                 parent.insertBefore(list, node);
+                list.appendChild(node);
             }
             else if (textTags.includes(parentTag)) {
                 for (const child of node.childNodes) {
