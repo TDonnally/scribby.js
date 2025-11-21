@@ -114,7 +114,10 @@ export function replaceElementWithChildren(el: Element): void{
     el.remove();
 }
 export function changeElementTag(el: Element, tag: string): void{
+    const parent = el.parentElement;
+    if (!parent) return;
     const newEl = document.createElement(tag);
+    parent.insertBefore(newEl, el)
     newEl.appendChild(el);
     replaceElementWithChildren(el);
 }

@@ -56,11 +56,12 @@ export class SpeechToText {
 
             recognition.onstart = () => {
                 console.log('Voice recognition started');
-                
+                this.el.classList.add("active");
             };
 
             recognition.onend = () => {
                 this.isListening = false;
+                this.el.classList.remove("active");
             };
             recognition.onerror = () => {
                 this.isListening = false;
@@ -84,11 +85,11 @@ export class SpeechToText {
             if (this.isListening) {
                 this.recognition.stop();
                 this.isListening = false;
-                this.el.classList.remove("active");
+                
             } else {
                 this.recognition.start();
                 this.isListening = true;
-                this.el.classList.add("active");
+                
             }
         });
     }

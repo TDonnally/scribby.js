@@ -81,7 +81,7 @@ export class Scribby {
                 if (!sel || sel.rangeCount === 0) return;
                 const range = sel.getRangeAt(0);
                 // normalize after line break
-                console.log(range.commonAncestorContainer);
+                this.normalizer.removeNotSupportedNodes(this.el);
                 const outOfOrderNodes = this.normalizer.flagNodeHierarchyViolations(this.el);
                 console.log(outOfOrderNodes)
                 this.normalizer.fixHierarchyViolations(outOfOrderNodes);

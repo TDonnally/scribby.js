@@ -1,3 +1,9 @@
+/**
+ * I wrote this before creating schema and normalizer
+ * It could probably be rewritten with those and that would be cleaner
+ * But it currently works fine so until it becomes an issue we will leave as is
+ */
+
 import { Scribby } from "./Scribby.js";
 
 import { activateStyleButtons } from "../events/custom_events.js";
@@ -9,19 +15,19 @@ export enum affectedElementType {
     Span = "span",
 }
 export class ToolbarStyleButton {
-    scribby: Scribby
+    scribby: Scribby;
     innerContent: string;
     attributes: Map<string, string> | null;
     el!: HTMLButtonElement;
     affectedElType: affectedElementType;
-    tag: string | null
+    tag: string | null;
 
     constructor(
         scribby: Scribby,
         innerContent = "",
         attributes: Map<string, string> | null = null,
         affectedElType = affectedElementType.Span,
-        tag:string | null = null,
+        tag: string | null = null,
         el = document.createElement("button"),
     ) {
         this.scribby = scribby;
@@ -35,7 +41,7 @@ export class ToolbarStyleButton {
         this.el.classList.add("toolbar-button");
         this.el.innerHTML = this.innerContent;
         let dataAttributeString: string = "";
-        if (this.attributes){
+        if (this.attributes) {
             for (const [k, v] of this.attributes) {
                 if (this.affectedElType === affectedElementType.Block) {
                     this.scribby.allowedBlockStyles.add(k);
@@ -46,7 +52,7 @@ export class ToolbarStyleButton {
                 dataAttributeString += v;
             }
         }
-        
+
 
         this.el.setAttribute("data-attribute", dataAttributeString);
         this.el.addEventListener("click", (e) => {
@@ -54,36 +60,82 @@ export class ToolbarStyleButton {
             if (!sel || sel.rangeCount === 0) return;
             const range = sel.getRangeAt(0);
             const blockRanges = utils.getBlockRanges(range, this.scribby.el)
+
+            const queryString = this.affectedElType == "block" ? utils.BLOCK_SELECTOR : "span";
+            const fragment = range.cloneContents();
+            const affectedElements = fragment.querySelectorAll(queryString);
+            let isThereAttributeParity: boolean = true;
+            const haveAttribute: Array<HTMLElement> = new Array();
+            const dontHaveAttribute: Array<Element> = new Array();
             /**
+             * CHECK:
+             * 1. check if all blocks have/don't have attribute/tag
+             * 2. If true, toggle off/on
+             * 3. If false, apply attribute/tag to ones that don't have
+             * DOM CHANGES:
              * 1. extract range
              * 2. manipulate nodes
              * 3. replace
              * 4. cleanup
              */
-            blockRanges.forEach(({ block, blockRange }) => {
-                // handle block buttons
-                if (this.affectedElType == "block" && !this.tag && this.attributes){
+
+            // check for text nodes for buttons that affect spans (if present there isn't parity among affected nodes)
+            if (this.affectedElType == "span") {
+                for (let i = 0; i < blockRanges.length; i++) {
+                    let nodes = blockRanges[i].blockRange.cloneContents();
+                    console.log(nodes)
+                    for (const node of nodes.childNodes) {
+                        if (node.nodeType === Node.TEXT_NODE) {
+                            isThereAttributeParity = false;
+                            break;
+                        }
+                    }
+                    if (!isThereAttributeParity) {
+                        break;
+                    }
+                }
+            }
+            // check for parity among element nodes
+            let i = 0;
+            while (isThereAttributeParity && i < affectedElements.length) {
+                const el = affectedElements[i] as HTMLElement;
+                if (this.attributes) {
                     for (const [k, v] of this.attributes) {
-                        if (block.style.getPropertyValue(k) != v) {
-                            block.style.setProperty(k, String(v));
+                        if (el.style.getPropertyValue(k) == v) {
+                            haveAttribute.push(el)
                         }
                         else {
+                            dontHaveAttribute.push(el);
+                        }
+                    }
+                }
+                else {
+                    break;
+                }
+                if (haveAttribute.length && dontHaveAttribute.length) {
+                    isThereAttributeParity = false;
+                }
+                i++;
+            }
+            console.log(isThereAttributeParity);
+            blockRanges.forEach(({ block, blockRange }) => {
+                // handle block buttons
+                if (this.affectedElType == "block" && !this.tag && this.attributes) {
+                    for (const [k, v] of this.attributes) {
+                        if (block.style.getPropertyValue(k) == v && isThereAttributeParity) {
                             block.style.removeProperty(k);
+                        }
+                        else {
+                            block.style.setProperty(k, String(v));
                         }
                     }
                     return
                 }
-                else if (this.affectedElType == "block" && this.tag){
-                    const newTagEl = document.createElement(this.tag);
-                    for (const { name, value } of Array.from(block.attributes)) {
-                        newTagEl.setAttribute(name, value);
-                    }
-                    while (block.firstChild){
-                        newTagEl.appendChild(block.firstChild);
-                    }
-                    block.replaceWith(newTagEl);
-                    return
+                else if (this.affectedElType == "block" && this.tag) {
+                    utils.changeElementTag(block, this.tag);
                 }
+
+                // handle span buttons
                 const rangeOffset = blockRange.startOffset;
                 let startEl = blockRange.startContainer.nodeType === Node.ELEMENT_NODE
                     ? blockRange.startContainer as HTMLElement
@@ -112,7 +164,7 @@ export class ToolbarStyleButton {
                                     span.classList.add(elClass);
                                 }
                             }
-                            if(this.attributes){
+                            if (this.attributes) {
                                 for (const [k, v] of this.attributes) {
                                     if (span.style.getPropertyValue(k) != v) {
                                         span.style.setProperty(k, String(v));
@@ -129,17 +181,17 @@ export class ToolbarStyleButton {
                         }
                         else if (node.nodeType === Node.ELEMENT_NODE && (node as Element).tagName === 'SPAN') {
                             const span = node as HTMLSpanElement;
-                            if (this.attributes){
+                            if (this.attributes) {
                                 for (const [k, v] of this.attributes) {
-                                    if (span.style.getPropertyValue(k) != v) {
-                                        span.style.setProperty(k, String(v));
+                                    if (span.style.getPropertyValue(k) == v && isThereAttributeParity) {
+                                        span.style.removeProperty(k);
                                     }
                                     else {
-                                        span.style.removeProperty(k);
+                                        span.style.setProperty(k, String(v));
                                     }
                                 }
                             }
-                            
+
                         }
                     }
                     if (blockRange.startContainer === blockRange.endContainer && startEl != block) {
@@ -159,7 +211,7 @@ export class ToolbarStyleButton {
                 }
 
                 else if (blockRange.toString().length == 0 && startEl.tagName === "SPAN") {
-                    if(this.attributes){
+                    if (this.attributes) {
                         for (const [k, v] of this.attributes) {
                             if (startEl.style.getPropertyValue(k) == v) {
                                 startEl.style.removeProperty(k);
@@ -169,7 +221,7 @@ export class ToolbarStyleButton {
                             }
                         }
                     }
-                    
+
                     if (startEl.style.length == 0) {
                         const innerHtml = startEl.innerHTML;
                         const frag = document.createRange().createContextualFragment(innerHtml);
@@ -201,7 +253,7 @@ export class ToolbarStyleButton {
                 }
                 block.normalize();
             });
-            
+
             this.scribby.el.dispatchEvent(activateStyleButtons);
         })
     }

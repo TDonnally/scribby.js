@@ -19,6 +19,7 @@ export class LLMOutput {
 
         this.el.addEventListener("click", async (e) => {
             if (!this.isGenerating){
+                console.log("generating")
                 this.isGenerating = true;
 
                 const parser = new DOMParser();
