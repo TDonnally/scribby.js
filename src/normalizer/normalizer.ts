@@ -212,4 +212,14 @@ export class Normailzer {
             utils.replaceElementWithChildren(node as HTMLElement);
         }
     }
+    removeEmptyLists(root: Node): void {
+        const rootEl = root as HTMLElement;
+        const allLists = rootEl.querySelectorAll<HTMLElement>("ol,ul");
+
+        for (const list of allLists) {
+            if (!list.childNodes.length){
+                list.remove();
+            }
+        }
+    }
 }

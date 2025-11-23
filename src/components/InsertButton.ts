@@ -11,6 +11,8 @@ export enum insertElementType {
     OrderedList = "ol",
     UnorderedList = "ul",
 }
+
+
 export class ToolbarInsertButton{
     scribby!: Scribby;
     innerContent: string;
@@ -38,6 +40,7 @@ export class ToolbarInsertButton{
             }
             const range = this.scribby.selection;
             if(!range) return;
+            const rangeLength = range?.toString().length;
             const blockRanges = utils.getBlockRanges(range, this.scribby.el);
             /**
              * 1. extract range
@@ -94,29 +97,63 @@ export class ToolbarInsertButton{
                 
 
             }
-            else if (this.insertElType === insertElementType.OrderedList || this.insertElType === insertElementType.UnorderedList){
-                
-                const list = document.createElement(this.insertElType);
-                blockRanges.forEach(({ block, blockRange }) => {
-                    const listEl = document.createElement("li");
-                    const extractedContents = blockRange.extractContents();
+            else if (this.insertElType === insertElementType.OrderedList || this.insertElType === insertElementType.UnorderedList){ 
+                const parent = range.commonAncestorContainer as HTMLElement;
 
-                    listEl.appendChild(extractedContents);
-                    list.appendChild(listEl);
-                })
-                range.deleteContents();
-                range.insertNode(list);
-                
-                
-                
+                if (parent.nodeType != Node.TEXT_NODE && (parent.tagName.toLowerCase() == "ul" || parent.tagName.toLowerCase() == "ol")){
+                    const tagName:string = parent.tagName.toLowerCase()
+                    const options = {
+                        [insertElementType.OrderedList]: insertElementType.UnorderedList,
+                        [insertElementType.UnorderedList]: insertElementType.OrderedList
+                    }
+                    if (rangeLength > 0){
+                        if (tagName != this.insertElType){
+                            const newTag = utils.toggle(options,tagName);
+                            utils.changeElementTag(parent, newTag);
+                        }
+                        else {
+                            utils.replaceElementWithChildren(parent);
+                        }
+                    }
+                    else if(rangeLength == 0){
+
+                    }
+                }
+                else if(parent.nodeType != Node.TEXT_NODE && parent.tagName.toLowerCase() == "li" && parent.parentElement){
+                    const tagName:string = parent.parentElement.tagName.toLowerCase()
+                    const options = {
+                        [insertElementType.OrderedList]: insertElementType.UnorderedList,
+                        [insertElementType.UnorderedList]: insertElementType.OrderedList
+                    }
+                    if(tagName == this.insertElType){
+                        parent.parentElement.remove();
+                    }
+                    else if (tagName != this.insertElType){
+                        const newTag = utils.toggle(options,tagName);
+                        utils.changeElementTag(parent.parentElement, newTag);
+                    }
+                }
+                else{
+                    const list = document.createElement(this.insertElType);
+                    blockRanges.forEach(({ block, blockRange }) => {
+                        const listEl = document.createElement("li");
+                        const extractedContents = blockRange.extractContents();
+                        listEl.appendChild(extractedContents);
+                        list.appendChild(listEl);
+                        if (rangeLength>0){
+                            block.remove();
+                        }
+                    })
+                    range.deleteContents();
+                    range.insertNode(list);
+                    
+                }
             }
             else{
                 const newEl = document.createElement(this.insertElType);
                 range.insertNode(newEl);
             }
-            const outOfOrderNodes = this.scribby.normalizer.flagNodeHierarchyViolations(this.scribby.el)
-            console.log(outOfOrderNodes);
-            this.scribby.normalizer.fixHierarchyViolations(outOfOrderNodes)
+            this.scribby.el.dispatchEvent(new Event('input'));
         })
     }
 }

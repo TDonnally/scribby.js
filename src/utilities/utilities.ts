@@ -1,5 +1,8 @@
 export const BLOCK_SELECTOR = "p,img,h1,h2,h3,h4,h5,h6,li,blockquote,code";
 
+/**
+ * Get Element object/objects or Element attributes
+ */
 export function getBlock(el: HTMLElement, root: HTMLElement): HTMLElement {
     const block = el.closest(BLOCK_SELECTOR);
     return (block as HTMLElement) ?? (root as HTMLElement);
@@ -48,17 +51,12 @@ export function getElementAttributes(element: HTMLElement): [classes: Set<string
 
     return [classes, styles];
 }
-export function createElement(tag: string, attributes: Map<string, string>, classes: Set<string>): HTMLElement{
-    const newEl = document.createElement(tag);
-    for(const [k, v] of attributes){
-        newEl.setAttribute(k, v)
-    }
-    for(const c of classes){
-        newEl.classList.add(c)
-    }
-    return newEl
-}
 
+
+
+/**
+ * Comparisons
+ */
 export function areSiblingsAdjacent(a: Node, b: Node): boolean {
     return a.nextSibling === b;
 }
@@ -71,15 +69,20 @@ export function areSiblingsEqual(a: Element, b: Element): boolean {
         aStyles.size === bStyles.size && [...aStyles].every(([k, v]) => bStyles.get(k) === v) &&
         a.tagName === b.tagName)
 }
-export function cloneBlockShallow(src: HTMLElement): HTMLElement {
-    const clone = src.cloneNode(false) as HTMLElement;
-    clone.removeAttribute("id");
-    return clone;
-}
 
 /**
  * utilities that involve DOM manipulation
  */
+export function createElement(tag: string, attributes: Map<string, string>, classes: Set<string>): HTMLElement{
+    const newEl = document.createElement(tag);
+    for(const [k, v] of attributes){
+        newEl.setAttribute(k, v)
+    }
+    for(const c of classes){
+        newEl.classList.add(c)
+    }
+    return newEl
+}
 export function mergeElementBintoElementA(a: Element, b: Element): Element {
     while (b.firstChild) a.appendChild(b.firstChild);
     a.normalize();
@@ -144,4 +147,11 @@ export function makeChildSiblingofParent(el: HTMLElement): void {
         grandparent.insertBefore(afterParent, parent);
     }
     parent.remove();
+}
+
+/**
+ * Miscelaneous
+ */
+export function toggle(Options: Record<string, string>, Key: string):string{
+    return Options[Key]
 }

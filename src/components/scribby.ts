@@ -164,6 +164,7 @@ export class Scribby {
             this.normalizer.removeNotSupportedNodes(this.el);
             const outOfOrderNodes = this.normalizer.flagNodeHierarchyViolations(this.el);
             this.normalizer.fixHierarchyViolations(outOfOrderNodes);
+            this.normalizer.removeEmptyLists(this.el);
         });
         this.el.addEventListener("activateStyleButtons", (e) => {
             const range = this.selection;
