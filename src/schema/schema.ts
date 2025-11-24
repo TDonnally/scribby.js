@@ -88,7 +88,7 @@ export const schema: Map<string, NodeSchema> = new Map([
     }],
     ["span", {
         defaultParent: 'p',
-        allowedParents: new Set(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'td', 'th']),
+        allowedParents: new Set(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'td', 'th', 'li']),
         allowedChildren: new Set(['text']),
         hierarchyLabel: nodeHierarchy.inline
     }],
@@ -100,7 +100,7 @@ export const schema: Map<string, NodeSchema> = new Map([
     }],
     ["br", {
         defaultParent: 'p',
-        allowedParents: new Set(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'a','span', 'td', 'th']),
+        allowedParents: new Set(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'a','span', 'td', 'th', 'li']),
         allowedChildren: new Set([]),
         hierarchyLabel: nodeHierarchy.inline
     }],

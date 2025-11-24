@@ -1,4 +1,4 @@
-export const BLOCK_SELECTOR = "p,img,h1,h2,h3,h4,h5,h6,li,blockquote,code";
+export const BLOCK_SELECTOR = "p,h1,h2,h3,h4,h5,h6,li,blockquote,code";
 
 /**
  * Get Element object/objects or Element attributes

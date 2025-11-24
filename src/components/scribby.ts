@@ -90,7 +90,57 @@ export class Scribby {
                 }
             }
             if (e.key === "Tab"){
-
+                e.preventDefault();
+                const range = this.selection;
+                if(!range) return;
+                console.log(window.getSelection()?.focusNode)
+                console.log(range);
+                const parent = range.startContainer;
+                console.log(parent);
+                const parentEl = parent as HTMLElement;
+                let closestLi: HTMLLIElement | null;
+                if (parent.nodeType != Node.ELEMENT_NODE){
+                    const nodeParent = parent.parentElement;
+                    if(!nodeParent) return;
+                    closestLi = nodeParent.closest("li");
+                }
+                else{
+                    closestLi = parentEl.closest("li");
+                }
+                console.log(closestLi);
+                if (closestLi){
+                    if ((!closestLi.textContent.trim() || closestLi.textContent.trim() == '\u200B') && !closestLi.children.length){
+                        closestLi.remove();
+                    }
+                    else{
+                        const parentContainer = closestLi.parentElement;
+                        if (!parentContainer) return;
+                        const parentTag = parentContainer.tagName.toLowerCase();
+                        const listContainer = document.createElement(parentTag);
+                        const content = range.extractContents();
+                        const li = document.createElement("li");
+                        if (!content.querySelector("li")){
+                            li.appendChild(content);
+                            if(!li.childNodes.length){
+                                li.innerText = "\u200B";
+                            }
+                            listContainer.appendChild(li);
+                        }
+                        else{
+                            li.remove();
+                            listContainer.appendChild(content);
+                        }
+                        range.insertNode(listContainer);
+                        console.log(listContainer.previousSibling?.nodeType)
+                        if(listContainer.previousSibling?.nodeType === Node.TEXT_NODE){
+                            const previousTextNode = listContainer.previousSibling;
+                            const span = document.createElement("span");
+                            closestLi.insertBefore(span, previousTextNode);
+                            span.appendChild(previousTextNode);
+                        }
+                    }
+                }
+                this.el.dispatchEvent(new Event('input'));
             }
         })
         
@@ -163,8 +213,9 @@ export class Scribby {
             // normalize after input
             this.normalizer.removeNotSupportedNodes(this.el);
             const outOfOrderNodes = this.normalizer.flagNodeHierarchyViolations(this.el);
+            console.log(outOfOrderNodes);
             this.normalizer.fixHierarchyViolations(outOfOrderNodes);
-            this.normalizer.removeEmptyLists(this.el);
+            this.normalizer.removeEmptyNodes(this.el);
         });
         this.el.addEventListener("activateStyleButtons", (e) => {
             const range = this.selection;

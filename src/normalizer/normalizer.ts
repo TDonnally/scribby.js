@@ -142,7 +142,6 @@ export class Normailzer {
             const parentTag = parent?.tagName.toLocaleLowerCase();
             if (parentTag === "ol" || parentTag === "ul") {
                 const list = document.createElement("li");
-
                 parent.insertBefore(list, textNode);
                 list.appendChild(textNode);
             }
@@ -187,14 +186,31 @@ export class Normailzer {
             const parent = node.parentNode as HTMLElement;
             const parentTag = parent?.tagName.toLocaleLowerCase();
             if (parentTag === "div") {
-                const list = document.createElement("ul");
-                parent.insertBefore(list, node);
-                list.appendChild(node);
+                // move nested lists up
+                const children = Array.from(node.childNodes);
+                for (const child of children) {
+                    const childEl = child as HTMLElement;
+                    const nestedLists = childEl.querySelectorAll<HTMLElement>(":scope > ul, :scope > ol")
+                    nestedLists.forEach((el) => {
+                        utils.makeChildSiblingofParent(el as HTMLElement);
+                    })
+                }
+                // convert lis to p
+                for (const child of node.childNodes) {
+                    const childEl = child as HTMLElement;
+                    if(childEl.tagName.toLowerCase() == "li"){
+                        utils.changeElementTag(childEl,"p");
+                    }
+                }
+                
             }
             else if (textTags.includes(parentTag)) {
                 for (const child of node.childNodes) {
                     utils.replaceElementWithChildren(child as HTMLElement);
                 }
+            }
+            else if(parentTag === "li"){
+                utils.makeChildSiblingofParent(node as HTMLElement);
             }
             utils.replaceElementWithChildren(node as HTMLElement);
         }
@@ -212,13 +228,16 @@ export class Normailzer {
             utils.replaceElementWithChildren(node as HTMLElement);
         }
     }
-    removeEmptyLists(root: Node): void {
+    removeEmptyNodes(root: Node): void {
         const rootEl = root as HTMLElement;
-        const allLists = rootEl.querySelectorAll<HTMLElement>("ol,ul");
+        const allNodes = rootEl.querySelectorAll<HTMLElement>(`${utils.BLOCK_SELECTOR}, ul, ol`);
 
-        for (const list of allLists) {
-            if (!list.childNodes.length){
-                list.remove();
+        for (const node of allNodes) {
+            const hasText = node.textContent?.trim().length! > 0;
+            const hasBr   = node.querySelector("br") !== null;
+
+            if (!hasText && !hasBr) {
+                node.remove();
             }
         }
     }

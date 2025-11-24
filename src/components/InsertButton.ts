@@ -126,23 +126,30 @@ export class ToolbarInsertButton{
                         [insertElementType.UnorderedList]: insertElementType.OrderedList
                     }
                     if(tagName == this.insertElType){
-                        parent.parentElement.remove();
+                        utils.replaceElementWithChildren(parent.parentElement);
                     }
                     else if (tagName != this.insertElType){
                         const newTag = utils.toggle(options,tagName);
                         utils.changeElementTag(parent.parentElement, newTag);
                     }
                 }
+                else if(false){
+
+                }
                 else{
                     const list = document.createElement(this.insertElType);
                     blockRanges.forEach(({ block, blockRange }) => {
                         const listEl = document.createElement("li");
-                        const extractedContents = blockRange.extractContents();
-                        listEl.appendChild(extractedContents);
-                        list.appendChild(listEl);
-                        if (rangeLength>0){
-                            block.remove();
+                        
+                        if(!range.toString().length){
+                            listEl.innerText = "\u200B";
                         }
+                        else{
+                            const extractedContents = blockRange.extractContents();
+                            listEl.appendChild(extractedContents);
+                        }
+                        
+                        list.appendChild(listEl);
                     })
                     range.deleteContents();
                     range.insertNode(list);

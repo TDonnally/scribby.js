@@ -22,6 +22,7 @@
 }
 span{
     transition: background-color .4s;
+    display: block;
 }
 span:hover{
     background-color: #E0F2FD;
