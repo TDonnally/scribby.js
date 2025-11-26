@@ -93,10 +93,7 @@ export class Scribby {
                 e.preventDefault();
                 const range = this.selection;
                 if(!range) return;
-                console.log(window.getSelection()?.focusNode)
-                console.log(range);
                 const parent = range.startContainer;
-                console.log(parent);
                 const parentEl = parent as HTMLElement;
                 let closestLi: HTMLLIElement | null;
                 if (parent.nodeType != Node.ELEMENT_NODE){
@@ -107,7 +104,6 @@ export class Scribby {
                 else{
                     closestLi = parentEl.closest("li");
                 }
-                console.log(closestLi);
                 if (closestLi){
                     if ((!closestLi.textContent.trim() || closestLi.textContent.trim() == '\u200B') && !closestLi.children.length){
                         closestLi.remove();
@@ -131,16 +127,11 @@ export class Scribby {
                             listContainer.appendChild(content);
                         }
                         range.insertNode(listContainer);
-                        console.log(listContainer.previousSibling?.nodeType)
-                        if(listContainer.previousSibling?.nodeType === Node.TEXT_NODE){
-                            const previousTextNode = listContainer.previousSibling;
-                            const span = document.createElement("span");
-                            closestLi.insertBefore(span, previousTextNode);
-                            span.appendChild(previousTextNode);
-                        }
+                        utils.placeCaretatEndofElement(listContainer);
                     }
                 }
                 this.el.dispatchEvent(new Event('input'));
+                
             }
         })
         

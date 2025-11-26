@@ -170,4 +170,16 @@ export const schema: Map<string, NodeSchema> = new Map([
         hierarchyLabel: nodeHierarchy.media
     }],
     */
+
+    // utility tags
+    /**
+     * range-marker: Used for marking endpoints of ranges. Serves as anchors for recreating ranges after DOM manipulation
+     */
+    ["range-marker", {
+        defaultParent: 'p',
+        allowedParents: new Set(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'a', 'span', 'a', 'ol', 'ul', 'th', 'td','tr','table']),
+        allowedChildren: new Set([]),
+        hierarchyLabel: nodeHierarchy.inline
+    }],
+
 ])

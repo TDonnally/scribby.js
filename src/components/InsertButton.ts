@@ -153,12 +153,13 @@ export class ToolbarInsertButton{
                     })
                     range.deleteContents();
                     range.insertNode(list);
-                    
+                    utils.placeCaretatEndofElement(list);
                 }
             }
             else{
                 const newEl = document.createElement(this.insertElType);
                 range.insertNode(newEl);
+                utils.placeCaretatEndofElement(newEl);
             }
             this.scribby.el.dispatchEvent(new Event('input'));
         })

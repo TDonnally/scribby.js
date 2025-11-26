@@ -216,14 +216,20 @@ export class Normailzer {
         }
         function organizeListNode(node: Node): void {
             const parent = node.parentNode as HTMLElement;
-            const parentTag = parent?.tagName.toLocaleLowerCase();
+            let parentTag: string | undefined = parent?.tagName.toLowerCase();
             if (parentTag === "ol" || parentTag === "ul") {
                 const listItem = document.createElement("li");
                 parent.insertBefore(listItem, node);
                 listItem.appendChild(node);
             }
             else if (textTags.includes(parentTag)) {
-                utils.makeChildSiblingofParent(node as HTMLElement);
+                const nodeEl = node as HTMLElement;
+                while (parentTag && textTags.includes(parentTag)){
+                    utils.makeChildSiblingofParent(node as HTMLElement);
+                    parentTag = node.parentElement?.tagName.toLocaleLowerCase();
+                }
+                
+
             }
             utils.replaceElementWithChildren(node as HTMLElement);
         }

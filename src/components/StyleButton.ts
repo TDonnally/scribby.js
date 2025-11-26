@@ -58,6 +58,18 @@ export class ToolbarStyleButton {
         this.el.addEventListener("click", (e) => {
             const range = this.scribby.selection;
             if(!range) return;
+
+            const frontMarker = document.createElement("range-marker");
+            const backMarker = document.createElement("range-marker");
+            range.insertNode(frontMarker);
+            const endRange = range.cloneRange();
+            endRange.collapse(false);
+            endRange.insertNode(backMarker);
+
+
+
+            
+
             const blockRanges = utils.getBlockRanges(range, this.scribby.el)
 
             const queryString = this.affectedElType == "block" ? utils.BLOCK_SELECTOR : "span";
@@ -204,9 +216,6 @@ export class ToolbarStyleButton {
                         blockRange.insertNode(referenceNode);
                         referenceNode.replaceWith(extractedContents);
                     }
-
-                    blockRange.selectNodeContents(extractedContents);
-                    blockRange.collapse(true);
                 }
 
                 else if (blockRange.toString().length == 0 && startEl.tagName === "SPAN") {
@@ -220,21 +229,14 @@ export class ToolbarStyleButton {
                             }
                         }
                     }
-
-                    if (startEl.style.length == 0) {
-                        const innerHtml = startEl.innerHTML;
-                        const frag = document.createRange().createContextualFragment(innerHtml);
-                        startEl.replaceWith(frag);
-                    }
                 }
 
                 // cleanup
                 utils.removeEmptyTextNodes(block);
                 const children = block.children;
-
                 for (let i = 0; i < children.length;) {
                     const child = children[i]
-                    if (child.innerHTML.length == 0) {
+                    if (child.innerHTML.length == 0 && child.tagName.toLowerCase() != "range-marker") {
                         child.remove();
                     }
                     if (i >= children.length - 1) {
@@ -252,9 +254,20 @@ export class ToolbarStyleButton {
                 }
                 block.normalize();
             });
-
             this.scribby.el.dispatchEvent(activateStyleButtons);
             this.scribby.el.dispatchEvent(new Event('input'));
+            
+            const sel = window.getSelection();
+            sel?.removeAllRanges();
+            const newRange = document.createRange();
+            newRange.setStartAfter(frontMarker);
+            newRange.setEndBefore(backMarker);
+            console.log(backMarker);
+            console.log(newRange);
+            sel?.addRange(newRange);
+            frontMarker.remove();
+            backMarker.remove();
+            
         })
     }
 }

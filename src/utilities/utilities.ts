@@ -150,8 +150,28 @@ export function makeChildSiblingofParent(el: HTMLElement): void {
 }
 
 /**
+ * Caret
+ */
+export function placeCaretatEndofElement(el: HTMLElement){
+    const sel = window.getSelection();
+    if (!sel) return;
+
+    sel.removeAllRanges();
+
+    const caretRange = document.createRange();
+    caretRange.selectNodeContents(el);
+    caretRange.collapse(false);
+    sel.addRange(caretRange);
+}
+export function functionPlaceCaret(range: Range, collapsed: Boolean):void{
+
+}
+
+/**
  * Miscelaneous
  */
 export function toggle(Options: Record<string, string>, Key: string):string{
     return Options[Key]
 }
+
+

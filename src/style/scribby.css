@@ -1,8 +1,15 @@
 .scribby{
     position: relative;
+    padding: 1rem;
 }
 .disabled{
     opacity: .5;
+}
+.scribby h1, .scribby h2, .scribby h3, .scribby h4, .scribby h5, .scribby h6, .scribby p{
+    margin-top: 0px;
+}
+.scribby>*:last-child{
+    margin-bottom: 0px;
 }
 .toolbar{
     position: relative;
@@ -22,7 +29,6 @@
 }
 span{
     transition: background-color .4s;
-    display: block;
 }
 span:hover{
     background-color: #E0F2FD;
