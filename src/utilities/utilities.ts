@@ -163,9 +163,6 @@ export function placeCaretatEndofElement(el: HTMLElement){
     caretRange.collapse(false);
     sel.addRange(caretRange);
 }
-export function functionPlaceCaret(range: Range, collapsed: Boolean):void{
-
-}
 
 /**
  * Miscelaneous

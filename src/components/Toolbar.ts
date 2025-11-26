@@ -31,32 +31,32 @@ export class Toolbar {
         this.scribby = scribby
         this.el = document.createElement("div");
         this.textType = new ToolbarDropdownButton(scribby, "Choose Font", [
-            new ToolbarStyleButton(scribby, "Header 1", null, affectedElementType.Block, "h1"),
-            new ToolbarStyleButton(scribby, "Header 2", null, affectedElementType.Block, "h2"),
-            new ToolbarStyleButton(scribby, "Header 3", null, affectedElementType.Block, "h3"),
-            new ToolbarStyleButton(scribby, "Header 4", null, affectedElementType.Block, "h4"),
-            new ToolbarStyleButton(scribby, "Header 5", null, affectedElementType.Block, "h5"),
-            new ToolbarStyleButton(scribby, "Header 6", null, affectedElementType.Block, "h6"),
-            new ToolbarStyleButton(scribby, "p", null, affectedElementType.Block, "p"),
+            new ToolbarStyleButton(scribby, "Header 1", null, affectedElementType.Block, null, "h1"),
+            new ToolbarStyleButton(scribby, "Header 2", null, affectedElementType.Block, null, "h2"),
+            new ToolbarStyleButton(scribby, "Header 3", null, affectedElementType.Block, null, "h3"),
+            new ToolbarStyleButton(scribby, "Header 4", null, affectedElementType.Block, null, "h4"),
+            new ToolbarStyleButton(scribby, "Header 5", null, affectedElementType.Block, null, "h5"),
+            new ToolbarStyleButton(scribby, "Header 6", null, affectedElementType.Block, null, "h6"),
+            new ToolbarStyleButton(scribby, "p", null, affectedElementType.Block, null, "p"),
         ]);
-        this.bold = new ToolbarStyleButton(scribby, "B", new Map([["font-weight", "bold"]]));
-        this.italic = new ToolbarStyleButton(scribby, "I", new Map([["font-style", "italic"]]));
-        this.underline = new ToolbarStyleButton(scribby, "U", new Map([["text-decoration", "underline"]]));
-        this.strikethrough = new ToolbarStyleButton(scribby, "S", new Map([["text-decoration", "line-through"]]));
-        this.alignLeft = new ToolbarStyleButton(scribby, "L", new Map([["text-align", "left"]]), affectedElementType.Block);
-        this.alignCenter = new ToolbarStyleButton(scribby, "=", new Map([["text-align", "center"]]), affectedElementType.Block);
-        this.alignRight = new ToolbarStyleButton(scribby, "R", new Map([["text-align", "right"]]), affectedElementType.Block);
-        this.codeBlock = new ToolbarStyleButton(scribby, "{}", null, affectedElementType.Block, "code");
+        this.bold = new ToolbarStyleButton(scribby, "B", new Map([["font-weight", "bold"]]), affectedElementType.Span, "bold");
+        this.italic = new ToolbarStyleButton(scribby, "I", new Map([["font-style", "italic"]]), affectedElementType.Span, "italic");
+        this.underline = new ToolbarStyleButton(scribby, "U", new Map([["text-decoration", "underline"]]), affectedElementType.Span, "underline");
+        this.strikethrough = new ToolbarStyleButton(scribby, "S", new Map([["text-decoration", "line-through"]]), affectedElementType.Span, "strikethrough");
+        this.alignLeft = new ToolbarStyleButton(scribby, "L", new Map([["text-align", "left"]]), affectedElementType.Block, "align-left");
+        this.alignCenter = new ToolbarStyleButton(scribby, "=", new Map([["text-align", "center"]]), affectedElementType.Block, "align-center");
+        this.alignRight = new ToolbarStyleButton(scribby, "R", new Map([["text-align", "right"]]), affectedElementType.Block, "align-right");
+        this.codeBlock = new ToolbarStyleButton(scribby, "{}", null, affectedElementType.Block, null,"code");
         this.inlineCode = new ToolbarStyleButton(scribby, "<>",
             new Map([
                 ["background-color", "#f4f4f4"],
                 ["padding", "2px 4px"],
                 ["font-family", "Courier New', monospace;"],
                 ["color", "#c7254e"]
-            ]))
-        this.anchor = new ToolbarInsertButton(scribby, "a", null, insertElementType.Anchor);
-        this.orderedList = new ToolbarInsertButton(scribby, "ol", null, insertElementType.OrderedList);
-        this.unorderedList = new ToolbarInsertButton(scribby, "ul", null, insertElementType.UnorderedList);
+            ]), affectedElementType.Span)
+        this.anchor = new ToolbarInsertButton(scribby, "a", null, insertElementType.Anchor, "create-anchor");
+        this.orderedList = new ToolbarInsertButton(scribby, "ol", null, insertElementType.OrderedList, "create-ordered-list");
+        this.unorderedList = new ToolbarInsertButton(scribby, "ul", null, insertElementType.UnorderedList, "create-unordered-list");
         this.speechToText = new SpeechToText(scribby, "listen!");
         this.LLMOutput = new LLMOutput(scribby, "AI")
     }

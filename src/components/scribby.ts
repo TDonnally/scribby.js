@@ -3,7 +3,7 @@ import { Normailzer } from "../normalizer/normalizer.js";
 import { Toolbar } from "./Toolbar.js";
 import { InsertModal } from "./Modal.js";
 
-import { activateStyleButtons } from "../events/custom_events.js";
+import * as events from "../events/custom_events.js";
 import { HistoryManager, Snapshot } from "../history_manager/history_manager.js";
 
 import * as utils from "../utilities/utilities.js"
@@ -76,18 +76,58 @@ export class Scribby {
 
         this.el.addEventListener("keydown", (e) => {
             if (e.ctrlKey) {
-                if (e.key === "z") {
+                if (e.shiftKey){
+                    e.preventDefault();
+                    const key = e.key.toLowerCase()
+                    if (key === "x"){
+                        this.el.dispatchEvent(events.strikethrough);
+                    }
+                    else if (key === "l"){
+                        this.el.dispatchEvent(events.alignLeft);
+                    }
+                    else if (key === "e"){
+                        this.el.dispatchEvent(events.alignCenter);
+                    }
+                    else if (key === "c"){
+                        this.el.dispatchEvent(events.alignRight);
+                    }
+                    else if (key === "&"){
+                        this.el.dispatchEvent(events.createOrderedList);
+                    }
+                    else if (key === "*"){
+                        this.el.dispatchEvent(events.createUnorderedList);
+                    }
+                }
+                else if (e.key === "z"){
                     e.preventDefault();
                     const snapshot = this.historyManager.undo();
                     if (!snapshot) return;
                     this.el.innerHTML = snapshot.html;
                 }
-                else if (e.key === "y") {
+                else if (e.key === "y"){
                     e.preventDefault();
                     const snapshot = this.historyManager.redo();
                     if (!snapshot) return;
                     this.el.innerHTML = snapshot.html;
                 }
+                else if (e.key === "b"){
+                    e.preventDefault();
+                    this.el.dispatchEvent(events.bold);
+                }
+                else if (e.key === "i"){
+                    e.preventDefault();
+                    this.el.dispatchEvent(events.italic);
+                }
+                else if (e.key === "u"){
+                    e.preventDefault();
+                    this.el.dispatchEvent(events.underline);
+                }
+                else if (e.key === "k"){
+                    e.preventDefault();
+                    this.el.dispatchEvent(events.createAnchor);
+                }
+                
+                
             }
             if (e.key === "Tab"){
                 e.preventDefault();
@@ -202,6 +242,7 @@ export class Scribby {
                 this.historyManager.push(snapshot);
             }, this.historyUpdateDelayonInput);
             // normalize after input
+            
             this.normalizer.removeNotSupportedNodes(this.el);
             const outOfOrderNodes = this.normalizer.flagNodeHierarchyViolations(this.el);
             console.log(outOfOrderNodes);
@@ -243,7 +284,7 @@ export class Scribby {
             const range = sel.getRangeAt(0);
             if(this.el.contains(range.commonAncestorContainer)){
                 this.selection = range;
-                this.el.dispatchEvent(activateStyleButtons);
+                this.el.dispatchEvent(events.activateStyleButtons);
             }
             
         });

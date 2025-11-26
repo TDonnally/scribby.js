@@ -21,12 +21,14 @@ export class ToolbarStyleButton {
     el!: HTMLButtonElement;
     affectedElType: affectedElementType;
     tag: string | null;
+    customEventKeyword: string | null;
 
     constructor(
         scribby: Scribby,
         innerContent = "",
         attributes: Map<string, string> | null = null,
         affectedElType = affectedElementType.Span,
+        customEventKeyword: string | null = null,
         tag: string | null = null,
         el = document.createElement("button"),
     ) {
@@ -35,6 +37,7 @@ export class ToolbarStyleButton {
         this.innerContent = innerContent;
         this.attributes = attributes;
         this.affectedElType = affectedElType;
+        this.customEventKeyword = customEventKeyword;
         this.tag = tag;
     }
     mount() {
@@ -53,9 +56,14 @@ export class ToolbarStyleButton {
             }
         }
 
-
         this.el.setAttribute("data-attribute", dataAttributeString);
+        if (this.customEventKeyword){
+            this.scribby.el.addEventListener(this.customEventKeyword, (e) => {
+                this.el.dispatchEvent(new Event("click"));
+            });
+        }
         this.el.addEventListener("click", (e) => {
+            e.preventDefault();
             const range = this.scribby.selection;
             if(!range) return;
 
@@ -65,10 +73,6 @@ export class ToolbarStyleButton {
             const endRange = range.cloneRange();
             endRange.collapse(false);
             endRange.insertNode(backMarker);
-
-
-
-            
 
             const blockRanges = utils.getBlockRanges(range, this.scribby.el)
 
@@ -255,15 +259,13 @@ export class ToolbarStyleButton {
                 block.normalize();
             });
             this.scribby.el.dispatchEvent(activateStyleButtons);
-            this.scribby.el.dispatchEvent(new Event('input'));
             
             const sel = window.getSelection();
             sel?.removeAllRanges();
             const newRange = document.createRange();
             newRange.setStartAfter(frontMarker);
             newRange.setEndBefore(backMarker);
-            console.log(backMarker);
-            console.log(newRange);
+
             sel?.addRange(newRange);
             frontMarker.remove();
             backMarker.remove();

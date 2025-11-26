@@ -18,30 +18,40 @@ export class ToolbarInsertButton{
     innerContent: string;
     attributes: Map<string, string> | null;
     insertElType: insertElementType;
+    customEventKeyword: string | null
     el!: HTMLButtonElement;
     constructor(
         scribby: Scribby,
         innerContent: string,
         attributes: Map<string, string> | null,
         insertElType: insertElementType,
+        customEventKeyword: string | null = null,
     ){
         this.scribby = scribby;
         this.el = document.createElement("button");
         this.innerContent = innerContent;
         this.attributes = attributes;
         this.insertElType = insertElType;
+        this.customEventKeyword = customEventKeyword;
     }
     mount(){
         this.el.classList.add("toolbar-button");
         this.el.innerHTML = this.innerContent;
+        if (this.customEventKeyword){
+            this.scribby.el.addEventListener(this.customEventKeyword, (e) => {
+                this.el.dispatchEvent(new Event("click"));
+            });
+        }
         this.el.addEventListener("click", async (e) => {
             if (this.scribby.currentModal){
                 this.scribby.currentModal.unmount();
             }
             const range = this.scribby.selection;
             if(!range) return;
+            const rangeMarker = document.createElement("range-marker");
             const rangeLength = range?.toString().length;
             const blockRanges = utils.getBlockRanges(range, this.scribby.el);
+
             /**
              * 1. extract range
              * 2. if anchor, insert anchor tag into each block
@@ -101,6 +111,9 @@ export class ToolbarInsertButton{
                 const parent = range.commonAncestorContainer as HTMLElement;
 
                 if (parent.nodeType != Node.TEXT_NODE && (parent.tagName.toLowerCase() == "ul" || parent.tagName.toLowerCase() == "ol")){
+                    const endRange = range.cloneRange();
+                    endRange.collapse(false);
+                    endRange.insertNode(rangeMarker);
                     const tagName:string = parent.tagName.toLowerCase()
                     const options = {
                         [insertElementType.OrderedList]: insertElementType.UnorderedList,
@@ -115,12 +128,12 @@ export class ToolbarInsertButton{
                             utils.replaceElementWithChildren(parent);
                         }
                     }
-                    else if(rangeLength == 0){
-
-                    }
                 }
                 else if(parent.nodeType != Node.TEXT_NODE && parent.tagName.toLowerCase() == "li" && parent.parentElement){
                     const tagName:string = parent.parentElement.tagName.toLowerCase()
+                    const endRange = range.cloneRange();
+                    endRange.collapse(false);
+                    endRange.insertNode(rangeMarker);
                     const options = {
                         [insertElementType.OrderedList]: insertElementType.UnorderedList,
                         [insertElementType.UnorderedList]: insertElementType.OrderedList
@@ -132,9 +145,6 @@ export class ToolbarInsertButton{
                         const newTag = utils.toggle(options,tagName);
                         utils.changeElementTag(parent.parentElement, newTag);
                     }
-                }
-                else if(false){
-
                 }
                 else{
                     const list = document.createElement(this.insertElType);
@@ -153,7 +163,10 @@ export class ToolbarInsertButton{
                     })
                     range.deleteContents();
                     range.insertNode(list);
-                    utils.placeCaretatEndofElement(list);
+
+                    // add a range marker to recreate range
+                    const lastListItem = list.lastElementChild
+                    lastListItem?.appendChild(rangeMarker);
                 }
             }
             else{
@@ -162,6 +175,8 @@ export class ToolbarInsertButton{
                 utils.placeCaretatEndofElement(newEl);
             }
             this.scribby.el.dispatchEvent(new Event('input'));
+            utils.placeCaretatEndofElement(rangeMarker);
+            rangeMarker.remove();
         })
     }
 }
