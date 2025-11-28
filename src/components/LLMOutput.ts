@@ -46,11 +46,11 @@ export class LLMOutput {
 
                 range.deleteContents();
                 range.insertNode(fragment);
-                
+
                 this.scribby.normalizer.removeNotSupportedNodes(this.scribby.el);
                 const outOfOrderNodes = this.scribby.normalizer.flagNodeHierarchyViolations(this.scribby.el);
                 this.scribby.normalizer.fixHierarchyViolations(outOfOrderNodes);
-
+                this.scribby.normalizer.removeEmptyNodes(this.scribby.el);
                 this.isGenerating = false;
             }
             

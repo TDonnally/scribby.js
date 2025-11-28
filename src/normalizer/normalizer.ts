@@ -91,6 +91,7 @@ export class Normailzer {
             [nodeHierarchy.textEl]: organizeTextElNode,
             [nodeHierarchy.listItem]: organizeListItemNode,
             [nodeHierarchy.lists]: organizeListNode,
+            [nodeHierarchy.codeblock]: organizeCodeNode,
             /* 
             [nodeHierarchy.tableItem]: organizeTextNode, 
             [nodeHierarchy.tableRow]: organizeTextNode,
@@ -180,6 +181,11 @@ export class Normailzer {
             else if (parentTag === "table" || parentTag === "tr") {
                 parent.removeChild(node);
             }
+            else if (parentTag === "code"){
+                for (const child of node.childNodes) {
+                    utils.replaceElementWithChildren(child as HTMLElement);
+                }
+            }
             utils.replaceElementWithChildren(node as HTMLElement);
         }
         function organizeListItemNode(node: Node): void {
@@ -212,6 +218,11 @@ export class Normailzer {
             else if(parentTag === "li"){
                 utils.makeChildSiblingofParent(node as HTMLElement);
             }
+            else if (parentTag === "code"){
+                for (const child of node.childNodes) {
+                    utils.replaceElementWithChildren(child as HTMLElement);
+                }
+            }
             utils.replaceElementWithChildren(node as HTMLElement);
         }
         function organizeListNode(node: Node): void {
@@ -223,13 +234,42 @@ export class Normailzer {
                 listItem.appendChild(node);
             }
             else if (textTags.includes(parentTag)) {
-                const nodeEl = node as HTMLElement;
                 while (parentTag && textTags.includes(parentTag)){
                     utils.makeChildSiblingofParent(node as HTMLElement);
                     parentTag = node.parentElement?.tagName.toLocaleLowerCase();
                 }
                 
 
+            }
+            else if (parentTag === "code") {
+                while (parentTag && textTags.includes(parentTag)){
+                    utils.makeChildSiblingofParent(node as HTMLElement);
+                    parentTag = node.parentElement?.tagName.toLocaleLowerCase();
+                }
+                
+
+            }
+            utils.replaceElementWithChildren(node as HTMLElement);
+        }
+        function organizeCodeNode(node:Node): void{
+            const parent = node.parentNode as HTMLElement;
+            let parentTag: string | undefined = parent?.tagName.toLowerCase();
+            if (parentTag === "ol" || parentTag === "ul") {
+                const listItem = document.createElement("li");
+                parent.insertBefore(listItem, node);
+                listItem.appendChild(node);
+            }
+            else if (textTags.includes(parentTag)) {
+                while (parentTag && textTags.includes(parentTag)){
+                    utils.makeChildSiblingofParent(node as HTMLElement);
+                    parentTag = node.parentElement?.tagName.toLocaleLowerCase();
+                }
+            }
+            else if (parentTag === "a"){
+                while (parentTag && textTags.includes(parentTag)){
+                    utils.makeChildSiblingofParent(node as HTMLElement);
+                    parentTag = node.parentElement?.tagName.toLocaleLowerCase();
+                }
             }
             utils.replaceElementWithChildren(node as HTMLElement);
         }

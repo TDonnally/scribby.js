@@ -76,93 +76,93 @@ export class Scribby {
 
         this.el.addEventListener("keydown", (e) => {
             if (e.ctrlKey) {
-                if (e.shiftKey){
+                if (e.shiftKey) {
                     e.preventDefault();
                     const key = e.key.toLowerCase()
-                    if (key === "x"){
+                    if (key === "x") {
                         this.el.dispatchEvent(events.strikethrough);
                     }
-                    else if (key === "l"){
+                    else if (key === "l") {
                         this.el.dispatchEvent(events.alignLeft);
                     }
-                    else if (key === "e"){
+                    else if (key === "e") {
                         this.el.dispatchEvent(events.alignCenter);
                     }
-                    else if (key === "c"){
+                    else if (key === "c") {
                         this.el.dispatchEvent(events.alignRight);
                     }
-                    else if (key === "&"){
+                    else if (key === "&") {
                         this.el.dispatchEvent(events.createOrderedList);
                     }
-                    else if (key === "*"){
+                    else if (key === "*") {
                         this.el.dispatchEvent(events.createUnorderedList);
                     }
                 }
-                else if (e.key === "z"){
+                if (e.key === "z") {
                     e.preventDefault();
                     const snapshot = this.historyManager.undo();
                     if (!snapshot) return;
                     this.el.innerHTML = snapshot.html;
                 }
-                else if (e.key === "y"){
+                else if (e.key === "y") {
                     e.preventDefault();
                     const snapshot = this.historyManager.redo();
                     if (!snapshot) return;
                     this.el.innerHTML = snapshot.html;
                 }
-                else if (e.key === "b"){
+                else if (e.key === "b") {
                     e.preventDefault();
                     this.el.dispatchEvent(events.bold);
                 }
-                else if (e.key === "i"){
+                else if (e.key === "i") {
                     e.preventDefault();
                     this.el.dispatchEvent(events.italic);
                 }
-                else if (e.key === "u"){
+                else if (e.key === "u") {
                     e.preventDefault();
                     this.el.dispatchEvent(events.underline);
                 }
-                else if (e.key === "k"){
+                else if (e.key === "k") {
                     e.preventDefault();
                     this.el.dispatchEvent(events.createAnchor);
                 }
-                
-                
+
+
             }
-            if (e.key === "Tab"){
+            if (e.key === "Tab") {
                 e.preventDefault();
                 const range = this.selection;
-                if(!range) return;
+                if (!range) return;
                 const parent = range.startContainer;
                 const parentEl = parent as HTMLElement;
                 let closestLi: HTMLLIElement | null;
-                if (parent.nodeType != Node.ELEMENT_NODE){
+                if (parent.nodeType != Node.ELEMENT_NODE) {
                     const nodeParent = parent.parentElement;
-                    if(!nodeParent) return;
+                    if (!nodeParent) return;
                     closestLi = nodeParent.closest("li");
                 }
-                else{
+                else {
                     closestLi = parentEl.closest("li");
                 }
-                if (closestLi){
-                    if ((!closestLi.textContent.trim() || closestLi.textContent.trim() == '\u200B') && !closestLi.children.length){
+                if (closestLi) {
+                    if ((!closestLi.textContent.trim() || closestLi.textContent.trim() == '\u200B') && !closestLi.children.length) {
                         closestLi.remove();
                     }
-                    else{
+                    else {
                         const parentContainer = closestLi.parentElement;
                         if (!parentContainer) return;
                         const parentTag = parentContainer.tagName.toLowerCase();
                         const listContainer = document.createElement(parentTag);
                         const content = range.extractContents();
                         const li = document.createElement("li");
-                        if (!content.querySelector("li")){
+                        if (!content.querySelector("li")) {
                             li.appendChild(content);
-                            if(!li.childNodes.length){
+                            if (!li.childNodes.length) {
                                 li.innerText = "\u200B";
                             }
                             listContainer.appendChild(li);
                         }
-                        else{
+                        else {
                             li.remove();
                             listContainer.appendChild(content);
                         }
@@ -171,10 +171,37 @@ export class Scribby {
                     }
                 }
                 this.el.dispatchEvent(new Event('input'));
-                
+            }
+            if (e.key === 'Enter') {
+                if (e.key !== "Enter") return;
+
+                const sel = window.getSelection();
+                if (!sel || sel.rangeCount === 0) return;
+
+                const range = sel.getRangeAt(0);
+                let node: Node | null = range.startContainer;
+                if (node.nodeType === Node.TEXT_NODE) {
+                    node = node.parentElement;
+                }
+
+                const el = node as HTMLElement | null;
+                const codeAncestor = el?.closest("code");
+
+                if (codeAncestor) {
+                    e.preventDefault();
+                    console.log("Enter inside <code>", codeAncestor);
+
+                    const br = document.createElement("br");
+                    const text = document.createTextNode("\u200B");
+                    range.insertNode(text);
+                    range.insertNode(br);
+                    range.setStartAfter(text);
+                    range.collapse(true);
+                    return;
+                }
             }
         })
-        
+
         this.el.addEventListener("paste", (e) => {
             /**
              * steps:
@@ -242,12 +269,12 @@ export class Scribby {
                 this.historyManager.push(snapshot);
             }, this.historyUpdateDelayonInput);
             // normalize after input
-            
             this.normalizer.removeNotSupportedNodes(this.el);
             const outOfOrderNodes = this.normalizer.flagNodeHierarchyViolations(this.el);
             console.log(outOfOrderNodes);
             this.normalizer.fixHierarchyViolations(outOfOrderNodes);
             this.normalizer.removeEmptyNodes(this.el);
+
         });
         this.el.addEventListener("activateStyleButtons", (e) => {
             const range = this.selection;
@@ -282,11 +309,11 @@ export class Scribby {
             }
 
             const range = sel.getRangeAt(0);
-            if(this.el.contains(range.commonAncestorContainer)){
+            if (this.el.contains(range.commonAncestorContainer)) {
                 this.selection = range;
                 this.el.dispatchEvent(events.activateStyleButtons);
             }
-            
+
         });
 
         return this
