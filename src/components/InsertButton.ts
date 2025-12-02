@@ -10,6 +10,7 @@ export enum insertElementType {
     Canvas = "canvas",
     OrderedList = "ol",
     UnorderedList = "ul",
+    CodeBlock = "code"
 }
 
 
@@ -168,6 +169,17 @@ export class ToolbarInsertButton{
                     const lastListItem = list.lastElementChild
                     lastListItem?.appendChild(rangeMarker);
                 }
+            }
+            else if(this.insertElType === insertElementType.CodeBlock){
+                const pre = document.createElement("pre");
+                const codeBlock = document.createElement("code");
+                codeBlock.innerHTML = range.toString();
+
+                range.deleteContents();
+
+                codeBlock.appendChild(rangeMarker);
+                pre.appendChild(codeBlock);
+                range.insertNode(pre);
             }
             else{
                 const newEl = document.createElement(this.insertElType);

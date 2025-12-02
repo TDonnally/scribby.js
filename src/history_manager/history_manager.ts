@@ -10,7 +10,7 @@ export type Snapshot = {
 
 export class HistoryManager {
     private history: Snapshot[] = [];
-    private index = -1;          
+    private index = -1;
     private limit = 50;
 
     push(snapshot: Snapshot) {

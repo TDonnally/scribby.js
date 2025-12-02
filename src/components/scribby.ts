@@ -135,21 +135,21 @@ export class Scribby {
                 if (!range) return;
                 const parent = range.startContainer;
                 const parentEl = parent as HTMLElement;
-                let closestLi: HTMLLIElement | null;
+                let closestElement: HTMLLIElement | null;
                 if (parent.nodeType != Node.ELEMENT_NODE) {
                     const nodeParent = parent.parentElement;
                     if (!nodeParent) return;
-                    closestLi = nodeParent.closest("li");
+                    closestElement = nodeParent.closest("li, code");
                 }
                 else {
-                    closestLi = parentEl.closest("li");
+                    closestElement = parentEl.closest("li, code");
                 }
-                if (closestLi) {
-                    if ((!closestLi.textContent.trim() || closestLi.textContent.trim() == '\u200B') && !closestLi.children.length) {
-                        closestLi.remove();
+                if (closestElement && closestElement.tagName.toLowerCase() === "li") {
+                    if ((!closestElement.textContent.trim() || closestElement.textContent.trim() == '\u200B') && !closestElement.children.length) {
+                        closestElement.remove();
                     }
                     else {
-                        const parentContainer = closestLi.parentElement;
+                        const parentContainer = closestElement.parentElement;
                         if (!parentContainer) return;
                         const parentTag = parentContainer.tagName.toLowerCase();
                         const listContainer = document.createElement(parentTag);
@@ -170,15 +170,26 @@ export class Scribby {
                         utils.placeCaretatEndofElement(listContainer);
                     }
                 }
+                else if(closestElement && closestElement.tagName.toLowerCase() === "code"){
+                    const fourSpaces = document.createTextNode("\t");
+                    range.insertNode(fourSpaces);
+                    const contents = range.extractContents();
+                    const brTags = contents.querySelectorAll("br");
+
+                    brTags.forEach((br) => {
+                        const fourSpaces = document.createTextNode("\t");
+                        br.after(fourSpaces);
+                    })
+
+                    range.insertNode(contents);
+                    range.collapse(false);
+                    closestElement.normalize();
+                }
                 this.el.dispatchEvent(new Event('input'));
             }
             if (e.key === 'Enter') {
-                if (e.key !== "Enter") return;
-
-                const sel = window.getSelection();
-                if (!sel || sel.rangeCount === 0) return;
-
-                const range = sel.getRangeAt(0);
+                const range = this.selection;
+                if (!range) return;
                 let node: Node | null = range.startContainer;
                 if (node.nodeType === Node.TEXT_NODE) {
                     node = node.parentElement;
@@ -189,14 +200,29 @@ export class Scribby {
 
                 if (codeAncestor) {
                     e.preventDefault();
-                    console.log("Enter inside <code>", codeAncestor);
+                    
+                    const beforeRange = range.cloneRange();
 
-                    const br = document.createElement("br");
-                    const text = document.createTextNode("\u200B");
+                    beforeRange.setStart(codeAncestor, 0);
+
+                    const textBeforeCaret = beforeRange.toString(); 
+                    const lines = textBeforeCaret.split("\n");
+                    const currentLine = lines.pop() ?? "";  
+                    const match = currentLine.match(/^[\t ]*/);
+                    let indent = match ? match[0] : "";
+                    
+                    if (currentLine.slice(-1) === "{"){
+                        indent = "\t" + indent;
+                    }
+
+                    range.deleteContents();
+                    const br = document.createTextNode("\n");
+                    const text = document.createTextNode(indent);
                     range.insertNode(text);
                     range.insertNode(br);
                     range.setStartAfter(text);
                     range.collapse(true);
+                    codeAncestor.normalize();
                     return;
                 }
             }

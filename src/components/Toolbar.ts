@@ -17,7 +17,7 @@ export class Toolbar {
     alignLeft: ToolbarStyleButton;
     alignCenter: ToolbarStyleButton;
     alignRight: ToolbarStyleButton;
-    codeBlock: ToolbarStyleButton;
+    codeBlock: ToolbarInsertButton;
     inlineCode: ToolbarStyleButton;
     anchor: ToolbarInsertButton;
     orderedList: ToolbarInsertButton;
@@ -46,7 +46,7 @@ export class Toolbar {
         this.alignLeft = new ToolbarStyleButton(scribby, "L", new Map([["text-align", "left"]]), affectedElementType.Block, "align-left");
         this.alignCenter = new ToolbarStyleButton(scribby, "=", new Map([["text-align", "center"]]), affectedElementType.Block, "align-center");
         this.alignRight = new ToolbarStyleButton(scribby, "R", new Map([["text-align", "right"]]), affectedElementType.Block, "align-right");
-        this.codeBlock = new ToolbarStyleButton(scribby, "{}", null, affectedElementType.Block, null,"code");
+        this.codeBlock = new ToolbarInsertButton(scribby, "{}", null, insertElementType.CodeBlock, "create-code-block");
         this.inlineCode = new ToolbarStyleButton(scribby, "<>",
             new Map([
                 ["background-color", "#f4f4f4"],
