@@ -1,19 +1,33 @@
 {
   "name": "scribby",
-  "version": "1.0.0",
-  "description": "An open source text editor made with the intent to be plugged into any frontend",
-  "main": "scribby.js",
+  "version": "0.1.0",
+  "description": "A rich text editor built with TypeScript using native DOM APIs and contenteditable",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "type": "module",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": ["dist"],
+
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "build": "tsc -p tsconfig.json",
-    "watch": "tsc -w -p tsconfig.json"
+    "watch": "tsc -w -p tsconfig.json",
+    "prepublishOnly": "npm run build"
   },
-  "author": "",
-  "license": "ISC",
+
+  "author": "Tristan Donnally",
+  "license": "MIT",
+
   "devDependencies": {
-    "typescript": "^5.9.3"
-  },
-  "dependencies": {
+    "typescript": "^5.9.3",
     "@types/dom-speech-recognition": "^0.0.7"
+  },
+
+  "dependencies": {
   }
 }

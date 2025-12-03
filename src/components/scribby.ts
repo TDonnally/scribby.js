@@ -126,6 +126,10 @@ export class Scribby {
                     e.preventDefault();
                     this.el.dispatchEvent(events.createAnchor);
                 }
+                else if (e.key === "e"){
+                    e.preventDefault();
+                    this.el.dispatchEvent(events.createCodeBlock);
+                }
 
 
             }

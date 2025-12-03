@@ -46,3 +46,7 @@ export const createAnchor = new CustomEvent('create-anchor', {
     bubbles: true, 
     cancelable: true 
 });
+export const createCodeBlock = new CustomEvent('create-code-block', {
+    bubbles: true, 
+    cancelable: true 
+});
