@@ -11,23 +11,20 @@
       "types": "./dist/index.d.ts"
     }
   },
-  "files": ["dist"],
-
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "build": "tsc -p tsconfig.json",
     "watch": "tsc -w -p tsconfig.json",
     "prepublishOnly": "npm run build"
   },
-
   "author": "Tristan Donnally",
   "license": "MIT",
-
   "devDependencies": {
     "typescript": "^5.9.3",
     "@types/dom-speech-recognition": "^0.0.7"
   },
-
-  "dependencies": {
-  }
+  "dependencies": {}
 }

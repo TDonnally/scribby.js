@@ -1,51 +1,167 @@
-.scribby{
-    position: relative;
-    padding: 1rem;
-}
-.disabled{
-    opacity: .5;
-}
-.scribby h1, .scribby h2, .scribby h3, .scribby h4, .scribby h5, .scribby h6, .scribby p{
-    margin-top: 0px;
-}
-.scribby>*:last-child{
-    margin-bottom: 0px;
-}
-.toolbar{
-    position: relative;
-    top: 0px;
-    left: 0px;
-    background-color: grey;
+:root{
+    /* Global Colors */
+    --bg-color-primary: #fffffd;
+    --bg-color-secondary: #F2F3f4;
 
+    --tbar-button-hover-bg-color: #d2d2d2;
+    --tbar-button-active-bg-color: #444746;
+    --tbar-button-active-text-color: #fffffd;
+
+    --text-color-primary: #1A1F24;
+    
+    --border-color-primary: #0000001a;;
+    --border-color-secondary: #1A1F24;
+    --border-color-tertiary: #242930;
+
+    --accent-primary: #ff6633; 
+    --accent-secondary: #FFFF41;
+    --accent-tertiary: #02B1FF;
+
+    /* Fonts */
+    --font-family: "Roboto", "Helvetica Neue", Helvetica, Arial, sans-serif;
+    --font-size-base: 16px;
+    --font-size-h1: 2.25rem;
+    --font-size-h2: 1.875rem;
+    --font-size-h3: 1.5rem;
+    --font-size-h4: 1.25rem;
+    --font-size-h5: 1.125rem;
+    --font-size-h6: 1rem;
+
+    /* Scribby */
+    --scribby-padding: clamp(1rem, 2vw, 3rem);
+    --scribby-font: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
+    --scribby-border-radius: 1rem;
+    --scribby-border-style: none;
+    --scribby-border-width: 1px;
+
+    --shadow-level-100: 0px 3px 9px #00000008, 0px 0.7px 1.4625px rgba(0, 0, 0, .015);
+    --shadow-level-200: 0px 4px 18px #0000000a, 0px 2.025px 7.84688px rgba(0, 0, 0, .027), 0px 0.8px 2.925px #00000005, 0px 0.175px 1.04062px rgba(0, 0, 0, .013);
+    --shadow-level-300: 0px 20px 50px #00000014, 0px 6px 16px #0000000a;
+}
+
+body {
+    font-family: var(--scribby-font);
+    background-color: var(--bg-color-secondary)
+}
+
+#scribby {
+    position: relative;
+    z-index: 1;
+}
+
+#scribby {
+    width: 100%;
+    position: relative;
+}
+
+#scribby .scribby {
+    position: relative;
+
+    isolation: isolate;
+    min-height: 80vh;
+    max-width: 70ch;
+    margin: 0 auto;
+    z-index: 1;
+    padding: var(--scribby-padding);
+    background: var(--bg-color-primary);
+    border: var(--border-color-primary);
+    border-width: var(--scribby-border-width);
+    border-style: var(--scribby-border-style);
+    border-radius: var(--scribby-border-radius);
+    transition: .4s box-shadow
+}
+
+#scribby .scribby:focus,
+#scribby .scribby:focus-visible,
+#scribby .scribby:focus-within {
+    box-shadow: var(--shadow-level-300);
+    outline: none;
+}
+
+/* Toolbar */
+#scribby .toolbar {
+    position: relative;
     display: flex;
     flex-direction: row;
     gap: 1rem;
+    width: fit-content;
+    margin: 0 auto 2rem;
+    background: var(--bg-color-primary);
+    padding: .5rem 1rem;
+    border-radius: .5rem;
+    z-index: 3;
 }
-.toolbar-button{
+
+#scribby .toolbar>.toolbar-button {
     transition: all .4s;
+    cursor: pointer;
+    width: 2rem;
+    height: 2rem;
+    border-radius: .25rem;
+    margin: 0px;
 }
-.toolbar-button.active{
-    background-color: aquamarine;
+
+#scribby .toolbar-button:hover {
+    box-shadow: var(--shadow-level-300);
+    background-color: var(--tbar-button-hover-bg-color);
 }
-span{
-    transition: background-color .4s;
+
+#scribby .toolbar-button.active {
+    background-color: var(--tbar-button-active-bg-color);
+    color: var(--tbar-button-active-text-color);
+    box-shadow: var(--shadow-level-300);
 }
-span:hover{
-    background-color: #E0F2FD;
+
+/* Dropdown menu */
+.dropdown-menu-container {
+    position: relative;
+    display: flex;
+    align-items: center;
+    min-width: 100px;
 }
-span>span:hover{
-    background-color: #F6E1FC;
+.dropdown-menu-container>button {
+    display: flex;
+    width: 100%;
+    margin: 0px;
+    text-align: left;
+    cursor: pointer;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
 }
-span>span>span:hover{
-    background-color: #E8FCE0;
+.dropdown-menu-container>button:after {
+    content: '▼';
+    transform: rotate(0deg);
+    transform-origin: center 5px;
+    transition: transform .4s;
+    height: 13px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
-.modal{
+.dropdown-menu-container>button.active:after {
+    transform: rotate(-180deg);
+}
+
+.dropdown-menu>button {
+    margin: 0px;
+    display: block;
+    text-align: left;
+    cursor: pointer;
+    padding: .5rem;
+}
+
+.dropdown-menu {
     position: absolute;
+    width: 100%;
+    flex-direction: column;
+    top: 100%;
+    left: 0;
+    background: white;
+    border: 1px solid #ccc;
+    display: none;
 }
-.scribby code{
-    white-space: pre;
-    tab-size: 4;
-    -moz-tab-size: 4;
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
-        "Liberation Mono", "Courier New", monospace;
+
+.dropdown-menu.show {
+    display: flex;
 }
