@@ -165,3 +165,13 @@ body {
 .dropdown-menu.show {
     display: flex;
 }
+
+.scribby code{
+    white-space: pre;
+    tab-size: 4;
+    -moz-tab-size: 4;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+        "Liberation Mono", "Courier New", monospace;
+
+}
+
