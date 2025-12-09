@@ -98,7 +98,7 @@ export const schema: Map<string, NodeSchema> = new Map([
     }],
     ["span", {
         defaultParent: 'p',
-        allowedParents: new Set(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'td', 'th', 'li','code']),
+        allowedParents: new Set(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'td', 'th', 'li','code','speech-output']),
         allowedChildren: new Set(['text']),
         hierarchyLabel: nodeHierarchy.inline
     }],
@@ -186,6 +186,12 @@ export const schema: Map<string, NodeSchema> = new Map([
      * range-marker: Used for marking endpoints of ranges. Serves as anchors for recreating ranges after DOM manipulation
      */
     ["range-marker", {
+        defaultParent: 'p',
+        allowedParents: new Set(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'a', 'span', 'a', 'ol', 'ul', 'th', 'td','tr','table','code']),
+        allowedChildren: new Set([]),
+        hierarchyLabel: nodeHierarchy.inline
+    }],
+    ["speech-output", {
         defaultParent: 'p',
         allowedParents: new Set(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'a', 'span', 'a', 'ol', 'ul', 'th', 'td','tr','table','code']),
         allowedChildren: new Set([]),

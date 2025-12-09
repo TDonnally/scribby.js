@@ -1,4 +1,4 @@
-import { Normailzer } from "../normalizer/normalizer.js";
+import { Normalizer } from "../normalizer/normalizer.js";
 
 import { Toolbar } from "./Toolbar.js";
 import { InsertModal } from "./Modal.js";
@@ -22,7 +22,7 @@ export class Scribby {
     selection!: Range | null;
     allowedBlockStyles: Set<string>;
     allowedSpanStyles: Set<string>;
-    normalizer!: Normailzer;
+    normalizer!: Normalizer;
     historyManager: HistoryManager;
 
     timeoutId: number | null;
@@ -70,7 +70,7 @@ export class Scribby {
 
         container.appendChild(this.el);
         this.toolbar = new Toolbar(this).mount();
-        this.normalizer = new Normailzer(this.el);
+        this.normalizer = new Normalizer(this.el);
 
         this.el.insertAdjacentElement("beforebegin", this.toolbar.el);
 

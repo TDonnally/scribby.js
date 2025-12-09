@@ -2,7 +2,7 @@ import { Scribby } from "./Scribby.js";
 import { SpeechOutput } from "../custom_elements/SpeechOutput.js";
 import * as utils from "../utilities/utilities.js"
 
-export class SpeechToText {
+export class TabAudioText {
     scribby: Scribby;
     innerContent: string;
     el!: HTMLButtonElement;
@@ -20,8 +20,8 @@ export class SpeechToText {
     mount() {
         this.el.classList.add("toolbar-button");
         this.el.innerHTML = this.innerContent;
-        
-        
+
+
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
         if (SpeechRecognition) {
             this.recognition = new SpeechRecognition();
@@ -71,27 +71,65 @@ export class SpeechToText {
                 utils.replaceElementWithChildren(this.outputEl)
             };
         }
-        this.el.addEventListener("click", (e) => {
+        this.el.addEventListener("click", async (e) => {
             if (this.isListening) {
                 this.recognition.stop();
                 this.isListening = false;
-                
-            } else {
-                this.recognition.start();
-                this.isListening = true;
-                const range = this.scribby.selection;
 
-                const output = document.createElement("speech-output");
-                this.outputEl = output;
-                if (!range) {
-                    this.scribby.el.appendChild(output);
-                } else {
-                    range.deleteContents();
-                    range.insertNode(output);
-                    range.selectNodeContents(output);
-                    range.collapse(true);
+            } else {
+                try {
+                    const constraints = {
+                        video: true,
+                        audio: true,
+                    } as any;
+
+                    const stream = await navigator.mediaDevices.getDisplayMedia(constraints);
+
+
+                    const audioTracks = stream.getAudioTracks();
+                    console.log("Audio tracks:", audioTracks);
+
+                    if (!audioTracks.length) {
+                        alert("No audio track detected. Make sure you checked 'Share system audio'.");
+                        return;
+                    }
+
+                    const audioStream = new MediaStream(audioTracks);
+                    const candidates = [
+                        "audio/webm;codecs=opus",
+                        "audio/webm",
+                        "audio/ogg;codecs=opus",
+                        "audio/ogg",
+                    ];
+
+                    const mimeType = candidates.find(t => MediaRecorder.isTypeSupported(t)) || "";
+                    console.log("Using mimeType:", mimeType || "(browser default)");
+
+                    const recorder = new MediaRecorder(audioStream, mimeType ? { mimeType } : undefined);
+
+                    recorder.ondataavailable = async (e: BlobEvent) => {
+                        if (!e.data || e.data.size === 0) return;
+
+                        console.log("Audio chunk blob:", e.data, "size:", e.data.size);
+                        const buf = await e.data.arrayBuffer();
+                        console.log("Chunk ArrayBuffer bytes:", buf.byteLength);
+
+                    };
+
+                    recorder.onstart = () => console.log("Recorder started");
+                    recorder.onstop = () => console.log("Recorder stopped");
+
+                    recorder.start(250);
+                    audioTracks[0].addEventListener("ended", () => {
+                        recorder.stop();
+                    });
+
+                } catch (err) {
+                    console.error("getDisplayMedia failed:", err);
                 }
+
             }
         });
     }
 }
+

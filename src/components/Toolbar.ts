@@ -4,6 +4,7 @@ import { ToolbarDropdownButton } from "./DropdownButton.js";
 import { ToolbarStyleButton, affectedElementType } from "./StyleButton.js";
 import { ToolbarInsertButton, insertElementType } from "./InsertButton.js";
 import { SpeechToText } from "./SpeechtoText.js";
+import { TabAudioText } from "./TabAudiotoText.js";
 import { LLMOutput } from "./LLMOutput.js";
 
 export class Toolbar {
@@ -23,6 +24,7 @@ export class Toolbar {
     orderedList: ToolbarInsertButton;
     unorderedList: ToolbarInsertButton;
     speechToText: SpeechToText;
+    tabAudioText: TabAudioText;
     LLMOutput: LLMOutput;
 
     constructor(
@@ -103,6 +105,10 @@ export class Toolbar {
             `
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><title>microphone</title><path d="M12,2A3,3 0 0,1 15,5V11A3,3 0 0,1 12,14A3,3 0 0,1 9,11V5A3,3 0 0,1 12,2M19,11C19,14.53 16.39,17.44 13,17.93V21H11V17.93C7.61,17.44 5,14.53 5,11H7A5,5 0 0,0 12,16A5,5 0 0,0 17,11H19Z" /></svg>
             `);
+        this.tabAudioText = new TabAudioText(scribby, 
+            `
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><title>headphones</title><path d="M12,1C7,1 3,5 3,10V17A3,3 0 0,0 6,20H9V12H5V10A7,7 0 0,1 12,3A7,7 0 0,1 19,10V12H15V20H18A3,3 0 0,0 21,17V10C21,5 16.97,1 12,1Z" /></svg>
+            `);
         this.LLMOutput = new LLMOutput(scribby, 
             `
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><title>robot-happy-outline</title><path d="M10.5 15.5C10.5 15.87 10.4 16.2 10.22 16.5C9.88 15.91 9.24 15.5 8.5 15.5S7.12 15.91 6.78 16.5C6.61 16.2 6.5 15.87 6.5 15.5C6.5 14.4 7.4 13.5 8.5 13.5S10.5 14.4 10.5 15.5M23 15V18C23 18.55 22.55 19 22 19H21V20C21 21.11 20.11 22 19 22H5C3.9 22 3 21.11 3 20V19H2C1.45 19 1 18.55 1 18V15C1 14.45 1.45 14 2 14H3C3 10.13 6.13 7 10 7H11V5.73C10.4 5.39 10 4.74 10 4C10 2.9 10.9 2 12 2S14 2.9 14 4C14 4.74 13.6 5.39 13 5.73V7H14C17.87 7 21 10.13 21 14H22C22.55 14 23 14.45 23 15M21 16H19V14C19 11.24 16.76 9 14 9H10C7.24 9 5 11.24 5 14V16H3V17H5V20H19V17H21V16M15.5 13.5C14.4 13.5 13.5 14.4 13.5 15.5C13.5 15.87 13.61 16.2 13.78 16.5C14.12 15.91 14.76 15.5 15.5 15.5S16.88 15.91 17.22 16.5C17.4 16.2 17.5 15.87 17.5 15.5C17.5 14.4 16.61 13.5 15.5 13.5Z" /></svg>
@@ -124,6 +130,7 @@ export class Toolbar {
         this.orderedList.mount();
         this.unorderedList.mount();
         this.speechToText.mount();
+        this.tabAudioText.mount();
         this.LLMOutput.mount();
 
         this.el.appendChild(this.textType.el);
@@ -140,6 +147,7 @@ export class Toolbar {
         this.el.appendChild(this.orderedList.el);
         this.el.appendChild(this.unorderedList.el);
         this.el.appendChild(this.speechToText.el);
+        this.el.appendChild(this.tabAudioText.el);
         this.el.appendChild(this.LLMOutput.el);
 
         return this;

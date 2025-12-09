@@ -7,7 +7,7 @@ import * as utils from "../utilities/utilities.js"
 import { schema, nodeHierarchy } from "../schema/schema.js";
 const textTags = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'span'];
 
-export class Normailzer {
+export class Normalizer {
     scribbyEl: HTMLDivElement;
     constructor(
         scribbyEl: HTMLDivElement,
