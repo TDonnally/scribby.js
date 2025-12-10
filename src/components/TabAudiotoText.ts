@@ -6,7 +6,6 @@ export class TabAudioText {
     scribby: Scribby;
     innerContent: string;
     el!: HTMLButtonElement;
-    recognition!: any;
     outputEl!: SpeechOutput;
     constructor(
         scribby: Scribby,
@@ -17,76 +16,43 @@ export class TabAudioText {
         this.el = document.createElement("button");
     }
     private isListening = false;
+    /**
+     *  this is controlled by sound thresholds
+     *  recording is stopped and started in phrase chunks to increase accuracy and lower amount of requests
+    */
+    private isRecording = false;
+
+    private stream: MediaStream | null = null;
+    private recorder: MediaRecorder | null = null;
+    private intervalId: number | null = null;
     mount() {
         this.el.classList.add("toolbar-button");
         this.el.innerHTML = this.innerContent;
 
-
-        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-        if (SpeechRecognition) {
-            this.recognition = new SpeechRecognition();
-            const recognition = this.recognition;
-            recognition.continuous = true;
-            recognition.interimResults = true;
-            recognition.lang = 'en-US';
-
-            let interimSpan: HTMLSpanElement | null = null;
-
-            recognition.onresult = (event: SpeechRecognitionEvent) => {
-                const current = event.resultIndex;
-                const transcript = event.results[current][0].transcript;
-
-                if (event.results[current].isFinal) {
-                    if (interimSpan) {
-                        interimSpan.remove();
-                        interimSpan = null;
-                    }
-                    if (this.outputEl.querySelector('span[style*="color"]')) {
-                        this.outputEl.innerHTML = '';
-                    }
-                    this.outputEl.appendChild(document.createTextNode(transcript + ' '));
-
-                } else {
-                    if (!interimSpan) {
-                        interimSpan = document.createElement('span');
-                        interimSpan.style.color = '#999';
-                        this.outputEl.appendChild(interimSpan);
-                    }
-                    interimSpan.textContent = transcript;
-                }
-            };
-
-            recognition.onstart = () => {
-                console.log('Voice recognition started');
-                this.el.classList.add("active");
-            };
-
-            recognition.onend = () => {
-                this.isListening = false;
-                this.el.classList.remove("active");
-                utils.replaceElementWithChildren(this.outputEl)
-            };
-            recognition.onerror = () => {
-                this.isListening = false;
-                utils.replaceElementWithChildren(this.outputEl)
-            };
-        }
         this.el.addEventListener("click", async (e) => {
             if (this.isListening) {
-                this.recognition.stop();
                 this.isListening = false;
+                this.isRecording = false;
 
+                if (this.recorder) {
+                    this.recorder?.stop();
+                }
+                this.recorder = null;
+                this.stream?.getTracks().forEach(t => t.stop());
+                this.stream = null;
+                if (this.intervalId){
+                    clearInterval(this.intervalId);
+                }
             } else {
+                this.isListening = true;
                 try {
                     const constraints = {
                         video: true,
                         audio: true,
                     } as any;
 
-                    const stream = await navigator.mediaDevices.getDisplayMedia(constraints);
-
-
-                    const audioTracks = stream.getAudioTracks();
+                    this.stream = await navigator.mediaDevices.getDisplayMedia(constraints);
+                    const audioTracks = this.stream.getAudioTracks();
                     console.log("Audio tracks:", audioTracks);
 
                     if (!audioTracks.length) {
@@ -95,33 +61,43 @@ export class TabAudioText {
                     }
 
                     const audioStream = new MediaStream(audioTracks);
-                    const candidates = [
-                        "audio/webm;codecs=opus",
-                        "audio/webm",
-                        "audio/ogg;codecs=opus",
-                        "audio/ogg",
-                    ];
 
-                    const mimeType = candidates.find(t => MediaRecorder.isTypeSupported(t)) || "";
-                    console.log("Using mimeType:", mimeType || "(browser default)");
+                    const audioContext = new AudioContext();
+                    const source = audioContext.createMediaStreamSource(audioStream);
+                    const analyser = audioContext.createAnalyser();
+                    source.connect(analyser);
 
-                    const recorder = new MediaRecorder(audioStream, mimeType ? { mimeType } : undefined);
+                    analyser.fftSize = 256;
+                    const bufferLength = analyser.frequencyBinCount;
+                    const dataArray = new Uint8Array(bufferLength);
 
-                    recorder.ondataavailable = async (e: BlobEvent) => {
-                        if (!e.data || e.data.size === 0) return;
+                    let prevVolume = this.checkVolumeLevel(analyser, bufferLength, dataArray);
 
-                        console.log("Audio chunk blob:", e.data, "size:", e.data.size);
-                        const buf = await e.data.arrayBuffer();
-                        console.log("Chunk ArrayBuffer bytes:", buf.byteLength);
 
-                    };
+                    this.intervalId = setInterval(() => {
+                        const volume = this.checkVolumeLevel(analyser, bufferLength, dataArray);
 
-                    recorder.onstart = () => console.log("Recorder started");
-                    recorder.onstop = () => console.log("Recorder stopped");
+                        if (this.isRecording && prevVolume < 1 && volume < 1) {
+                            this.isRecording = false;
+                            this.recorder?.stop();
+                            this.recorder = null;
+                        }
+                        else if (!this.isRecording && volume >= 1) {
+                            this.isRecording = true;
+                            this.recorder = this.createRecorder(audioStream);
+                        }
 
-                    recorder.start(250);
+                        prevVolume = volume;
+                    }, 500);
+
                     audioTracks[0].addEventListener("ended", () => {
-                        recorder.stop();
+                        this.isRecording = false;
+                        this.isListening = false;
+                        this.recorder?.stop();
+                        this.recorder = null;
+                        if(this.intervalId){
+                            clearInterval(this.intervalId);
+                        }
                     });
 
                 } catch (err) {
@@ -130,6 +106,64 @@ export class TabAudioText {
 
             }
         });
+    }
+    private createRecorder(audioStream: MediaStream): MediaRecorder {
+        const chunks: BlobPart[] = [];
+
+        const candidates = [
+            "audio/webm;codecs=opus",
+            "audio/webm",
+            "audio/ogg;codecs=opus",
+            "audio/ogg",
+        ];
+
+        const mimeType = candidates.find(t => MediaRecorder.isTypeSupported(t)) || "";
+        console.log("Using mimeType:", mimeType || "(browser default)");
+
+        const recorder = new MediaRecorder(audioStream, mimeType ? { mimeType } : undefined);
+
+        recorder.ondataavailable = async (e: BlobEvent) => {
+            if (e.data && e.data.size > 0) chunks.push(e.data);
+        };
+
+        recorder.onstart = () => console.log("Recorder started");
+        recorder.onstop = async () => {
+            const blob = new Blob(chunks, { type: recorder.mimeType || "audio/webm" });
+
+            const response = await fetch("http://localhost:8080/audio/summarize", {
+                method: "POST",
+                headers: {
+                    "Content-Type": blob.type,
+                },
+                body: blob,
+            });
+
+            if (!response.ok) {
+                console.error("Upload failed:", response.status, await response.text());
+                return;
+            }
+
+            console.log(await response.json());
+        };
+
+        recorder.start();
+        return recorder;
+    }
+    private checkVolumeLevel(analyser: AnalyserNode, bufferLength: number, dataArray: Uint8Array<ArrayBuffer>): number {
+        analyser.getByteTimeDomainData(dataArray);
+
+        let sum = 0;
+        for (let i = 0; i < bufferLength; i++) {
+            const value = dataArray[i] - 128;
+            sum += value * value;
+        }
+
+        const average = sum / bufferLength;
+        const rms = Math.sqrt(average);
+
+        const volumePercent = Math.min(100, Math.floor((rms / 90) * 100));
+
+        return volumePercent
     }
 }
 
