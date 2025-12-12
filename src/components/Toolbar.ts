@@ -33,48 +33,48 @@ export class Toolbar {
         this.scribby = scribby
         this.el = document.createElement("div");
         this.textType = new ToolbarDropdownButton(scribby, "Choose Font", [
-            new ToolbarStyleButton(scribby, "Header 1", null, affectedElementType.Block, null, "h1"),
-            new ToolbarStyleButton(scribby, "Header 2", null, affectedElementType.Block, null, "h2"),
-            new ToolbarStyleButton(scribby, "Header 3", null, affectedElementType.Block, null, "h3"),
-            new ToolbarStyleButton(scribby, "Header 4", null, affectedElementType.Block, null, "h4"),
-            new ToolbarStyleButton(scribby, "Header 5", null, affectedElementType.Block, null, "h5"),
-            new ToolbarStyleButton(scribby, "Header 6", null, affectedElementType.Block, null, "h6"),
-            new ToolbarStyleButton(scribby, "Body", null, affectedElementType.Block, null, "p"),
+            new ToolbarStyleButton(scribby, "Header 1", null, null, affectedElementType.Block, null, "h1"),
+            new ToolbarStyleButton(scribby, "Header 2", null, null, affectedElementType.Block, null, "h2"),
+            new ToolbarStyleButton(scribby, "Header 3", null, null, affectedElementType.Block, null, "h3"),
+            new ToolbarStyleButton(scribby, "Header 4", null, null, affectedElementType.Block, null, "h4"),
+            new ToolbarStyleButton(scribby, "Header 5", null, null, affectedElementType.Block, null, "h5"),
+            new ToolbarStyleButton(scribby, "Header 6", null, null, affectedElementType.Block, null, "h6"),
+            new ToolbarStyleButton(scribby, "Body", null, null, affectedElementType.Block, null, "p"),
         ]);
         this.bold = new ToolbarStyleButton(scribby, `
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
                 <path stroke-linejoin="round" d="M6.75 3.744h-.753v8.25h7.125a4.125 4.125 0 0 0 0-8.25H6.75Zm0 0v.38m0 16.122h6.747a4.5 4.5 0 0 0 0-9.001h-7.5v9h.753Zm0 0v-.37m0-15.751h6a3.75 3.75 0 1 1 0 7.5h-6m0-7.5v7.5m0 0v8.25m0-8.25h6.375a4.125 4.125 0 0 1 0 8.25H6.75m.747-15.38h4.875a3.375 3.375 0 0 1 0 6.75H7.497v-6.75Zm0 7.5h5.25a3.75 3.75 0 0 1 0 7.5h-5.25v-7.5Z" />
             </svg>
-            `, new Map([["font-weight", "bold"]]), affectedElementType.Span, "bold");
+            `, new Map([["font-weight", "bold"]]), null,affectedElementType.Span, "bold");
         this.italic = new ToolbarStyleButton(scribby, 
             `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M5.248 20.246H9.05m0 0h3.696m-3.696 0 5.893-16.502m0 0h-3.697m3.697 0h3.803" />
             </svg>
-            `, new Map([["font-style", "italic"]]), affectedElementType.Span, "italic");
+            `, new Map([["font-style", "italic"]]), null,affectedElementType.Span, "italic");
         this.underline = new ToolbarStyleButton(scribby, 
             `
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M17.995 3.744v7.5a6 6 0 1 1-12 0v-7.5m-2.25 16.502h16.5" />
             </svg>
-            `, new Map([["text-decoration", "underline"]]), affectedElementType.Span, "underline");
+            `, new Map([["text-decoration", "underline"]]), null,affectedElementType.Span, "underline");
         this.strikethrough = new ToolbarStyleButton(scribby, 
             `
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M12 12a8.912 8.912 0 0 1-.318-.079c-1.585-.424-2.904-1.247-3.76-2.236-.873-1.009-1.265-2.19-.968-3.301.59-2.2 3.663-3.29 6.863-2.432A8.186 8.186 0 0 1 16.5 5.21M6.42 17.81c.857.99 2.176 1.812 3.761 2.237 3.2.858 6.274-.23 6.863-2.431.233-.868.044-1.779-.465-2.617M3.75 12h16.5" />
             </svg>
 
-            `, new Map([["text-decoration", "line-through"]]), affectedElementType.Span, "strikethrough");
+            `, new Map([["text-decoration", "line-through"]]), null, affectedElementType.Span, "strikethrough");
         this.alignLeft = new ToolbarStyleButton(scribby,   
             `
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><title>format-align-left</title><path d="M3,3H21V5H3V3M3,7H15V9H3V7M3,11H21V13H3V11M3,15H15V17H3V15M3,19H21V21H3V19Z" /></svg>
-            `, new Map([["text-align", "left"]]), affectedElementType.Block, "align-left");
+            `, new Map([["text-align", "left"]]), null, affectedElementType.Block, "align-left");
         this.alignCenter = new ToolbarStyleButton(scribby, 
             `
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><title>format-align-center</title><path d="M3,3H21V5H3V3M7,7H17V9H7V7M3,11H21V13H3V11M7,15H17V17H7V15M3,19H21V21H3V19Z" /></svg>
-            `, new Map([["text-align", "center"]]), affectedElementType.Block, "align-center");
+            `, new Map([["text-align", "center"]]), null, affectedElementType.Block, "align-center");
         this.alignRight = new ToolbarStyleButton(scribby,  
             `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><title>format-align-right</title><path d="M3,3H21V5H3V3M9,7H21V9H9V7M3,11H21V13H3V11M9,15H21V17H9V15M3,19H21V21H3V19Z" /></svg>`
-            , new Map([["text-align", "right"]]), affectedElementType.Block, "align-right");
+            , new Map([["text-align", "right"]]), null, affectedElementType.Block, "align-right");
         this.codeBlock = new ToolbarInsertButton(scribby, 
             `
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><title>code-braces</title><path d="M8,3A2,2 0 0,0 6,5V9A2,2 0 0,1 4,11H3V13H4A2,2 0 0,1 6,15V19A2,2 0 0,0 8,21H10V19H8V14A2,2 0 0,0 6,12A2,2 0 0,0 8,10V5H10V3M16,3A2,2 0 0,1 18,5V9A2,2 0 0,0 20,11H21V13H20A2,2 0 0,0 18,15V19A2,2 0 0,1 16,21H14V19H16V14A2,2 0 0,1 18,12A2,2 0 0,1 16,10V5H14V3H16Z" /></svg>
@@ -83,12 +83,7 @@ export class Toolbar {
             `
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><title>code-tags</title><path d="M14.6,16.6L19.2,12L14.6,7.4L16,6L22,12L16,18L14.6,16.6M9.4,16.6L4.8,12L9.4,7.4L8,6L2,12L8,18L9.4,16.6Z" /></svg>
             `,
-            new Map([
-                ["background-color", "#f4f4f4"],
-                ["padding", "2px 4px"],
-                ["font-family", "Courier New', monospace;"],
-                ["color", "#c7254e"]
-            ]), affectedElementType.Span)
+            null, "inline-script", affectedElementType.Span)
         this.anchor = new ToolbarInsertButton(scribby, 
             `
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><title>link</title><path d="M3.9,12C3.9,10.29 5.29,8.9 7,8.9H11V7H7A5,5 0 0,0 2,12A5,5 0 0,0 7,17H11V15.1H7C5.29,15.1 3.9,13.71 3.9,12M8,13H16V11H8V13M17,7H13V8.9H17C18.71,8.9 20.1,10.29 20.1,12C20.1,13.71 18.71,15.1 17,15.1H13V17H17A5,5 0 0,0 22,12A5,5 0 0,0 17,7Z" /></svg>

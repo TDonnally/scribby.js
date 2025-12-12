@@ -18,7 +18,6 @@ export class Scribby {
     el!: HTMLDivElement;
     toolbar!: Toolbar;
     textElement: string;
-    styleElements: Map<string, string>;
     selection!: Range | null;
     allowedBlockStyles: Set<string>;
     allowedSpanStyles: Set<string>;
@@ -41,7 +40,6 @@ export class Scribby {
         this.el;
         this.content = content;
         this.textElement = "p";
-        this.styleElements = new Map;
         this.selection;
         this.allowedBlockStyles = new Set;
         this.allowedSpanStyles = new Set;
@@ -126,7 +124,7 @@ export class Scribby {
                     e.preventDefault();
                     this.el.dispatchEvent(events.createAnchor);
                 }
-                else if (e.key === "e"){
+                else if (e.key === "e") {
                     e.preventDefault();
                     this.el.dispatchEvent(events.createCodeBlock);
                 }
@@ -174,7 +172,7 @@ export class Scribby {
                         utils.placeCaretatEndofElement(listContainer);
                     }
                 }
-                else if(closestElement && closestElement.tagName.toLowerCase() === "code"){
+                else if (closestElement && closestElement.tagName.toLowerCase() === "code") {
                     const fourSpaces = document.createTextNode("\t");
                     range.insertNode(fourSpaces);
                     const contents = range.extractContents();
@@ -204,18 +202,18 @@ export class Scribby {
 
                 if (codeAncestor) {
                     e.preventDefault();
-                    
+
                     const beforeRange = range.cloneRange();
 
                     beforeRange.setStart(codeAncestor, 0);
 
-                    const textBeforeCaret = beforeRange.toString(); 
+                    const textBeforeCaret = beforeRange.toString();
                     const lines = textBeforeCaret.split("\n");
-                    const currentLine = lines.pop() ?? "";  
+                    const currentLine = lines.pop() ?? "";
                     const match = currentLine.match(/^[\t ]*/);
                     let indent = match ? match[0] : "";
-                    
-                    if (currentLine.slice(-1) === "{"){
+
+                    if (currentLine.slice(-1) === "{") {
                         indent = "\t" + indent;
                     }
 
@@ -309,20 +307,120 @@ export class Scribby {
         this.el.addEventListener("activateStyleButtons", (e) => {
             const range = this.selection;
             if (!range) return;
-            let startEl = range.startContainer.parentElement;
-            if (startEl == null) return;
-            const styles = startEl.style;
-            this.styleElements = new Map;
+            /**
+             * steps: 
+             * 1) check all blocks. 
+             * 2) If no blocks, get closest block 
+             * 3) Activate Block buttons
+             * 4) check if contents would be one contiguous span 
+             * 5) If not return 
+             * 6) else we grab all styles and classes 
+             * 7) Activate those buttons
+             */
 
-            for (let i = 0; i < styles.length; i++) {
-                const value = styles.getPropertyValue(styles[i]);
-                this.styleElements.set(value, styles[i]);
+            // handle blocks
+            let blocks = utils.getBlockRanges(range.cloneRange(), this.el);
+
+            let attributes: Record<string, string> = {}
+            for (var i = 0; i < blocks.length; i++) {
+                const el = blocks[i].block as HTMLElement;
+                let newAttributes: Record<string, string> = {}
+                if (i === 0) {
+                    for (let j = 0; j < el.style.length; j++) {
+                        const prop = el.style[j];
+                        const value = el.style.getPropertyValue(prop);
+                        attributes[prop] = value;
+                    }
+                }
+                for (let j = 0; j < el.style.length; j++) {
+                    const prop = el.style[j];
+                    const value = el.style.getPropertyValue(prop);
+                    if (attributes[prop] == value) {
+                        newAttributes[prop] = value;
+                    }
+                }
+                attributes = newAttributes;
+            }
+            const blockStyleButtons = document.querySelectorAll<HTMLElement>(`${this.selector} [data-button-type="block"]`);
+            blockStyleButtons.forEach((el) => {
+                const key = el.dataset.key;
+                if (key && el.dataset.attribute == attributes[key]) {
+                    el.classList.add("active");
+                }
+                else {
+                    el.classList.remove("active");
+                }
+            })
+
+            // handle spans
+
+            const commonAncestorParent = range.commonAncestorContainer.parentElement;
+            const classes: Record<string, Array<string>> = { "class": [] }
+            attributes = {}
+            if (commonAncestorParent?.tagName.toLowerCase() == "span") {
+                const classList = Array.from(commonAncestorParent.classList);
+                classes["class"] = classList
+                const style = commonAncestorParent.getAttribute("style");
+                if (style) {
+                    style.split(";").forEach(rule => {
+                        const [prop, value] = rule.split(":").map(s => s.trim());
+                        if (prop && value) attributes[prop] = value;
+                    });
+                }
+
+            }
+            else {
+                for (var i = 0; i < blocks.length; i++) {
+                    const blockContent = blocks[i].blockRange.cloneContents();
+                    const nodes = blockContent.childNodes;
+                    console.log(nodes);
+                    for (let i = 0; i < nodes.length; i++) {
+                        const node = nodes[i];
+                        if (node.nodeType === Node.TEXT_NODE) {
+                            return;
+                        }
+                        const el = node as HTMLElement;
+                        const classList = Array.from((node as HTMLElement).classList);
+                        if (i === 0) {
+                            classes["class"] = classList
+                            const style = el.getAttribute("style");
+                            if (style) {
+                                style.split(";").forEach(rule => {
+                                    const [prop, value] = rule.split(":").map(s => s.trim());
+                                    if (prop && value) attributes[prop] = value;
+                                });
+                            }
+                        }
+                        else {
+                            const newClassList = [];
+                            const newAttributes: Record<string, string> = {}
+
+                            // keep consistent classes
+                            for (const nodeClass of classList) {
+                                if (classes["class"].includes(nodeClass)) {
+                                    newClassList.push(nodeClass);
+                                }
+                            }
+                            classes["class"] = newClassList;
+                            // keep consisten attributes
+                            const style = el.getAttribute("style");
+                            if (style) {
+                                style.split(";").forEach(rule => {
+                                    const [prop, value] = rule.split(":").map(s => s.trim());
+                                    if (attributes[prop] == value) newAttributes[prop] == value;
+                                });
+                            }
+                            attributes = newAttributes;
+                        }
+                    }
+                }
             }
 
-            const allButtons = document.querySelectorAll<HTMLElement>(`${this.selector} [data-attribute]`);
-            allButtons.forEach((el) => {
-                const key = el.dataset.attribute;
-                if (key && this.styleElements.has(key)) {
+            const spanStyleButtons = document.querySelectorAll<HTMLElement>(`${this.selector} [data-button-type="span"]`);
+            console.log(attributes)
+            spanStyleButtons.forEach((el) => {
+                const key = el.dataset.key;
+                if (key && el.dataset.attribute == attributes[key]) {
                     el.classList.add("active");
                 }
                 else {

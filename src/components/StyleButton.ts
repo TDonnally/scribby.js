@@ -5,9 +5,6 @@
  */
 
 import { Scribby } from "./Scribby.js";
-
-import { activateStyleButtons } from "../events/custom_events.js";
-
 import * as utils from "../utilities/utilities.js"
 
 export enum affectedElementType {
@@ -22,11 +19,13 @@ export class ToolbarStyleButton {
     affectedElType: affectedElementType;
     tag: string | null;
     customEventKeyword: string | null;
+    styleClass: string | null;
 
     constructor(
         scribby: Scribby,
         innerContent = "",
         attributes: Map<string, string> | null = null,
+        styleClass:string | null = null,
         affectedElType = affectedElementType.Span,
         customEventKeyword: string | null = null,
         tag: string | null = null,
@@ -39,6 +38,7 @@ export class ToolbarStyleButton {
         this.affectedElType = affectedElType;
         this.customEventKeyword = customEventKeyword;
         this.tag = tag;
+        this.styleClass = styleClass;
     }
     mount() {
         this.el.classList.add("toolbar-button");
@@ -53,11 +53,17 @@ export class ToolbarStyleButton {
                     this.scribby.allowedSpanStyles.add(k);
                 }
                 dataAttributeString += v;
-            }
+                this.el.setAttribute("data-key", k);
+                this.el.setAttribute("data-attribute", v);
+            } 
         }
-
-        this.el.setAttribute("data-attribute", dataAttributeString);
-        if (this.customEventKeyword){
+        if (this.styleClass){
+            this.el.setAttribute("data-key", "class");
+            this.el.setAttribute("data-attribute", this.styleClass);
+        }
+        this.el.setAttribute("data-button-type", this.affectedElType);
+        
+        if (this.customEventKeyword) {
             this.scribby.el.addEventListener(this.customEventKeyword, (e) => {
                 this.el.dispatchEvent(new Event("click"));
             });
@@ -65,16 +71,20 @@ export class ToolbarStyleButton {
         this.el.addEventListener("click", (e) => {
             e.preventDefault();
             const range = this.scribby.selection;
-            if(!range) return;
+            if (!range) return;
 
             const frontMarker = document.createElement("range-marker");
             const backMarker = document.createElement("range-marker");
+            frontMarker.classList.add("front");
+            backMarker.classList.add("back");
+
             range.insertNode(frontMarker);
             const endRange = range.cloneRange();
             endRange.collapse(false);
             endRange.insertNode(backMarker);
 
-            const blockRanges = utils.getBlockRanges(range, this.scribby.el)
+
+            const blockRanges = utils.getBlockRanges(range.cloneRange(), this.scribby.el)
 
             const queryString = this.affectedElType == "block" ? utils.BLOCK_SELECTOR : "span";
             const fragment = range.cloneContents();
@@ -98,7 +108,6 @@ export class ToolbarStyleButton {
             if (this.affectedElType == "span") {
                 for (let i = 0; i < blockRanges.length; i++) {
                     let nodes = blockRanges[i].blockRange.cloneContents();
-                    console.log(nodes)
                     for (const node of nodes.childNodes) {
                         if (node.nodeType === Node.TEXT_NODE) {
                             isThereAttributeParity = false;
@@ -158,6 +167,7 @@ export class ToolbarStyleButton {
                 if (startEl == null) return;
                 if (blockRange.toString().length > 0) {
                     const extractedContents = blockRange.extractContents();
+                    console.log(extractedContents)
                     for (const node of extractedContents.childNodes) {
                         if (node.nodeType === Node.TEXT_NODE) {
                             const span = document.createElement('span');
@@ -190,6 +200,9 @@ export class ToolbarStyleButton {
 
                                 }
                             }
+                            if (this.styleClass) {
+                                span.classList.toggle(this.styleClass);
+                            }
                             span.textContent = node.textContent;
                             node.replaceWith(span);
 
@@ -206,13 +219,28 @@ export class ToolbarStyleButton {
                                     }
                                 }
                             }
+                            if (this.styleClass) {
+                                span.classList.toggle(this.styleClass);
+                            }
 
                         }
                     }
                     if (blockRange.startContainer === blockRange.endContainer && startEl != block) {
-                        const lastSpan = startEl.cloneNode(true);
-                        lastSpan.textContent = startEl.textContent?.substring(rangeOffset);
-                        startEl.textContent = startEl.textContent?.substring(0, rangeOffset);
+                        const splitRange = document.createRange();
+                        const textNode = startEl.firstChild ?? startEl;
+
+                        splitRange.setStart(textNode, rangeOffset);
+                        splitRange.setEnd(startEl, startEl.childNodes.length);
+
+                        const tailFragment = splitRange.extractContents(); 
+
+                        const lastSpan = startEl.cloneNode(false);
+                        lastSpan.appendChild(tailFragment);
+
+                        if (textNode.nodeType === Node.TEXT_NODE) {
+                            textNode.textContent = textNode.textContent?.substring(0, rangeOffset) ?? "";
+                        }
+
                         startEl.after(extractedContents, lastSpan);
                     }
                     else {
@@ -233,6 +261,9 @@ export class ToolbarStyleButton {
                             }
                         }
                     }
+                    if (this.styleClass) {
+                        startEl.classList.toggle(this.styleClass);
+                    }
                 }
 
                 // cleanup
@@ -247,6 +278,12 @@ export class ToolbarStyleButton {
                         break;
                     }
                     const nextChild = children[i + 1]
+                    // handle range-markers
+                    if (nextChild.tagName.toLowerCase() == "range-marker" && children[i + 2] && utils.areSiblingsEqual(child, children[i + 2])){
+                        child.appendChild(nextChild);
+                        continue;
+                    }
+
                     const adjacent = utils.areSiblingsAdjacent(child, nextChild);
                     const equal = utils.areSiblingsEqual(child, nextChild);
                     if (adjacent && equal) {
@@ -258,8 +295,6 @@ export class ToolbarStyleButton {
                 }
                 block.normalize();
             });
-            this.scribby.el.dispatchEvent(activateStyleButtons);
-            
             const sel = window.getSelection();
             sel?.removeAllRanges();
             const newRange = document.createRange();
@@ -267,9 +302,12 @@ export class ToolbarStyleButton {
             newRange.setEndBefore(backMarker);
 
             sel?.addRange(newRange);
+            const fMarkerParent = frontMarker.parentElement;
+            const bMarkerParent = backMarker.parentElement;
             frontMarker.remove();
             backMarker.remove();
-            
+            fMarkerParent?.normalize();
+            bMarkerParent?.normalize();
         })
     }
 }

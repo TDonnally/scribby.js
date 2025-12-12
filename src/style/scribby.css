@@ -174,4 +174,9 @@ body {
         "Liberation Mono", "Courier New", monospace;
 
 }
-
+.inline-script {
+    background-color: #f4f4f4;
+    padding: 2px 4px;
+    font-family: "Courier New', monospace";
+    color: #c7254e;
+}
