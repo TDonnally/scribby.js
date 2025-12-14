@@ -25,7 +25,7 @@ export class ToolbarStyleButton {
         scribby: Scribby,
         innerContent = "",
         attributes: Map<string, string> | null = null,
-        styleClass:string | null = null,
+        styleClass: string | null = null,
         affectedElType = affectedElementType.Span,
         customEventKeyword: string | null = null,
         tag: string | null = null,
@@ -55,14 +55,14 @@ export class ToolbarStyleButton {
                 dataAttributeString += v;
                 this.el.setAttribute("data-key", k);
                 this.el.setAttribute("data-attribute", v);
-            } 
+            }
         }
-        if (this.styleClass){
+        if (this.styleClass) {
             this.el.setAttribute("data-key", "class");
             this.el.setAttribute("data-attribute", this.styleClass);
         }
         this.el.setAttribute("data-button-type", this.affectedElType);
-        
+
         if (this.customEventKeyword) {
             this.scribby.el.addEventListener(this.customEventKeyword, (e) => {
                 this.el.dispatchEvent(new Event("click"));
@@ -72,6 +72,7 @@ export class ToolbarStyleButton {
             e.preventDefault();
             const range = this.scribby.selection;
             if (!range) return;
+            const isRangeCollapsed = range.collapsed;
 
             const frontMarker = document.createElement("range-marker");
             const backMarker = document.createElement("range-marker");
@@ -84,7 +85,7 @@ export class ToolbarStyleButton {
             endRange.insertNode(backMarker);
 
 
-            const blockRanges = utils.getBlockRanges(range.cloneRange(), this.scribby.el)
+            const blockRanges = utils.getBlockRanges(range.cloneRange(), this.scribby.el);
 
             const queryString = this.affectedElType == "block" ? utils.BLOCK_SELECTOR : "span";
             const fragment = range.cloneContents();
@@ -165,105 +166,107 @@ export class ToolbarStyleButton {
                     ? blockRange.startContainer as HTMLElement
                     : blockRange.startContainer.parentElement;
                 if (startEl == null) return;
-                if (blockRange.toString().length > 0) {
-                    const extractedContents = blockRange.extractContents();
-                    console.log(extractedContents)
-                    for (const node of extractedContents.childNodes) {
-                        if (node.nodeType === Node.TEXT_NODE) {
-                            const span = document.createElement('span');
-                            let parentClasses: Set<string> | null = null;
-                            let parentStyles: Map<string, string> | null = null;
-                            if (blockRange.startContainer === blockRange.endContainer && startEl?.tagName === 'SPAN' && startEl.contains(blockRange.startContainer)) {
-                                const [parentClassesSet, parentStylesMap] = utils.getElementAttributes(startEl as HTMLElement);
-                                parentStyles = parentStylesMap;
-                                parentClasses = parentClassesSet
-
-                            }
-                            if (parentStyles) {
-                                for (const [prop, value] of parentStyles) {
-                                    span.style.setProperty(prop, value);
-                                }
-                            }
-                            if (parentClasses) {
-                                for (const elClass of parentClasses) {
-                                    span.classList.add(elClass);
-                                }
-                            }
-                            if (this.attributes) {
-                                for (const [k, v] of this.attributes) {
-                                    if (span.style.getPropertyValue(k) != v) {
-                                        span.style.setProperty(k, String(v));
-                                    }
-                                    else {
-                                        span.style.removeProperty(k);
-                                    }
-
-                                }
-                            }
-                            if (this.styleClass) {
-                                span.classList.toggle(this.styleClass);
-                            }
-                            span.textContent = node.textContent;
-                            node.replaceWith(span);
+                const extractedContents = blockRange.extractContents();
+                for (const node of extractedContents.childNodes) {
+                    if (node.nodeType === Node.TEXT_NODE) {
+                        const span = document.createElement('span');
+                        let parentClasses: Set<string> | null = null;
+                        let parentStyles: Map<string, string> | null = null;
+                        if (blockRange.startContainer === blockRange.endContainer && startEl?.tagName === 'SPAN' && startEl.contains(blockRange.startContainer)) {
+                            const [parentClassesSet, parentStylesMap] = utils.getElementAttributes(startEl as HTMLElement);
+                            parentStyles = parentStylesMap;
+                            parentClasses = parentClassesSet
 
                         }
-                        else if (node.nodeType === Node.ELEMENT_NODE && (node as Element).tagName === 'SPAN') {
-                            const span = node as HTMLSpanElement;
-                            if (this.attributes) {
-                                for (const [k, v] of this.attributes) {
-                                    if (span.style.getPropertyValue(k) == v && isThereAttributeParity) {
-                                        span.style.removeProperty(k);
-                                    }
-                                    else {
-                                        span.style.setProperty(k, String(v));
-                                    }
-                                }
+                        if (parentStyles) {
+                            for (const [prop, value] of parentStyles) {
+                                span.style.setProperty(prop, value);
                             }
-                            if (this.styleClass) {
-                                span.classList.toggle(this.styleClass);
-                            }
-
                         }
+                        if (parentClasses) {
+                            for (const elClass of parentClasses) {
+                                span.classList.add(elClass);
+                            }
+                        }
+                        if (this.attributes) {
+                            for (const [k, v] of this.attributes) {
+                                if (span.style.getPropertyValue(k) != v) {
+                                    span.style.setProperty(k, String(v));
+                                }
+                                else {
+                                    span.style.removeProperty(k);
+                                }
+
+                            }
+                        }
+                        if (this.styleClass) {
+                            span.classList.toggle(this.styleClass);
+                        }
+                        span.textContent = node.textContent;
+                        node.replaceWith(span);
+
                     }
-                    if (blockRange.startContainer === blockRange.endContainer && startEl != block) {
-                        const splitRange = document.createRange();
-                        const textNode = startEl.firstChild ?? startEl;
-
-                        splitRange.setStart(textNode, rangeOffset);
-                        splitRange.setEnd(startEl, startEl.childNodes.length);
-
-                        const tailFragment = splitRange.extractContents(); 
-
-                        const lastSpan = startEl.cloneNode(false);
-                        lastSpan.appendChild(tailFragment);
-
-                        if (textNode.nodeType === Node.TEXT_NODE) {
-                            textNode.textContent = textNode.textContent?.substring(0, rangeOffset) ?? "";
+                    else if (node.nodeType === Node.ELEMENT_NODE && (node as Element).tagName === 'SPAN') {
+                        const span = node as HTMLSpanElement;
+                        if (this.attributes) {
+                            for (const [k, v] of this.attributes) {
+                                if (span.style.getPropertyValue(k) == v && isThereAttributeParity) {
+                                    span.style.removeProperty(k);
+                                }
+                                else {
+                                    span.style.setProperty(k, String(v));
+                                }
+                            }
+                        }
+                        if (this.styleClass) {
+                            span.classList.toggle(this.styleClass);
                         }
 
-                        startEl.after(extractedContents, lastSpan);
-                    }
-                    else {
-                        const referenceNode = document.createTextNode('');
-                        blockRange.insertNode(referenceNode);
-                        referenceNode.replaceWith(extractedContents);
                     }
                 }
+                
+                if (blockRange.startContainer === blockRange.endContainer && startEl != block) {
+                    const splitRange = document.createRange();
+                    const textNode = startEl.firstChild ?? startEl;
 
-                else if (blockRange.toString().length == 0 && startEl.tagName === "SPAN") {
+                    splitRange.setStart(textNode, rangeOffset);
+                    splitRange.setEnd(startEl, startEl.childNodes.length);
+
+                    const tailFragment = splitRange.extractContents();
+
+                    const lastSpan = startEl.cloneNode(false);
+                    lastSpan.appendChild(tailFragment);
+
+                    if (textNode.nodeType === Node.TEXT_NODE) {
+                        textNode.textContent = textNode.textContent?.substring(0, rangeOffset) ?? "";
+                    }
+                    
+                    startEl.after(extractedContents, lastSpan);
+                }
+                else {
+                    const referenceNode = document.createTextNode('');
+                    blockRange.insertNode(referenceNode);
+                    referenceNode.replaceWith(extractedContents);
+                }
+                if (isRangeCollapsed){
+                    console.log(startEl)
+                    const span = startEl != block ? startEl.cloneNode(false) as HTMLElement : document.createElement("span");
+                    console.log(span)
                     if (this.attributes) {
                         for (const [k, v] of this.attributes) {
-                            if (startEl.style.getPropertyValue(k) == v) {
-                                startEl.style.removeProperty(k);
+                            if (span.style.getPropertyValue(k) == v) {
+                                span.style.removeProperty(k);
                             }
                             else {
-                                startEl.style.setProperty(k, String(v));
+                                span.style.setProperty(k, String(v));
                             }
                         }
                     }
                     if (this.styleClass) {
-                        startEl.classList.toggle(this.styleClass);
+                        span.classList.toggle(this.styleClass);
                     }
+                    span.innerHTML = "&ZeroWidthSpace;"
+                    frontMarker.after(span);
                 }
 
                 // cleanup
@@ -279,7 +282,7 @@ export class ToolbarStyleButton {
                     }
                     const nextChild = children[i + 1]
                     // handle range-markers
-                    if (nextChild.tagName.toLowerCase() == "range-marker" && children[i + 2] && utils.areSiblingsEqual(child, children[i + 2])){
+                    if (nextChild.tagName.toLowerCase() == "range-marker" && children[i + 2] && utils.areSiblingsEqual(child, children[i + 2])) {
                         child.appendChild(nextChild);
                         continue;
                     }
