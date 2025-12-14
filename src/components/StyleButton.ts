@@ -160,6 +160,7 @@ export class ToolbarStyleButton {
                     return
                 }
                 else if (this.affectedElType == "block" && this.tag) {
+                    
                     utils.changeElementTag(block, this.tag);
                     return
                 }

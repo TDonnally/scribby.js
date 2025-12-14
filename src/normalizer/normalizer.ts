@@ -87,6 +87,7 @@ export class Normalizer {
     fixHierarchyViolations(outOfOrderNodes: Record<nodeHierarchy, Array<Node>>): void {
         const nodes = outOfOrderNodes;
         const nodeTypetoMethod: Record<nodeHierarchy, (node: Node) => void> = {
+            [nodeHierarchy.br]: organizeBRNode,
             [nodeHierarchy.inline]: organizeTextNode,
             [nodeHierarchy.textEl]: organizeTextElNode,
             [nodeHierarchy.listItem]: organizeListItemNode,
@@ -137,7 +138,18 @@ export class Normalizer {
             }
         }
 
-
+        function organizeBRNode(brNode: Node): void{
+            const el = brNode as HTMLElement
+            const parent = brNode.parentNode as HTMLElement;
+            const parentTag = parent?.tagName.toLocaleLowerCase();
+            if(parentTag == "div"){
+                const p = document.createElement("p");
+                p.textContent = "\u200B";
+                parent.insertBefore(p, brNode);
+                
+            }
+            el.remove();
+        }
         function organizeTextNode(textNode: Node): void {
             const parent = textNode.parentNode as HTMLElement;
             const parentTag = parent?.tagName.toLocaleLowerCase();

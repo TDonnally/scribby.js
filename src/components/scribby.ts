@@ -200,7 +200,6 @@ export class Scribby {
 
                 const el = node as HTMLElement | null;
                 const codeAncestor = el?.closest("code");
-                const headerSelector = el?.closest("h1,h2,h3,h4,h5,h6")
 
                 if (codeAncestor) {
                     e.preventDefault();
@@ -229,28 +228,7 @@ export class Scribby {
                     codeAncestor.normalize();
                     return;
                 }
-                if (headerSelector) {
-                    e.preventDefault();
-                    if (!range.collapsed) {
-                        range.deleteContents();
-                    }
-                    const p = document.createElement("p");
-                    p.appendChild(document.createTextNode("\u200B"));
-
-                    range.setStartAfter(headerSelector);
-                    range.collapse(true);
-                    range.insertNode(p);
-                    const sel = window.getSelection();
-                    if (sel) {
-                        sel.removeAllRanges();
-                        const caretRange = document.createRange();
-                        caretRange.setStart(p.firstChild!, 1); 
-                        caretRange.collapse(true);
-                        sel.addRange(caretRange);
-                    }
-
-                    return;
-                }
+                
             }
         })
 

@@ -32,7 +32,8 @@ export class TabAudioText {
         this.el.addEventListener("click", async (e) => {
             if (this.isListening) {
                 this.isListening = false;
-                this.isRecording = false;
+                this.isRecording = false;   
+                this.el.classList.remove("active");
 
                 if (this.recorder) {
                     this.recorder?.stop();
@@ -45,6 +46,7 @@ export class TabAudioText {
                 }
             } else {
                 this.isListening = true;
+                this.el.classList.add("active");
                 try {
                     const constraints = {
                         video: true,

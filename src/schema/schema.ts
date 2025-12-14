@@ -9,6 +9,7 @@
  * nodes closer to root are organized last
  */
 export enum nodeHierarchy{
+    br,
     inline,
     textEl,
     listItem,
@@ -110,9 +111,9 @@ export const schema: Map<string, NodeSchema> = new Map([
     }],
     ["br", {
         defaultParent: 'p',
-        allowedParents: new Set(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'a','span', 'td', 'th', 'li','code', 'div']),
+        allowedParents: new Set(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'a','span', 'td', 'th', 'li','code']),
         allowedChildren: new Set([]),
-        hierarchyLabel: nodeHierarchy.inline
+        hierarchyLabel: nodeHierarchy.br
     }],
     // lists
     ["ol", {
