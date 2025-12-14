@@ -192,6 +192,7 @@ export class Scribby {
             if (e.key === 'Enter') {
                 const range = this.selection;
                 if (!range) return;
+                console.log(range.startContainer)
                 let node: Node | null = range.startContainer;
                 if (node.nodeType === Node.TEXT_NODE) {
                     node = node.parentElement;
@@ -199,6 +200,7 @@ export class Scribby {
 
                 const el = node as HTMLElement | null;
                 const codeAncestor = el?.closest("code");
+                const headerSelector = el?.closest("h1,h2,h3,h4,h5,h6")
 
                 if (codeAncestor) {
                     e.preventDefault();
@@ -225,6 +227,28 @@ export class Scribby {
                     range.setStartAfter(text);
                     range.collapse(true);
                     codeAncestor.normalize();
+                    return;
+                }
+                if (headerSelector) {
+                    e.preventDefault();
+                    if (!range.collapsed) {
+                        range.deleteContents();
+                    }
+                    const p = document.createElement("p");
+                    p.appendChild(document.createTextNode("\u200B"));
+
+                    range.setStartAfter(headerSelector);
+                    range.collapse(true);
+                    range.insertNode(p);
+                    const sel = window.getSelection();
+                    if (sel) {
+                        sel.removeAllRanges();
+                        const caretRange = document.createRange();
+                        caretRange.setStart(p.firstChild!, 1); 
+                        caretRange.collapse(true);
+                        sel.addRange(caretRange);
+                    }
+
                     return;
                 }
             }
@@ -316,10 +340,24 @@ export class Scribby {
              * 5) If not return 
              * 6) else we grab all styles and classes 
              * 7) Activate those buttons
+             * 8) Change state of dropdown based on what blocks are selected
              */
 
             // handle blocks
             let blocks = utils.getBlockRanges(range.cloneRange(), this.el);
+            const blockTags: Array<string> = [];
+
+            for (const block of blocks) {
+                const el = block.block as HTMLElement;
+                if (!blockTags.includes(el.tagName.toLowerCase())) {
+                    blockTags.push(el.tagName.toLowerCase());
+                }
+                if (blockTags.length > 1) break;
+            }
+
+            const dropDownOpen = document.querySelector(".dropdown-open");
+
+            dropDownOpen!.textContent = blockTags.length > 1 ? "Body" : document.querySelector(`${this.selector} [data-tag="${blockTags[0]}"]`)?.textContent ?? "Body";
 
             let attributes: Record<string, string> = {}
             for (var i = 0; i < blocks.length; i++) {
@@ -417,7 +455,6 @@ export class Scribby {
             }
 
             const spanStyleButtons = document.querySelectorAll<HTMLElement>(`${this.selector} [data-button-type="span"]`);
-            console.log(attributes)
             spanStyleButtons.forEach((el) => {
                 const key = el.dataset.key;
                 if (key && el.dataset.attribute == attributes[key]) {
@@ -427,6 +464,8 @@ export class Scribby {
                     el.classList.remove("active");
                 }
             })
+
+
         })
 
         document.addEventListener("selectionchange", () => {

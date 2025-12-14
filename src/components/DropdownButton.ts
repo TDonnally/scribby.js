@@ -22,6 +22,7 @@ export class ToolbarDropdownButton{
         this.el = document.createElement("div");
         this.el.classList.add("dropdown-menu-container");
         const openButton = document.createElement("button");
+        openButton.classList.add("dropdown-open");
         
         const buttonsContainer = document.createElement("div");
         buttonsContainer.classList.add("dropdown-menu");

@@ -61,6 +61,9 @@ export class ToolbarStyleButton {
             this.el.setAttribute("data-key", "class");
             this.el.setAttribute("data-attribute", this.styleClass);
         }
+        if (this.tag){
+            this.el.setAttribute("data-tag", this.tag);
+        }
         this.el.setAttribute("data-button-type", this.affectedElType);
 
         if (this.customEventKeyword) {
@@ -158,6 +161,7 @@ export class ToolbarStyleButton {
                 }
                 else if (this.affectedElType == "block" && this.tag) {
                     utils.changeElementTag(block, this.tag);
+                    return
                 }
 
                 // handle span buttons
