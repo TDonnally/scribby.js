@@ -1,5 +1,6 @@
 import { Scribby } from "./Scribby.js";
 import { SpeechOutput } from "../custom_elements/SpeechOutput.js";
+import { TextBuffer } from "../buffers/text_buffer.js";
 import * as utils from "../utilities/utilities.js"
 
 export class TabAudioText {
@@ -25,6 +26,7 @@ export class TabAudioText {
     private stream: MediaStream | null = null;
     private recorder: MediaRecorder | null = null;
     private intervalId: number | null = null;
+    private buffer!: TextBuffer;
     mount() {
         this.el.classList.add("toolbar-button");
         this.el.innerHTML = this.innerContent;
@@ -44,9 +46,21 @@ export class TabAudioText {
                 if (this.intervalId){
                     clearInterval(this.intervalId);
                 }
+
+                utils.replaceElementWithChildren(this.outputEl);
             } else {
+                const range = this.scribby.selection;
+                if (!range) return;
+
+                this.outputEl = document.createElement("span");
+                this.outputEl.classList.add("output");
+                range.collapse(false); 
+                range.insertNode(this.outputEl); 
+
                 this.isListening = true;
                 this.el.classList.add("active");
+                
+                this.buffer = new TextBuffer("", this.outputEl);
                 try {
                     const constraints = {
                         video: true,
@@ -90,7 +104,8 @@ export class TabAudioText {
                         }
 
                         prevVolume = volume;
-                    }, 500);
+                        this.outputEl.append(this.buffer.remove());
+                    }, 50);
 
                     audioTracks[0].addEventListener("ended", () => {
                         this.isRecording = false;
@@ -100,6 +115,8 @@ export class TabAudioText {
                         if(this.intervalId){
                             clearInterval(this.intervalId);
                         }
+                        this.el.classList.remove("active");
+                        utils.replaceElementWithChildren(this.outputEl);
                     });
 
                 } catch (err) {
@@ -145,7 +162,9 @@ export class TabAudioText {
                 return;
             }
 
-            console.log(await response.json());
+            const data = await response.json();
+            const text = data.text
+            this.buffer.add(text);
         };
 
         recorder.start();
