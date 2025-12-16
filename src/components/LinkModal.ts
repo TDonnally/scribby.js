@@ -1,6 +1,6 @@
 import { Scribby } from "./Scribby.js";
 
-export class InsertModal{
+export class LinkModal{
     scribby!: Scribby;
     innerContent: string;
     modalForm: HTMLFormElement;
@@ -41,7 +41,7 @@ export class InsertModal{
         // positioning
         const modalRect = this.modalForm.getBoundingClientRect();
         const left = this.rangeRect.left + (this.rangeRect.width / 2) - (modalRect.width / 2);
-        const top = this.rangeRect.top - modalRect.height - 10;
+        const top = this.rangeRect.bottom - modalRect.height - 10;
         const adjustedLeft = Math.max(10, Math.min(left, window.innerWidth - modalRect.width - 10));
         const adjustedTop = Math.max(10, top);
         

@@ -1,5 +1,5 @@
 import { Scribby } from "./Scribby.js";
-import { InsertModal } from "./Modal.js";
+import { InsertModal } from "./InsertModal.js";
 
 import * as utils from "../utilities/utilities.js"
 
@@ -60,12 +60,15 @@ export class ToolbarInsertButton{
              * 4. if other insert type delete range and insert that element
              */
             if (this.insertElType === insertElementType.Anchor){
+                const endRange = range.cloneRange();
+                endRange.collapse(false);
+                endRange.insertNode(rangeMarker);
 
                 this.scribby.currentModal = new InsertModal(
                     this.scribby,
                     `
                     <label>
-                        URL
+                        Url
                         <input name="href" type="text" required />
                     </label>
                     ${range.toString().length > 0 ? '' : `
@@ -75,7 +78,7 @@ export class ToolbarInsertButton{
                     </label>
                     `}
                     `,
-                    range.getBoundingClientRect(),
+                    rangeMarker.getBoundingClientRect(),
                 );
                 const modal = this.scribby.currentModal;
 
@@ -171,13 +174,15 @@ export class ToolbarInsertButton{
                 }
             }
             else if(this.insertElType === insertElementType.CodeBlock){
+                const endRange = range.cloneRange();
+                endRange.collapse(false);
+                endRange.insertNode(rangeMarker);
                 const pre = document.createElement("pre");
                 const codeBlock = document.createElement("code");
                 codeBlock.innerHTML = range.toString();
 
                 range.deleteContents();
 
-                codeBlock.appendChild(rangeMarker);
                 pre.appendChild(codeBlock);
                 range.insertNode(pre);
             }

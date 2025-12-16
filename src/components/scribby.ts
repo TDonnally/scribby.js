@@ -1,7 +1,7 @@
 import { Normalizer } from "../normalizer/normalizer.js";
 
 import { Toolbar } from "./Toolbar.js";
-import { InsertModal } from "./Modal.js";
+import { InsertModal } from "./InsertModal.js";
 
 import * as events from "../events/custom_events.js";
 import { HistoryManager, Snapshot } from "../history_manager/history_manager.js";
