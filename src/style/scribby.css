@@ -226,5 +226,14 @@ body {
 .insert-modal button{
     display: block;
     margin: 0 auto;
+    
+}
+.link-modal button{
+    transition: all .4s;
+    cursor: pointer;
+    width: 2rem;
+    height: 2rem;
+    border-radius: .25rem;
+    margin: 0px;
 }
 

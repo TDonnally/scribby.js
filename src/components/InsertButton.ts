@@ -44,8 +44,8 @@ export class ToolbarInsertButton{
             });
         }
         this.el.addEventListener("click", async (e) => {
-            if (this.scribby.currentModal){
-                this.scribby.currentModal.unmount();
+            if (this.scribby.currentInsertModal){
+                this.scribby.currentInsertModal.unmount();
             }
             const range = this.scribby.selection;
             if(!range) return;
@@ -64,7 +64,7 @@ export class ToolbarInsertButton{
                 endRange.collapse(false);
                 endRange.insertNode(rangeMarker);
 
-                this.scribby.currentModal = new InsertModal(
+                this.scribby.currentInsertModal = new InsertModal(
                     this.scribby,
                     `
                     <label>
@@ -80,7 +80,7 @@ export class ToolbarInsertButton{
                     `,
                     rangeMarker.getBoundingClientRect(),
                 );
-                const modal = this.scribby.currentModal;
+                const modal = this.scribby.currentInsertModal;
 
                 const values = await modal.submission();
                 console.log(values)

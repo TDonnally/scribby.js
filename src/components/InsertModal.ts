@@ -6,15 +6,19 @@ export class InsertModal {
     modalForm: HTMLFormElement;
     submitButton: HTMLButtonElement;
     referenceRect: DOMRect;
+    anchor: HTMLAnchorElement | null;
     resolveFn!: (value: Record<string, string> | null) => void;
     constructor(
         scribby: Scribby,
         innerContent: string,
-        referenceRect: DOMRect
+        referenceRect: DOMRect,
+        anchor: HTMLAnchorElement | null = null,
     ) {
         this.scribby = scribby;
         this.innerContent = innerContent;
         this.referenceRect = referenceRect;
+        this.anchor = anchor;
+
         this.modalForm = document.createElement("form");
         this.submitButton = document.createElement("button");
         this.submitButton.type = "submit"

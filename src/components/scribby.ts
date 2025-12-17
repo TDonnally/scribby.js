@@ -2,6 +2,7 @@ import { Normalizer } from "../normalizer/normalizer.js";
 
 import { Toolbar } from "./Toolbar.js";
 import { InsertModal } from "./InsertModal.js";
+import { LinkModal } from "./LinkModal.js";
 
 import * as events from "../events/custom_events.js";
 import { HistoryManager, Snapshot } from "../history_manager/history_manager.js";
@@ -27,7 +28,8 @@ export class Scribby {
     timeoutId: number | null;
     historyUpdateDelayonInput: number;
 
-    currentModal: InsertModal | null = null;
+    currentInsertModal: InsertModal | null = null;
+    currentTextModal: LinkModal | null = null;
 
     constructor(
         selector = "",
@@ -277,9 +279,9 @@ export class Scribby {
             this.normalizer.fixHierarchyViolations(outOfOrderNodes);
         })
         this.el.addEventListener("focusin", (e) => {
-            if (this.currentModal) {
-                this.currentModal.unmount();
-                this.currentModal = null;
+            if (this.currentInsertModal) {
+                this.currentInsertModal.unmount();
+                this.currentInsertModal = null;
             }
         })
 
@@ -452,11 +454,24 @@ export class Scribby {
                 this.selection = null;
                 return;
             }
-
+            if (this.currentTextModal) this.currentTextModal.unmount();
             const range = sel.getRangeAt(0);
             if (this.el.contains(range.commonAncestorContainer)) {
                 this.selection = range;
                 this.el.dispatchEvent(events.activateStyleButtons);
+
+                // check if we are inside an anchor and activate modal
+                const parent = range.commonAncestorContainer.parentElement;
+                const closestAnchor = parent?.closest("a");
+                if (closestAnchor && this.currentInsertModal == null){
+                    const linkModal = new LinkModal(
+                        this,
+                        this.selection.getBoundingClientRect(),
+                        closestAnchor,
+                    );
+                    this.currentTextModal = linkModal;
+                    linkModal.mount();
+                }
             }
 
         });
