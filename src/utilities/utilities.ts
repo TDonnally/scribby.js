@@ -170,5 +170,22 @@ export function placeCaretatEndofElement(el: HTMLElement){
 export function toggle(Options: Record<string, string>, Key: string):string{
     return Options[Key]
 }
+export function normalizeUrl(input: string): string | null {
+    const raw = input.trim();
+
+    if (!raw) return null;
+    const stripped = raw.replace(/^(https?:)?\/\//i, "");
+
+    try {
+        const url = new URL(`https://${stripped}`);
+        if (!["http:", "https:"].includes(url.protocol)) {
+            return null;
+        }
+
+        return url.href;
+    } catch {
+        return null;
+    }
+}
 
 

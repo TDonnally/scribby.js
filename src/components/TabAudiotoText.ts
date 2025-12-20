@@ -25,7 +25,6 @@ export class TabAudioText {
 
     private stream: MediaStream | null = null;
     private recorder: MediaRecorder | null = null;
-    private intervalId: number | null = null;
     private buffer!: TextBuffer;
     mount() {
         this.el.classList.add("toolbar-button");
@@ -34,7 +33,7 @@ export class TabAudioText {
         this.el.addEventListener("click", async (e) => {
             if (this.isListening) {
                 this.isListening = false;
-                this.isRecording = false;   
+                this.isRecording = false;
                 this.el.classList.remove("active");
 
                 if (this.recorder) {
@@ -43,23 +42,22 @@ export class TabAudioText {
                 this.recorder = null;
                 this.stream?.getTracks().forEach(t => t.stop());
                 this.stream = null;
-                if (this.intervalId){
-                    clearInterval(this.intervalId);
-                }
 
                 utils.replaceElementWithChildren(this.outputEl);
             } else {
+
+
                 const range = this.scribby.selection;
                 if (!range) return;
 
                 this.outputEl = document.createElement("span");
                 this.outputEl.classList.add("output");
-                range.collapse(false); 
-                range.insertNode(this.outputEl); 
+                range.collapse(false);
+                range.insertNode(this.outputEl);
 
                 this.isListening = true;
                 this.el.classList.add("active");
-                
+
                 this.buffer = new TextBuffer("", this.outputEl);
                 try {
                     const constraints = {
@@ -79,43 +77,37 @@ export class TabAudioText {
                     const audioStream = new MediaStream(audioTracks);
 
                     const audioContext = new AudioContext();
+                    await audioContext.audioWorklet.addModule(
+                        new URL("../workers/volume_processor.js", import.meta.url)
+                    );
                     const source = audioContext.createMediaStreamSource(audioStream);
-                    const analyser = audioContext.createAnalyser();
-                    source.connect(analyser);
+                    const volumeNode = new AudioWorkletNode(audioContext, "volume-processor");
 
-                    analyser.fftSize = 256;
-                    const bufferLength = analyser.frequencyBinCount;
-                    const dataArray = new Uint8Array(bufferLength);
+                    source.connect(volumeNode);
+                    volumeNode.connect(audioContext.destination);
 
-                    let prevVolume = this.checkVolumeLevel(analyser, bufferLength, dataArray);
+                    volumeNode.port.onmessage = (e) => {
+                        const { vol, avgVol } = e.data as { vol: number; avgVol: number };
 
-
-                    this.intervalId = setInterval(() => {
-                        const volume = this.checkVolumeLevel(analyser, bufferLength, dataArray);
-
-                        if (this.isRecording && prevVolume < 1 && volume < 1) {
+                        if (this.isRecording && avgVol < 1) {
                             this.isRecording = false;
                             this.recorder?.stop();
                             this.recorder = null;
                         }
-                        else if (!this.isRecording && volume >= 1) {
+                        else if (!this.isRecording && avgVol >= 1) {
                             this.isRecording = true;
                             this.recorder = this.createRecorder(audioStream);
                         }
 
-                        prevVolume = volume;
                         this.outputEl.append(this.buffer.remove());
-                    }, 50);
-
+                    };
                     audioTracks[0].addEventListener("ended", () => {
                         this.isRecording = false;
                         this.isListening = false;
                         this.recorder?.stop();
                         this.recorder = null;
-                        if(this.intervalId){
-                            clearInterval(this.intervalId);
-                        }
                         this.el.classList.remove("active");
+                        volumeNode.disconnect();
                         utils.replaceElementWithChildren(this.outputEl);
                     });
 
@@ -169,22 +161,6 @@ export class TabAudioText {
 
         recorder.start();
         return recorder;
-    }
-    private checkVolumeLevel(analyser: AnalyserNode, bufferLength: number, dataArray: Uint8Array<ArrayBuffer>): number {
-        analyser.getByteTimeDomainData(dataArray);
-
-        let sum = 0;
-        for (let i = 0; i < bufferLength; i++) {
-            const value = dataArray[i] - 128;
-            sum += value * value;
-        }
-
-        const average = sum / bufferLength;
-        const rms = Math.sqrt(average);
-
-        const volumePercent = Math.min(100, Math.floor((rms / 90) * 100));
-
-        return volumePercent
     }
 }
 

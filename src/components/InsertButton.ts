@@ -74,7 +74,7 @@ export class ToolbarInsertButton{
                     ${range.toString().length > 0 ? '' : `
                     <label>
                         Title
-                        <input name="title" type="text" />
+                        <input name="title" type="text" required />
                     </label>
                     `}
                     `,
@@ -88,7 +88,10 @@ export class ToolbarInsertButton{
                     
                     blockRanges.forEach(({ block, blockRange }) => {
                         const anchor = document.createElement("a");
-                        anchor.href = values!.href;
+                        const href = utils.normalizeUrl(values!.href)
+                        if(href){
+                            anchor.href = href;
+                        }
                         const extractedContents = blockRange.extractContents();
 
                         // replace the nested anchors

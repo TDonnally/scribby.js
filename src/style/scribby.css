@@ -228,8 +228,14 @@ body {
     margin: 0 auto;
     
 }
-.link-modal button{
+.link-modal{
+    display: flex;
+    flex-direction: row;
+    gap: .25rem;
+}
+.link-modal button, .link-modal a{
     transition: all .4s;
+    display: block;
     cursor: pointer;
     width: 2rem;
     height: 2rem;

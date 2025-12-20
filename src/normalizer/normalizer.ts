@@ -166,6 +166,9 @@ export class Normalizer {
             else if (parentTag === "table" || parentTag === "tr") {
                 parent.removeChild(textNode);
             }
+            else if (parentTag === "a") {
+                utils.makeChildSiblingofParent(textNode as HTMLElement);
+            }
             utils.replaceElementWithChildren(textNode as HTMLElement);
         }
         // text element nodes are defined as (h1-p)
