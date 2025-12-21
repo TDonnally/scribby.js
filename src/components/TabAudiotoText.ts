@@ -1,6 +1,7 @@
 import { Scribby } from "./Scribby.js";
 import { SpeechOutput } from "../custom_elements/SpeechOutput.js";
 import { TextBuffer } from "../buffers/text_buffer.js";
+import { AudioStorage } from "../audio_db/audio_db.js";
 import * as utils from "../utilities/utilities.js"
 
 export class TabAudioText {
@@ -17,15 +18,12 @@ export class TabAudioText {
         this.el = document.createElement("button");
     }
     private isListening = false;
-    /**
-     *  this is controlled by sound thresholds
-     *  recording is stopped and started in phrase chunks to increase accuracy and lower amount of requests
-    */
-    private isRecording = false;
 
     private stream: MediaStream | null = null;
     private recorder: MediaRecorder | null = null;
     private buffer!: TextBuffer;
+
+    private storage = new AudioStorage();
     mount() {
         this.el.classList.add("toolbar-button");
         this.el.innerHTML = this.innerContent;
@@ -33,7 +31,6 @@ export class TabAudioText {
         this.el.addEventListener("click", async (e) => {
             if (this.isListening) {
                 this.isListening = false;
-                this.isRecording = false;
                 this.el.classList.remove("active");
 
                 if (this.recorder) {
@@ -77,37 +74,23 @@ export class TabAudioText {
                     const audioStream = new MediaStream(audioTracks);
 
                     const audioContext = new AudioContext();
-                    await audioContext.audioWorklet.addModule(
-                        new URL("../workers/volume_processor.js", import.meta.url)
-                    );
-                    const source = audioContext.createMediaStreamSource(audioStream);
-                    const volumeNode = new AudioWorkletNode(audioContext, "volume-processor");
+                    this.recorder = this.createRecorder(audioStream);
 
-                    source.connect(volumeNode);
-                    volumeNode.connect(audioContext.destination);
+                    this.recorder.start(10_000);
 
-                    volumeNode.port.onmessage = (e) => {
-                        const { vol, avgVol } = e.data as { vol: number; avgVol: number };
-
-                        if (this.isRecording && avgVol < 1) {
-                            this.isRecording = false;
-                            this.recorder?.stop();
-                            this.recorder = null;
-                        }
-                        else if (!this.isRecording && avgVol >= 1) {
-                            this.isRecording = true;
-                            this.recorder = this.createRecorder(audioStream);
-                        }
-
-                        this.outputEl.append(this.buffer.remove());
-                    };
                     audioTracks[0].addEventListener("ended", () => {
-                        this.isRecording = false;
                         this.isListening = false;
+
                         this.recorder?.stop();
                         this.recorder = null;
+
                         this.el.classList.remove("active");
-                        volumeNode.disconnect();
+                        this.buffer.removeAll(this.outputEl);
+
+                        audioStream.getTracks().forEach(t => t.stop());
+
+                        audioContext?.close().catch(() => { });
+
                         utils.replaceElementWithChildren(this.outputEl);
                     });
 
@@ -119,8 +102,6 @@ export class TabAudioText {
         });
     }
     private createRecorder(audioStream: MediaStream): MediaRecorder {
-        const chunks: BlobPart[] = [];
-
         const candidates = [
             "audio/webm;codecs=opus",
             "audio/webm",
@@ -134,19 +115,23 @@ export class TabAudioText {
         const recorder = new MediaRecorder(audioStream, mimeType ? { mimeType } : undefined);
 
         recorder.ondataavailable = async (e: BlobEvent) => {
-            if (e.data && e.data.size > 0) chunks.push(e.data);
+            await this.storage.addBlob(e.data);
         };
 
         recorder.onstart = () => console.log("Recorder started");
-        recorder.onstop = async () => {
-            const blob = new Blob(chunks, { type: recorder.mimeType || "audio/webm" });
+        recorder.onstop = async (e) => {
+            const records = await this.storage.getAllByTimestamp();
+            
+            const blobs = records.map(r => r.blob);
+            const finalBlob = new Blob(blobs, { type: 'audio/webm' });
 
-            const response = await fetch("http://localhost:8080/audio/summarize", {
+            await this.storage.deleteAll();
+            const response = await fetch("http://localhost:8080/audio/store", {
                 method: "POST",
                 headers: {
-                    "Content-Type": blob.type,
+                    "Content-Type": 'audio/webm',
                 },
-                body: blob,
+                body: finalBlob,
             });
 
             if (!response.ok) {
@@ -155,11 +140,9 @@ export class TabAudioText {
             }
 
             const data = await response.json();
-            const text = data.text
-            this.buffer.add(text);
+            console.log(data);
         };
 
-        recorder.start();
         return recorder;
     }
 }

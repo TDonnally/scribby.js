@@ -20,4 +20,9 @@ export class TextBuffer{
 
         return char;
     }
+    removeAll(el: HTMLElement): void{
+        while (this.content){
+            el.append(this.remove());
+        }
+    }
 }
