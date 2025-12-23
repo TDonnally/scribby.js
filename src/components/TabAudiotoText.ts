@@ -1,8 +1,9 @@
 import { Scribby } from "./Scribby.js";
 import { SpeechOutput } from "../custom_elements/SpeechOutput.js";
 import { TextBuffer } from "../buffers/text_buffer.js";
-import { AudioStorage } from "../audio_db/audio_db.js";
-import * as utils from "../utilities/utilities.js"
+import { AudioStorage } from "../dbs/audio_db.js";
+import { WhisperClient } from "../whisper/whisper.js";
+import * as utils from "../utilities/utilities.js";
 
 export class TabAudioText {
     scribby: Scribby;
@@ -19,16 +20,28 @@ export class TabAudioText {
     }
     private isListening = false;
 
+    private whisper = new WhisperClient();
+    private modelReady = false;
+    private modelReadyPromise: Promise<void> | null = null;
+
     private stream: MediaStream | null = null;
     private recorder: MediaRecorder | null = null;
     private buffer!: TextBuffer;
 
     private storage = new AudioStorage();
     
-    mount() {
+    async mount() {
         this.el.classList.add("toolbar-button");
         this.el.innerHTML = this.innerContent;
 
+        await this.whisper.initRuntime("/whisper/main.js");
+        this.modelReadyPromise = this.whisper
+            .loadModel("/whisper/ggml-tiny.bin", (p) => {
+                console.log("model", Math.round(p * 100), "%");
+            })
+            .then(() => {
+                this.modelReady = true;
+            });
         this.el.addEventListener("click", async (e) => {
             if (this.isListening) {
                 this.isListening = false;
@@ -43,8 +56,6 @@ export class TabAudioText {
 
                 utils.replaceElementWithChildren(this.outputEl);
             } else {
-
-
                 const range = this.scribby.selection;
                 if (!range) return;
 
@@ -138,7 +149,7 @@ export class TabAudioText {
             if (currentBlobSize >= MIN_BLOB_SIZE){
                 packageReady = true;
             }
-            if (volume <= 1 && packageReady){
+            if (volume <= 1 && packageReady && this.modelReady){
                 console.log(true)
                 recorder.stop();
             }
@@ -151,28 +162,9 @@ export class TabAudioText {
             const blobs = records.map(r => r.blob);
             const finalBlob = new Blob(blobs, { type: mimeType });
 
+            await this.whisper.transcribeBlob(finalBlob, { language: "en", threads: 8 });
             await this.storage.deleteAll();
-            const response = await fetch("http://localhost:8080/audio/store", {
-                method: "POST",
-                headers: {
-                    "Content-Type": 'audio/webm',
-                },
-                body: finalBlob,
-            });
-
-            if (!response.ok) {
-                console.error("Upload failed:", response.status, await response.text());
-                return;
-            }
-
-            const raw = await response.text();
-            let data: any = null;
-            try {
-                data = JSON.parse(raw);
-            } catch (e) {
-                console.error("Not valid JSON:", e);
-            }
-
+            
             this.recorder = null;
             this.recorder = this.createRecorder(audioStream, analyser, bufferLength, dataArray);
             this.recorder.start(200);
