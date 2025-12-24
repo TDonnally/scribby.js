@@ -29,11 +29,16 @@ export class TabAudioText {
     private buffer!: TextBuffer;
 
     private storage = new AudioStorage();
+
+    private worker!: Worker;
     
     async mount() {
         this.el.classList.add("toolbar-button");
         this.el.innerHTML = this.innerContent;
-
+        (globalThis as any).Module = {
+            print: () => { },
+            printErr: () => { },
+        };
         await this.whisper.initRuntime("/whisper/main.js");
         this.modelReadyPromise = this.whisper
             .loadModel("/whisper/ggml-tiny.bin", (p) => {
@@ -42,6 +47,11 @@ export class TabAudioText {
             .then(() => {
                 this.modelReady = true;
             });
+
+        this.worker = new Worker("/scripts/text_buffer_loop.js");
+        this.worker.onmessage = (e) => {
+            this.buffer.remove();
+        }
         this.el.addEventListener("click", async (e) => {
             if (this.isListening) {
                 this.isListening = false;
@@ -106,7 +116,7 @@ export class TabAudioText {
                         this.recorder = null;
 
                         this.el.classList.remove("active");
-                        this.buffer.removeAll(this.outputEl);
+                        this.buffer.removeAll();
 
                         audioStream.getTracks().forEach(t => t.stop());
 
@@ -141,7 +151,6 @@ export class TabAudioText {
 
         recorder.ondataavailable = async (e: BlobEvent) => {
             const volume = this.checkVolumeLevel(analyser, bufferLength, dataArray);
-            console.log(volume);
             if (e.data.size > 200){
                 currentBlobSize += e.data.size;
                 await this.storage.addBlob(e.data);
@@ -150,7 +159,6 @@ export class TabAudioText {
                 packageReady = true;
             }
             if (volume <= 1 && packageReady && this.modelReady){
-                console.log(true)
                 recorder.stop();
             }
         };
@@ -161,13 +169,16 @@ export class TabAudioText {
 
             const blobs = records.map(r => r.blob);
             const finalBlob = new Blob(blobs, { type: mimeType });
-
-            await this.whisper.transcribeBlob(finalBlob, { language: "en", threads: 8 });
             await this.storage.deleteAll();
-            
+
             this.recorder = null;
             this.recorder = this.createRecorder(audioStream, analyser, bufferLength, dataArray);
             this.recorder.start(200);
+
+            const transcript = await this.whisper.transcribeBlob(finalBlob, { language: "en", threads: 8 });
+            console.log(transcript);
+            this.buffer.add(transcript)
+            this.worker.postMessage([transcript])
             
         };
 

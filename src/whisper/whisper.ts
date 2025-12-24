@@ -108,7 +108,13 @@ export async function loadWhisperRuntime(mainJsUrl: string): Promise<any> {
 
     window.Module = window.Module ?? {};
     window.Module.print = window.Module.print ?? ((...args: any[]) => console.log("[whisper]", ...args));
-    window.Module.printErr = window.Module.printErr ?? ((...args: any[]) => console.error("[whisper]", ...args));
+
+    /**
+     * Some log messages are printing like errors and I can't figure out why.
+     * Commenting out Error logs for the time being.
+     */
+
+    //window.Module.printErr = window.Module.printErr ?? ((...args: any[]) => console.error("[whisper]", ...args));
 
     const ready = new Promise<any>((resolve) => {
         const prev = window.Module.onRuntimeInitialized;
@@ -185,14 +191,26 @@ export class WhisperClient {
         return this.runBlob(blob, { ...opts, translate: true });
     }
 
-    private async runBlob(blob: Blob, args: WhisperOpts & { translate: boolean }) {
+    private async runBlob(blob: Blob, args: WhisperOpts & { translate: boolean }): Promise<string> {
         if (!this.instance) throw new Error("Call loadModel() first");
 
         const audio = await decodeToMono16kFloat(blob);
         const lang = args.language ?? "en";
-        const threads = args.threads ?? 8;
+        const threads = args.threads ?? 8
 
+        const result = this.module.full_default(this.instance, audio, lang, threads, args.translate);
 
-        return this.module.full_default(this.instance, audio, lang, threads, args.translate);
+        if (result !== 0) {
+            throw new Error(`Whisper error: ${result}`);
+        }
+
+        while (this.module.is_running()) {
+            await new Promise(resolve => setTimeout(resolve, 100));
+        }
+
+        this.module.wait();
+
+        const text: string = this.module.get_text(this.instance);
+        return text ?? "";
     }
 }
