@@ -169,6 +169,9 @@ export class Normalizer {
             else if (parentTag === "a") {
                 utils.makeChildSiblingofParent(textNode as HTMLElement);
             }
+            else if (parentTag === "span") {
+                utils.makeChildSiblingofParent(textNode as HTMLElement);
+            }
             utils.replaceElementWithChildren(textNode as HTMLElement);
         }
         // text element nodes are defined as (h1-p)
@@ -281,9 +284,8 @@ export class Normalizer {
                 }
             }
             else if (parentTag === "a"){
-                while (parentTag && textTags.includes(parentTag)){
-                    utils.makeChildSiblingofParent(node as HTMLElement);
-                    parentTag = node.parentElement?.tagName.toLocaleLowerCase();
+                for (const child of node.childNodes) {
+                    utils.replaceElementWithChildren(child as HTMLElement);
                 }
             }
             utils.replaceElementWithChildren(node as HTMLElement);

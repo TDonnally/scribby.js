@@ -98,7 +98,7 @@ export function removeEmptyTextNodes(parent: Node): void {
     });
 }
 export function replaceElementWithChildren(el: Element): void{
-    const parent = el.parentElement;
+    const parent = el.parentNode; 
     if (!parent) return;
     while (el.firstChild) {
         parent.insertBefore(el.firstChild, el);
@@ -147,6 +147,34 @@ export function makeChildSiblingofParent(el: HTMLElement): void {
         grandparent.insertBefore(afterParent, parent);
     }
     parent.remove();
+}
+/**
+ * This method removes undesired external attributes
+ * The only attributes it keeps is href.
+ */
+export function stripAttributes(root: DocumentFragment | Element): void {
+    if (root.nodeType === Node.ELEMENT_NODE) {
+        const el = root as Element;
+        for (const attr of Array.from(el.attributes)) el.removeAttribute(attr.name);
+    }
+
+    for (const el of Array.from(root.querySelectorAll("*"))) {
+        for (const attr of Array.from(el.attributes)) {
+            if (attr.name != "href"){
+                el.removeAttribute(attr.name);
+            }   
+        }
+    }
+}
+export function removeAllComments(root: DocumentFragment | Element): void {
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_COMMENT);
+
+    const toRemove: Comment[] = [];
+    for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+        toRemove.push(n as Comment);
+    }
+
+    for (const c of toRemove) c.remove();
 }
 
 /**

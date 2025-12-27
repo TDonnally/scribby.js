@@ -234,6 +234,54 @@ export class Scribby {
             }
         })
 
+        const mark = "<!--scribby-origin:1-->"
+        const markRegex = /<!--\s*scribby-origin:1\s*-->/i;
+        this.el.addEventListener("copy", (e) => {
+            
+            if (!e.clipboardData) return;
+            e.preventDefault();
+
+            const fragment = this.selection?.cloneContents();
+            const div = document.createElement("div");
+            if (fragment) {
+                div.appendChild(fragment);
+            }
+
+            const html = div.innerHTML
+            const markedHTML = mark + html;
+            const text = div.innerText
+
+            e.clipboardData.setData("text/html", markedHTML);
+            if (text) {
+                e.clipboardData.setData("text/plain", mark + text);
+            }
+
+        })
+        this.el.addEventListener("cut", (e) => {
+            if (!e.clipboardData) return;
+            e.preventDefault();
+
+            const fragment = this.selection?.cloneContents();
+            const div = document.createElement("div");
+            if (fragment) {
+                div.appendChild(fragment);
+            }
+
+            const html = div.innerHTML
+            const markedHTML = mark + html;
+            const text = div.innerText
+
+            e.clipboardData.setData("text/html", markedHTML);
+            if (text) {
+                e.clipboardData.setData("text/plain", mark + text);
+            }
+
+            this.selection?.deleteContents();
+            if(this.selection?.commonAncestorContainer){
+                this.normalizer.removeEmptyNodes(this.selection?.commonAncestorContainer);
+            }
+            
+        })
         this.el.addEventListener("paste", (e) => {
             /**
              * steps:
@@ -263,13 +311,22 @@ export class Scribby {
             const snippet = parser.parseFromString(html, 'text/html');
             const fragment = document.createDocumentFragment();
 
-            // normalize fragment
-            this.normalizer.removeNotSupportedNodes(fragment);
-
-            // insert
             while (snippet.body.firstChild) {
                 fragment.appendChild(snippet.body.firstChild);
             }
+            // normalize fragment
+            this.normalizer.removeNotSupportedNodes(fragment);
+            const fromScribby = !!html && markRegex.test(html);
+            if (!fromScribby){
+                utils.stripAttributes(fragment);
+                const spans = fragment.querySelectorAll("span");
+                console.log(spans)
+                spans.forEach((span) => {
+                    utils.replaceElementWithChildren(span)
+                })
+            }
+            // insert
+            utils.removeAllComments(fragment)
             range.deleteContents();
             range.insertNode(fragment);
 
@@ -391,7 +448,6 @@ export class Scribby {
                 for (var i = 0; i < blocks.length; i++) {
                     const blockContent = blocks[i].blockRange.cloneContents();
                     const nodes = blockContent.childNodes;
-                    console.log(nodes);
                     for (let i = 0; i < nodes.length; i++) {
                         const node = nodes[i];
                         if (node.nodeType === Node.TEXT_NODE) {
