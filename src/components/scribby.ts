@@ -6,6 +6,7 @@ import { LinkModal } from "./LinkModal.js";
 
 import * as events from "../events/custom_events.js";
 import { HistoryManager, Snapshot } from "../history_manager/history_manager.js";
+import { WhisperClient } from "../whisper/whisper.js";
 
 import * as utils from "../utilities/utilities.js"
 
@@ -50,7 +51,24 @@ export class Scribby {
         this.timeoutId = null;
         this.historyUpdateDelayonInput = 1000;
     }
-    mount() {
+    public whisper = new WhisperClient();
+    public modelReadyPromise: Promise<void> | null = null;
+    async mount() {
+        (globalThis as any).Module = {
+            print: () => { },
+            printErr: () => { },
+        };
+        this.modelReadyPromise = this.whisper
+            .initRuntime("/whisper/main.js")
+            .then(() =>
+                this.whisper.loadModel("/whisper/ggml-tiny.bin", (p) => {
+                    console.log("model", Math.round(p * 100), "%");
+                })
+            )
+            .catch((err) => {
+                console.error("Whisper init/load failed", err);
+            });
+
         const container = document.querySelector<HTMLDivElement>(`${this.selector}`);
         if (!container) {
             throw new Error(`No element with selector: ${this.selector}`);

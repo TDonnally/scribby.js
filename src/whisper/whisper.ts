@@ -213,4 +213,5 @@ export class WhisperClient {
         const text: string = this.module.get_text(this.instance);
         return text ?? "";
     }
+    
 }
