@@ -60,13 +60,18 @@ export class Scribby {
         };
         this.modelReadyPromise = this.whisper
             .initRuntime("/whisper/main.js")
-            .then(() =>
-                this.whisper.loadModel("/whisper/ggml-tiny.bin", (p) => {
-                    console.log("model", Math.round(p * 100), "%");
-                })
-            )
+            .then(() => {
+                console.log("[whisper] runtime ready");
+                return this.whisper.loadModel("/whisper/ggml-tiny.bin", (p) => {
+                    console.log("[whisper] model", Math.round(p * 100), "%");
+                });
+            })
+            .then(() => {
+                console.log("[whisper] model ready");
+            })
             .catch((err) => {
-                console.error("Whisper init/load failed", err);
+                console.error("[whisper] init/load failed", err);
+                throw err;
             });
 
         const container = document.querySelector<HTMLDivElement>(`${this.selector}`);

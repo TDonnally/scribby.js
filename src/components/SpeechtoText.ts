@@ -1,11 +1,10 @@
 import { Scribby } from "./Scribby.js";
 import { SpeechOutput } from "../custom_elements/SpeechOutput.js";
 import { TextBuffer } from "../buffers/text_buffer.js";
-import { AudioStorage } from "../dbs/audio_db.js";
 import { WhisperClient } from "../whisper/whisper.js";
 import * as utils from "../utilities/utilities.js";
 
-export enum Input{
+export enum Input {
     mic = "mic",
     speaker = "speaker"
 }
@@ -15,7 +14,7 @@ export class SpeechToText {
     input: Input;
     el!: HTMLButtonElement;
     outputEl!: SpeechOutput;
-    whisper: WhisperClient;
+    whisper!: WhisperClient;
     constructor(
         scribby: Scribby,
         innerContent: string,
@@ -25,30 +24,25 @@ export class SpeechToText {
         this.innerContent = innerContent;
         this.input = input;
         this.el = document.createElement("button");
-        this.whisper = scribby.whisper
+
     }
     private isListening = false;
-
-    private modelReady = false;
-    
 
     private stream: MediaStream | null = null;
     private recorder: MediaRecorder | null = null;
     private buffer!: TextBuffer;
+    private transcribeQueue: Promise<void> = Promise.resolve();
 
-    private storage = new AudioStorage();
 
     private worker!: Worker;
-    
+
     async mount() {
         this.el.classList.add("toolbar-button");
         this.el.innerHTML = this.innerContent;
-        (globalThis as any).Module = {
-            print: () => { },
-            printErr: () => { },
-        };
-        
+        this.el.disabled = true;
         await this.scribby.modelReadyPromise;
+        this.whisper = this.scribby.whisper
+        this.el.disabled = false;
 
         this.worker = new Worker("/scripts/text_buffer_loop.js");
         this.worker.onmessage = (e) => {
@@ -85,15 +79,15 @@ export class SpeechToText {
                         video: this.input === Input.mic ? false : true,
                         audio: true,
                     } as any;
-                    if (this.input === Input.mic){
+                    if (this.input === Input.mic) {
                         this.stream = await navigator.mediaDevices.getUserMedia(constraints);
                     }
-                    else if(this.input === Input.speaker){
+                    else if (this.input === Input.speaker) {
                         this.stream = await navigator.mediaDevices.getDisplayMedia(constraints);
                     }
-                    if(!this.stream) return;
+                    if (!this.stream) return;
                     const audioTracks = this.stream.getAudioTracks();
-                    
+
                     console.log("Audio tracks:", audioTracks);
 
                     if (!audioTracks.length) {
@@ -139,54 +133,62 @@ export class SpeechToText {
             }
         });
     }
+    private enqueueTranscribe(blob: Blob) {
+        this.transcribeQueue = this.transcribeQueue
+            .then(async () => {
+                const transcript = await this.whisper.transcribeBlob(blob, { language: "en", threads: 8 });
+                console.log(transcript);
+                if (transcript != "[BLANK_AUDIO]"){
+                    this.buffer.add(transcript);
+                    this.worker.postMessage([transcript]);
+                }
+            })
+            .catch((err) => console.error("transcribe failed", err));
+    }
     private createRecorder(audioStream: MediaStream, analyser: AnalyserNode, bufferLength: number, dataArray: Uint8Array<ArrayBuffer>): MediaRecorder {
         const MIN_BLOB_SIZE = 200000;
+
         let currentBlobSize = 0;
         let packageReady = false;
 
-        const candidates = [
-            "audio/webm;codecs=opus",
-            "audio/webm",
-            "audio/ogg;codecs=opus",
-            "audio/ogg",
-        ];
+        let headerBlob: Blob | null = null;
+        let segmentChunks: Blob[] = [];
 
+
+        const candidates = ["audio/webm;codecs=opus", "audio/webm", "audio/ogg;codecs=opus", "audio/ogg"];
         const mimeType = candidates.find(t => MediaRecorder.isTypeSupported(t)) || "";
-        console.log("Using mimeType:", mimeType || "(browser default)");
-
         const recorder = new MediaRecorder(audioStream, mimeType ? { mimeType } : undefined);
 
-        recorder.ondataavailable = async (e: BlobEvent) => {
+        recorder.ondataavailable = (e: BlobEvent) => {
             const volume = this.checkVolumeLevel(analyser, bufferLength, dataArray);
-            if (e.data.size > 200){
-                currentBlobSize += e.data.size;
-                await this.storage.addBlob(e.data);
+            if (!headerBlob) {
+                headerBlob = e.data;
+                return;
             }
+
+            segmentChunks.push(e.data);
+            currentBlobSize += e.data.size;
+
             if (currentBlobSize >= MIN_BLOB_SIZE){
                 packageReady = true;
             }
-            if (volume <= 1 && packageReady && this.modelReady){
-                recorder.stop();
+
+            if (volume < 1 && packageReady) {
+                const finalBlob = new Blob([headerBlob, ...segmentChunks], { type: mimeType });
+
+                segmentChunks = [];
+                currentBlobSize = 0;
+                packageReady = false;
+
+                this.enqueueTranscribe(finalBlob);
             }
         };
 
-        recorder.onstart = () => console.log("Recorder started");
-        recorder.onstop = async () => {
-            const records = await this.storage.getAllByTimestamp();
-
-            const blobs = records.map(r => r.blob);
-            const finalBlob = new Blob(blobs, { type: mimeType });
-            await this.storage.deleteAll();
-
-            this.recorder = null;
-            this.recorder = this.createRecorder(audioStream, analyser, bufferLength, dataArray);
-            this.recorder.start(200);
-
-            const transcript = await this.whisper.transcribeBlob(finalBlob, { language: "en", threads: 8 });
-            console.log(transcript);
-            this.buffer.add(transcript)
-            this.worker.postMessage([transcript])
-            
+        recorder.onstop = () => {
+            if (headerBlob && segmentChunks.length) {
+                const finalBlob = new Blob([headerBlob, ...segmentChunks], { type: mimeType });
+                this.enqueueTranscribe(finalBlob);
+            }
         };
 
         return recorder;
