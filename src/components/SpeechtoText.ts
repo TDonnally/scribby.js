@@ -2,6 +2,7 @@ import { Scribby } from "./Scribby.js";
 import { SpeechOutput } from "../custom_elements/SpeechOutput.js";
 import { TextBuffer } from "../buffers/text_buffer.js";
 import { WhisperClient } from "../whisper/whisper.js";
+import * as events from "../events/custom_events.js";
 import * as utils from "../utilities/utilities.js";
 
 export enum Input {
@@ -48,6 +49,21 @@ export class SpeechToText {
         this.worker.onmessage = (e) => {
             this.buffer.remove();
         }
+        this.scribby.el.addEventListener("stop-listening", (e) => {
+            if (this.isListening) {
+                this.isListening = false;
+                this.el.classList.remove("active");
+
+                if (this.recorder) {
+                    this.recorder?.stop();
+                }
+                this.recorder = null;
+                this.stream?.getTracks().forEach(t => t.stop());
+                this.stream = null;
+
+                utils.replaceElementWithChildren(this.outputEl);
+            }
+        })
         this.el.addEventListener("click", async (e) => {
             if (this.isListening) {
                 this.isListening = false;
@@ -62,6 +78,7 @@ export class SpeechToText {
 
                 utils.replaceElementWithChildren(this.outputEl);
             } else {
+                this.scribby.el.dispatchEvent(events.stopListening);
                 const range = this.scribby.selection;
                 if (!range) return;
 
@@ -80,10 +97,21 @@ export class SpeechToText {
                         audio: true,
                     } as any;
                     if (this.input === Input.mic) {
-                        this.stream = await navigator.mediaDevices.getUserMedia(constraints);
+                        try {
+                            this.stream = await navigator.mediaDevices.getUserMedia(constraints);
+                        }
+                        catch {
+                            this.scribby.el.dispatchEvent(events.stopListening);
+                        }
+
                     }
                     else if (this.input === Input.speaker) {
-                        this.stream = await navigator.mediaDevices.getDisplayMedia(constraints);
+                        try {
+                            this.stream = await navigator.mediaDevices.getDisplayMedia(constraints);
+                        }
+                        catch {
+                            this.scribby.el.dispatchEvent(events.stopListening);
+                        }
                     }
                     if (!this.stream) return;
                     const audioTracks = this.stream.getAudioTracks();
@@ -138,7 +166,7 @@ export class SpeechToText {
             .then(async () => {
                 const transcript = await this.whisper.transcribeBlob(blob, { language: "en", threads: 8 });
                 console.log(transcript);
-                if (transcript != "[BLANK_AUDIO]"){
+                if (!transcript.includes("BLANK_AUDIO")) {
                     this.buffer.add(transcript);
                     this.worker.postMessage([transcript]);
                 }
@@ -169,7 +197,7 @@ export class SpeechToText {
             segmentChunks.push(e.data);
             currentBlobSize += e.data.size;
 
-            if (currentBlobSize >= MIN_BLOB_SIZE){
+            if (currentBlobSize >= MIN_BLOB_SIZE) {
                 packageReady = true;
             }
 

@@ -388,7 +388,7 @@ export class Scribby {
             this.normalizer.removeEmptyNodes(this.el);
 
         });
-        this.el.addEventListener("activateStyleButtons", (e) => {
+        this.el.addEventListener("activate-style-buttons", (e) => {
             const range = this.selection;
             if (!range) return;
             /**

@@ -1,4 +1,8 @@
-export const activateStyleButtons = new CustomEvent('activateStyleButtons', {
+export const activateStyleButtons = new CustomEvent('activate-style-buttons', {
+    bubbles: true, 
+    cancelable: true 
+});
+export const stopListening = new CustomEvent('stop-listening', {
     bubbles: true, 
     cancelable: true 
 });
