@@ -92,6 +92,7 @@ export class Normalizer {
             [nodeHierarchy.textEl]: organizeTextElNode,
             [nodeHierarchy.listItem]: organizeListItemNode,
             [nodeHierarchy.lists]: organizeListNode,
+            [nodeHierarchy.pre]: organizePreNode,
             [nodeHierarchy.codeblock]: organizeCodeNode,
             /* 
             [nodeHierarchy.tableItem]: organizeTextNode, 
@@ -171,6 +172,11 @@ export class Normalizer {
             }
             else if (parentTag === "span") {
                 utils.makeChildSiblingofParent(textNode as HTMLElement);
+            }
+            else if (parentTag === "pre") {
+                const codeEl = document.createElement("code");
+                parent.insertBefore(codeEl, textNode)
+                codeEl.appendChild(textNode);
             }
             utils.replaceElementWithChildren(textNode as HTMLElement);
         }
@@ -269,7 +275,7 @@ export class Normalizer {
             }
             utils.replaceElementWithChildren(node as HTMLElement);
         }
-        function organizeCodeNode(node:Node): void{
+        function organizePreNode(node:Node): void{
             const parent = node.parentNode as HTMLElement;
             let parentTag: string | undefined = parent?.tagName.toLowerCase();
             if (parentTag === "ol" || parentTag === "ul") {
@@ -288,6 +294,15 @@ export class Normalizer {
                     utils.replaceElementWithChildren(child as HTMLElement);
                 }
             }
+            utils.replaceElementWithChildren(node as HTMLElement);
+        }
+        function organizeCodeNode(node:Node): void{
+            const parent = node.parentNode as HTMLElement;
+
+            const pre = document.createElement("pre");
+            parent.insertBefore(pre, node);
+            pre.appendChild(node);
+            
             utils.replaceElementWithChildren(node as HTMLElement);
         }
     }

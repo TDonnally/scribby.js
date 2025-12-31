@@ -152,6 +152,12 @@ export function makeChildSiblingofParent(el: HTMLElement): void {
  * This method removes undesired external attributes
  * The only attributes it keeps is href.
  */
+export function removeElementAttributes(root: Element): void {
+    if (root.nodeType === Node.ELEMENT_NODE) {
+        const el = root as Element;
+        for (const attr of Array.from(el.attributes)) el.removeAttribute(attr.name);
+    }
+}
 export function stripAttributes(root: DocumentFragment | Element): void {
     if (root.nodeType === Node.ELEMENT_NODE) {
         const el = root as Element;

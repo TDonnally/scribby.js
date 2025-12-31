@@ -8,7 +8,7 @@ import * as events from "../events/custom_events.js";
 import { HistoryManager, Snapshot } from "../history_manager/history_manager.js";
 import { WhisperClient } from "../whisper/whisper.js";
 
-import * as utils from "../utilities/utilities.js"
+import * as utils from "../utilities/utilities.js";
 
 
 const parser = new DOMParser();
@@ -251,6 +251,8 @@ export class Scribby {
                     range.setStartAfter(text);
                     range.collapse(true);
                     codeAncestor.normalize();
+
+                    
                     return;
                 }
                 
@@ -366,6 +368,7 @@ export class Scribby {
         })
 
         this.el.addEventListener("input", (e) => {
+            
             if (this.timeoutId !== null) {
                 clearTimeout(this.timeoutId);
             }

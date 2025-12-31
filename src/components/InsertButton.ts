@@ -177,17 +177,34 @@ export class ToolbarInsertButton{
                 }
             }
             else if(this.insertElType === insertElementType.CodeBlock){
-                const endRange = range.cloneRange();
-                endRange.collapse(false);
-                endRange.insertNode(rangeMarker);
-                const pre = document.createElement("pre");
-                const codeBlock = document.createElement("code");
-                codeBlock.innerHTML = range.toString();
+                const container = range.commonAncestorContainer.parentElement;
+                const closestCode = container?.closest("code");
+                const closestPre = container?.closest("pre");
 
-                range.deleteContents();
+                if (closestCode){
+                    utils.replaceElementWithChildren(closestCode)
+                }
+                if (closestPre){
+                    utils.replaceElementWithChildren(closestPre)
+                }
+                if(!closestCode && !closestPre){
+                    const pre = document.createElement("pre");
+                    const codeBlock = document.createElement("code");
 
-                pre.appendChild(codeBlock);
-                range.insertNode(pre);
+                    if (range.toString().length){
+                        codeBlock.textContent = range.toString();
+                    }
+                    else{
+                        codeBlock.innerText = "\u200B";
+                    }
+
+                    range.deleteContents();
+
+                    pre.appendChild(codeBlock);
+                    codeBlock.appendChild(rangeMarker)
+                    range.insertNode(pre);
+                }
+                
             }
             else{
                 const newEl = document.createElement(this.insertElType);

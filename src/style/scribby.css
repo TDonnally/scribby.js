@@ -175,13 +175,20 @@ body {
 .dropdown-menu.show {
     display: flex;
 }
-
+.scribby pre{
+    min-height: 1rem;
+    background-color: var(--bg-color-secondary);
+    border-radius: var(--scribby-border-radius);
+    padding: .5rem;
+}
 .scribby code{
     white-space: pre;
     tab-size: 4;
     -moz-tab-size: 4;
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
         "Liberation Mono", "Courier New", monospace;
+    
+    
 
 }
 .inline-script {

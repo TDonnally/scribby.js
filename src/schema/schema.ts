@@ -14,7 +14,8 @@ export enum nodeHierarchy{
     textEl,
     listItem,
     lists,
-    codeblock
+    pre,
+    codeblock,
     /*
     tableItem,
     tableRow, 
@@ -82,10 +83,15 @@ export const schema: Map<string, NodeSchema> = new Map([
         hierarchyLabel: nodeHierarchy.blockquote
     }],
     */
-
+    ["pre", {
+        defaultParent: 'div',
+        allowedParents: new Set(['div', 'li']),
+        allowedChildren: new Set(['codeblock']),
+        hierarchyLabel: nodeHierarchy.pre
+    }],
     ["code", {
         defaultParent: 'div',
-        allowedParents: new Set(['div','li']),
+        allowedParents: new Set(['pre']),
         allowedChildren: new Set(['span', 'a', 'text']),
         hierarchyLabel: nodeHierarchy.codeblock
     }],

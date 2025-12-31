@@ -23,8 +23,7 @@
   "author": "Tristan Donnally",
   "license": "MIT",
   "devDependencies": {
-    "typescript": "^5.9.3",
-    "@types/dom-speech-recognition": "^0.0.7"
-  },
-  "dependencies": {}
+    "@types/dom-speech-recognition": "^0.0.7",
+    "typescript": "^5.9.3"
+  }
 }
