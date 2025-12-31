@@ -146,7 +146,7 @@ export class Normalizer {
             if(parentTag == "div"){
                 const p = document.createElement("p");
                 p.textContent = "\u200B";
-                parent.insertBefore(p, brNode);
+                parent.insertBefore(p, el);
                 
             }
             el.remove();
@@ -308,7 +308,7 @@ export class Normalizer {
     }
     removeEmptyNodes(root: Node): void {
         const rootEl = root as HTMLElement;
-        const allNodes = rootEl.querySelectorAll<HTMLElement>(`${utils.BLOCK_SELECTOR}, ul, ol`);
+        const allNodes = rootEl.querySelectorAll<HTMLElement>(`${utils.BLOCK_SELECTOR}, ul, ol, span`);
 
         for (const node of allNodes) {
             const hasText = node.textContent?.trim().length! > 0;

@@ -6,6 +6,7 @@
 
 import { Scribby } from "./Scribby.js";
 import * as utils from "../utilities/utilities.js"
+import { Normalizer } from "../normalizer/normalizer.js";
 
 export enum affectedElementType {
     Block = "block",
@@ -61,7 +62,7 @@ export class ToolbarStyleButton {
             this.el.setAttribute("data-key", "class");
             this.el.setAttribute("data-attribute", this.styleClass);
         }
-        if (this.tag){
+        if (this.tag) {
             this.el.setAttribute("data-tag", this.tag);
         }
         this.el.setAttribute("data-button-type", this.affectedElType);
@@ -160,7 +161,7 @@ export class ToolbarStyleButton {
                     return
                 }
                 else if (this.affectedElType == "block" && this.tag) {
-                    
+
                     utils.changeElementTag(block, this.tag);
                     return
                 }
@@ -200,12 +201,19 @@ export class ToolbarStyleButton {
                                 }
                                 else {
                                     span.style.removeProperty(k);
+
                                 }
 
                             }
                         }
+                        if (span.style.length === 0) {
+                            span.removeAttribute("style");
+                        }
                         if (this.styleClass) {
                             span.classList.toggle(this.styleClass);
+                            if (!span.classList.length) {
+                                span.removeAttribute("class");
+                            }
                         }
                         span.textContent = node.textContent;
                         node.replaceWith(span);
@@ -223,13 +231,19 @@ export class ToolbarStyleButton {
                                 }
                             }
                         }
+                        if (span.style.length === 0) {
+                            span.removeAttribute("style");
+                        }
                         if (this.styleClass) {
                             span.classList.toggle(this.styleClass);
+                            if (!span.classList.length) {
+                                span.removeAttribute("class");
+                            }
                         }
 
                     }
                 }
-                
+
                 if (blockRange.startContainer === blockRange.endContainer && startEl != block) {
                     const splitRange = document.createRange();
                     const textNode = startEl.firstChild ?? startEl;
@@ -245,7 +259,7 @@ export class ToolbarStyleButton {
                     if (textNode.nodeType === Node.TEXT_NODE) {
                         textNode.textContent = textNode.textContent?.substring(0, rangeOffset) ?? "";
                     }
-                    
+
                     startEl.after(extractedContents, lastSpan);
                 }
                 else {
@@ -253,10 +267,9 @@ export class ToolbarStyleButton {
                     blockRange.insertNode(referenceNode);
                     referenceNode.replaceWith(extractedContents);
                 }
-                if (isRangeCollapsed){
+                if (isRangeCollapsed) {
                     console.log(startEl)
                     const span = startEl != block ? startEl.cloneNode(false) as HTMLElement : document.createElement("span");
-                    console.log(span)
                     if (this.attributes) {
                         for (const [k, v] of this.attributes) {
                             if (span.style.getPropertyValue(k) == v) {
@@ -267,8 +280,14 @@ export class ToolbarStyleButton {
                             }
                         }
                     }
+                    if (span.style.length === 0) {
+                        span.removeAttribute("style");
+                    }
                     if (this.styleClass) {
                         span.classList.toggle(this.styleClass);
+                        if (!span.classList.length) {
+                            span.removeAttribute("class");
+                        }
                     }
                     span.innerHTML = "&ZeroWidthSpace;"
                     frontMarker.after(span);
@@ -279,8 +298,11 @@ export class ToolbarStyleButton {
                 const children = block.children;
                 for (let i = 0; i < children.length;) {
                     const child = children[i]
-                    if (child.innerHTML.length == 0 && child.tagName.toLowerCase() != "range-marker") {
+                    if (child.tagName.toLowerCase() !== "range-marker" && child.innerHTML.length == 0) {
                         child.remove();
+                    }
+                    if (!child.hasAttributes()) {
+                        utils.replaceElementWithChildren(child)
                     }
                     if (i >= children.length - 1) {
                         break;
@@ -316,6 +338,8 @@ export class ToolbarStyleButton {
             backMarker.remove();
             fMarkerParent?.normalize();
             bMarkerParent?.normalize();
+
+            this.scribby.normalizer.removeEmptyNodes(this.scribby.el);
         })
     }
 }

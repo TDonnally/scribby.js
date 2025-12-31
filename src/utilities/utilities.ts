@@ -221,5 +221,3 @@ export function normalizeUrl(input: string): string | null {
         return null;
     }
 }
-
-

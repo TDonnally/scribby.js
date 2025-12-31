@@ -454,13 +454,14 @@ export class Scribby {
             })
 
             // handle spans
-
+            const container = range.commonAncestorContainer as HTMLElement
             const commonAncestorParent = range.commonAncestorContainer.parentElement;
             const classes: Record<string, Array<string>> = { "class": [] }
             attributes = {}
             if (commonAncestorParent?.tagName.toLowerCase() == "span") {
                 const classList = Array.from(commonAncestorParent.classList);
                 classes["class"] = classList
+                console.log(classList);
                 const style = commonAncestorParent.getAttribute("style");
                 if (style) {
                     style.split(";").forEach(rule => {
@@ -469,6 +470,17 @@ export class Scribby {
                     });
                 }
 
+            }
+            else if(range.collapsed && container.nodeType === Node.ELEMENT_NODE && container.tagName.toLowerCase() === "span"){
+                const classList = Array.from(container.classList);
+                classes["class"] = classList
+                const style = container.getAttribute("style");
+                if (style) {
+                    style.split(";").forEach(rule => {
+                        const [prop, value] = rule.split(":").map(s => s.trim());
+                        if (prop && value) attributes[prop] = value;
+                    });
+                }
             }
             else {
                 for (var i = 0; i < blocks.length; i++) {
@@ -507,7 +519,7 @@ export class Scribby {
                             if (style) {
                                 style.split(";").forEach(rule => {
                                     const [prop, value] = rule.split(":").map(s => s.trim());
-                                    if (attributes[prop] == value) newAttributes[prop] == value;
+                                    if (attributes[prop] == value) newAttributes[prop] = value;
                                 });
                             }
                             attributes = newAttributes;
@@ -519,7 +531,15 @@ export class Scribby {
             const spanStyleButtons = document.querySelectorAll<HTMLElement>(`${this.selector} [data-button-type="span"]`);
             spanStyleButtons.forEach((el) => {
                 const key = el.dataset.key;
-                if (key && el.dataset.attribute == attributes[key]) {
+                const attr = el.dataset.attribute;
+
+                const matchesAttr =
+                    !!key && typeof attr === "string" && attr === attributes[key];
+
+                const matchesClass =
+                    typeof attr === "string" && classes["class"].includes(attr);
+
+                if (matchesAttr || matchesClass) {
                     el.classList.add("active");
                 }
                 else {
