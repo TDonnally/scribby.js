@@ -289,8 +289,10 @@ export class ToolbarStyleButton {
                             span.removeAttribute("class");
                         }
                     }
-                    span.innerHTML = "&ZeroWidthSpace;"
+                    span.appendChild(document.createTextNode("\u200B"));
                     frontMarker.after(span);
+                    span.appendChild(backMarker);
+
                 }
 
                 // cleanup
@@ -330,7 +332,10 @@ export class ToolbarStyleButton {
             const newRange = document.createRange();
             newRange.setStartAfter(frontMarker);
             newRange.setEndBefore(backMarker);
-
+            if(isRangeCollapsed){
+                newRange.collapse(false);
+            }
+        
             sel?.addRange(newRange);
             const fMarkerParent = frontMarker.parentElement;
             const bMarkerParent = backMarker.parentElement;

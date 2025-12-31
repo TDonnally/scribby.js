@@ -454,14 +454,13 @@ export class Scribby {
             })
 
             // handle spans
-            const container = range.commonAncestorContainer as HTMLElement
+            const container = range.endContainer as HTMLElement
             const commonAncestorParent = range.commonAncestorContainer.parentElement;
             const classes: Record<string, Array<string>> = { "class": [] }
             attributes = {}
             if (commonAncestorParent?.tagName.toLowerCase() == "span") {
                 const classList = Array.from(commonAncestorParent.classList);
                 classes["class"] = classList
-                console.log(classList);
                 const style = commonAncestorParent.getAttribute("style");
                 if (style) {
                     style.split(";").forEach(rule => {
@@ -489,6 +488,10 @@ export class Scribby {
                     for (let i = 0; i < nodes.length; i++) {
                         const node = nodes[i];
                         if (node.nodeType === Node.TEXT_NODE) {
+                            const spanStyleButtons = document.querySelectorAll<HTMLElement>(`${this.selector} [data-button-type="span"]`);
+                            spanStyleButtons.forEach((el) => {
+                                el.classList.remove("active");
+                            })
                             return;
                         }
                         const el = node as HTMLElement;
@@ -574,8 +577,12 @@ export class Scribby {
                     this.currentTextModal = linkModal;
                     linkModal.mount();
                 }
+                else{
+                    this.el.focus();
+                }
             }
-
+            
+            
         });
 
         return this
