@@ -6,7 +6,7 @@
 
 import { Scribby } from "./Scribby.js";
 import * as utils from "../utilities/utilities.js"
-import { Normalizer } from "../normalizer/normalizer.js";
+import { Snapshot } from "../history_manager/history_manager.js";
 
 export enum affectedElementType {
     Block = "block",
@@ -345,6 +345,13 @@ export class ToolbarStyleButton {
             bMarkerParent?.normalize();
 
             this.scribby.normalizer.removeEmptyNodes(this.scribby.el);
+            const snapshot: Snapshot = {
+                                timestamp: Date.now(),
+                                html: this.el.innerHTML,
+                                selection: this.scribby.historyManager.captureSelection(this.el),
+                            };
+            
+                            this.scribby.historyManager.push(snapshot);
         })
     }
 }

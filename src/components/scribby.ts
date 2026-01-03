@@ -49,7 +49,7 @@ export class Scribby {
         this.normalizer;
         this.historyManager = new HistoryManager();
         this.timeoutId = null;
-        this.historyUpdateDelayonInput = 1000;
+        this.historyUpdateDelayonInput = 500;
     }
     public whisper = new WhisperClient();
     public modelReadyPromise: Promise<void> | null = null;
@@ -87,6 +87,7 @@ export class Scribby {
         const initSnapshot: Snapshot = {
             timestamp: Date.now(),
             html: this.content,
+            selection: this.historyManager.captureSelection(this.el),
         }
 
         this.historyManager.push(initSnapshot);
@@ -126,12 +127,14 @@ export class Scribby {
                     const snapshot = this.historyManager.undo();
                     if (!snapshot) return;
                     this.el.innerHTML = snapshot.html;
+                    this.historyManager.restoreSelection(this.el, snapshot.selection);
                 }
                 else if (e.key === "y") {
                     e.preventDefault();
                     const snapshot = this.historyManager.redo();
                     if (!snapshot) return;
                     this.el.innerHTML = snapshot.html;
+                    this.historyManager.restoreSelection(this.el, snapshot.selection);
                 }
                 else if (e.key === "b") {
                     e.preventDefault();
@@ -375,12 +378,12 @@ export class Scribby {
             this.timeoutId = window.setTimeout(() => {
                 this.timeoutId = null;
 
-                const html = this.el.innerHTML.toString();;
-
                 const snapshot: Snapshot = {
                     timestamp: Date.now(),
-                    html,
+                    html: this.el.innerHTML,
+                    selection: this.historyManager.captureSelection(this.el),
                 };
+
                 this.historyManager.push(snapshot);
             }, this.historyUpdateDelayonInput);
             // normalize after input
