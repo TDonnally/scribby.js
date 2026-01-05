@@ -346,12 +346,12 @@ export class ToolbarStyleButton {
 
             this.scribby.normalizer.removeEmptyNodes(this.scribby.el);
             const snapshot: Snapshot = {
-                                timestamp: Date.now(),
-                                html: this.el.innerHTML,
-                                selection: this.scribby.historyManager.captureSelection(this.el),
-                            };
-            
-                            this.scribby.historyManager.push(snapshot);
+                timestamp: Date.now(),
+                html: this.scribby.el.innerHTML,
+                selection: this.scribby.historyManager.captureSelection(this.el),
+            };
+
+            this.scribby.historyManager.push(snapshot);
         })
     }
 }
