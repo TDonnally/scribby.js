@@ -9,6 +9,7 @@ import { LLMOutput } from "./LLMOutput.js";
 export class Toolbar {
     scribby!: Scribby;
     el!: HTMLDivElement;
+    mobileEl!: HTMLDivElement;
     textType: ToolbarDropdownButton;
     bold: ToolbarStyleButton;
     italic: ToolbarStyleButton;
@@ -31,6 +32,7 @@ export class Toolbar {
     ) {
         this.scribby = scribby
         this.el = document.createElement("div");
+        this.mobileEl = document.createElement("div");
         this.textType = new ToolbarDropdownButton(scribby, "Choose Font", [
             new ToolbarStyleButton(scribby, "Header 1", null, null, affectedElementType.Block, null, "h1"),
             new ToolbarStyleButton(scribby, "Header 2", null, null, affectedElementType.Block, null, "h2"),
@@ -110,6 +112,7 @@ export class Toolbar {
     }
     mount() {
         this.el.classList.add("toolbar");
+        this.mobileEl.classList.add("toolbar", "mobile");
         this.textType.mount();
         this.bold.mount();
         this.italic.mount();
@@ -126,24 +129,106 @@ export class Toolbar {
         this.speechToText.mount();
         this.tabAudioText.mount();
         this.LLMOutput.mount();
+        
+        // Desktop
+        if (window.innerWidth > 1000){
+            this.el.appendChild(this.textType.el);
+            this.el.appendChild(this.bold.el);
+            this.el.appendChild(this.italic.el);
+            this.el.appendChild(this.underline.el);
+            this.el.appendChild(this.strikethrough.el);
+            this.el.appendChild(this.alignLeft.el);
+            this.el.appendChild(this.alignCenter.el);
+            this.el.appendChild(this.alignRight.el);
+            this.el.appendChild(this.codeBlock.el);
+            this.el.appendChild(this.inlineCode.el);
+            this.el.appendChild(this.anchor.el);
+            this.el.appendChild(this.orderedList.el);
+            this.el.appendChild(this.unorderedList.el);
+            this.el.appendChild(this.speechToText.el);
+            this.el.appendChild(this.tabAudioText.el);
+            this.el.appendChild(this.LLMOutput.el);
+            this.scribby.el.insertAdjacentElement("beforebegin", this.el);
+        }
+        // Mobile
+        else {
+            // save, undo, and redo will go here once I enable that 
+            this.el.appendChild(this.textType.el);
 
-        this.el.appendChild(this.textType.el);
-        this.el.appendChild(this.bold.el);
-        this.el.appendChild(this.italic.el);
-        this.el.appendChild(this.underline.el);
-        this.el.appendChild(this.strikethrough.el);
-        this.el.appendChild(this.alignLeft.el);
-        this.el.appendChild(this.alignCenter.el);
-        this.el.appendChild(this.alignRight.el);
-        this.el.appendChild(this.codeBlock.el);
-        this.el.appendChild(this.inlineCode.el);
-        this.el.appendChild(this.anchor.el);
-        this.el.appendChild(this.orderedList.el);
-        this.el.appendChild(this.unorderedList.el);
-        this.el.appendChild(this.speechToText.el);
-        this.el.appendChild(this.tabAudioText.el);
-        this.el.appendChild(this.LLMOutput.el);
+            const insertSubmenuButton = document.createElement("button");
+            insertSubmenuButton.classList.add("toolbar-button");
+            insertSubmenuButton.innerHTML = `
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><title>plus</title><path d="M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z" /></svg>
+            `
+            const insertSubmenu = this.createMobileSubmenu(insertSubmenuButton, this.el);
+
+            insertSubmenu.appendChild(this.anchor.el);
+            insertSubmenu.appendChild(this.codeBlock.el);
+
+            this.el.appendChild(insertSubmenuButton);
+            this.el.appendChild(insertSubmenu);
+
+            this.el.appendChild(this.speechToText.el);
+            this.el.appendChild(this.LLMOutput.el);
+            
+
+
+            this.mobileEl.appendChild(this.bold.el);
+            this.mobileEl.appendChild(this.italic.el);
+            this.mobileEl.appendChild(this.underline.el);
+            this.mobileEl.appendChild(this.strikethrough.el);
+
+            // lists and alignment need to be in smaller buttons that will pop out
+            const listSubmenuButton = document.createElement("button");
+            listSubmenuButton.classList.add("toolbar-button");
+            listSubmenuButton.innerHTML = `
+                <svg fill="currentColor" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><title>format-list-bulleted</title><path d="M7,5H21V7H7V5M7,13V11H21V13H7M4,4.5A1.5,1.5 0 0,1 5.5,6A1.5,1.5 0 0,1 4,7.5A1.5,1.5 0 0,1 2.5,6A1.5,1.5 0 0,1 4,4.5M4,10.5A1.5,1.5 0 0,1 5.5,12A1.5,1.5 0 0,1 4,13.5A1.5,1.5 0 0,1 2.5,12A1.5,1.5 0 0,1 4,10.5M7,19V17H21V19H7M4,16.5A1.5,1.5 0 0,1 5.5,18A1.5,1.5 0 0,1 4,19.5A1.5,1.5 0 0,1 2.5,18A1.5,1.5 0 0,1 4,16.5Z" /></svg>
+            `;
+            const listSubmenu = this.createMobileSubmenu(listSubmenuButton, this.mobileEl);
+
+            listSubmenu.appendChild(this.orderedList.el);
+            listSubmenu.appendChild(this.unorderedList.el);
+
+            const alignmentButton = document.createElement("button");
+            alignmentButton.classList.add("toolbar-button");
+            alignmentButton.innerHTML = `
+                <svg fill="currentColor" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><title>format-align-left</title><path d="M3,3H21V5H3V3M3,7H15V9H3V7M3,11H21V13H3V11M3,15H15V17H3V15M3,19H21V21H3V19Z" /></svg>
+            `;
+            const alignmentSubmenu = this.createMobileSubmenu(alignmentButton, this.mobileEl);
+
+            alignmentSubmenu.appendChild(this.alignLeft.el);
+            alignmentSubmenu.appendChild(this.alignCenter.el);
+            alignmentSubmenu.appendChild(this.alignRight.el);
+
+            this.mobileEl.appendChild(listSubmenuButton);
+            this.mobileEl.appendChild(alignmentButton);
+            this.mobileEl.appendChild(listSubmenu);
+            this.mobileEl.appendChild(alignmentSubmenu);
+
+            this.scribby.el.insertAdjacentElement("beforebegin", this.el);
+            this.scribby.el.insertAdjacentElement("beforebegin", this.mobileEl);
+        }
 
         return this;
+    }
+    /**
+     * Not sure if should be seperate component but I think this should be fine
+     */
+    private createMobileSubmenu(
+        button: HTMLButtonElement,
+        container: HTMLDivElement,
+    ): HTMLDivElement {
+        const submenu = document.createElement("div");
+        submenu.classList.add("mobile-toolbar-submenu");
+
+        button.addEventListener("click", (e) => {
+            submenu.classList.add("active");
+        })
+
+        submenu.addEventListener("click", (e) => {
+            submenu.classList.remove("active");
+        })
+
+        return submenu
     }
 }

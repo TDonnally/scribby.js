@@ -101,8 +101,12 @@ body {
     border-radius: .5rem;
     z-index: 3;
 }
+#scribby .toolbar.mobile {
+    top: unset;
+    bottom:0px;
+}
 
-#scribby .toolbar>.toolbar-button {
+#scribby .toolbar>.toolbar-button, #scribby .mobile-toolbar-submenu>.toolbar-button {
     transition: all .4s;
     cursor: pointer;
     width: 2rem;
@@ -248,5 +252,31 @@ body {
     height: 2rem;
     border-radius: .25rem;
     margin: 0px;
+}
+
+
+/* mobile submenus */
+.mobile-toolbar-submenu{
+    position: absolute;
+    background-color: var(--bg-color-primary);
+    pointer-events: none;
+    top: 0px;
+    left: 0px;
+    width: 100%;
+    opacity: 0;
+    display: flex;
+    flex-direction: row;
+    justify-content: center;
+    gap: 1rem;
+    background: var(--bg-color-primary);
+    padding: .5rem 0rem;
+    border-radius: .5rem;
+    z-index: 3;
+    transition: opacity .4s;
+}
+.mobile-toolbar-submenu.active{
+    opacity: 1;
+    pointer-events: all;
+    z-index: 4;
 }
 
