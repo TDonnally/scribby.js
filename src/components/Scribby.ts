@@ -16,7 +16,7 @@ const parser = new DOMParser();
 
 export class Scribby {
     selector: string;
-    content: string;
+    content: string | null;
     el!: HTMLDivElement;
     toolbar!: Toolbar;
     textElement: string;
@@ -34,10 +34,7 @@ export class Scribby {
 
     constructor(
         selector = "",
-        content = `
-            <h1>Hi there!</h1>
-            <p>Jot something down.</p>
-        `,
+        content: string | null = null
     ) {
         this.selector = selector;
         this.el;
@@ -79,10 +76,12 @@ export class Scribby {
             throw new Error(`No element with selector: ${this.selector}`);
         }
 
+        if (!this.content) this.content = container.innerHTML
+
         this.el = document.createElement("div");
         this.el.contentEditable = 'true';
         this.el.classList.add("scribby");
-        this.el.innerHTML = this.content;
+        this.el.innerHTML = this.content
 
         const initSnapshot: Snapshot = {
             timestamp: Date.now(),
