@@ -14,7 +14,7 @@ export enum insertElementType {
 }
 
 
-export class ToolbarInsertButton{
+export class ToolbarInsertButton {
     scribby!: Scribby;
     innerContent: string;
     attributes: Map<string, string> | null;
@@ -27,7 +27,7 @@ export class ToolbarInsertButton{
         attributes: Map<string, string> | null,
         insertElType: insertElementType,
         customEventKeyword: string | null = null,
-    ){
+    ) {
         this.scribby = scribby;
         this.el = document.createElement("button");
         this.innerContent = innerContent;
@@ -35,20 +35,20 @@ export class ToolbarInsertButton{
         this.insertElType = insertElType;
         this.customEventKeyword = customEventKeyword;
     }
-    mount(){
+    mount() {
         this.el.classList.add("toolbar-button");
         this.el.innerHTML = this.innerContent;
-        if (this.customEventKeyword){
+        if (this.customEventKeyword) {
             this.scribby.el.addEventListener(this.customEventKeyword, (e) => {
                 this.el.dispatchEvent(new Event("click"));
             });
         }
         this.el.addEventListener("click", async (e) => {
-            if (this.scribby.currentInsertModal){
+            if (this.scribby.currentInsertModal) {
                 this.scribby.currentInsertModal.unmount();
             }
             const range = this.scribby.selection;
-            if(!range) return;
+            if (!range) return;
             const rangeMarker = document.createElement("range-marker");
             const rangeLength = range?.toString().length;
             const blockRanges = utils.getBlockRanges(range, this.scribby.el);
@@ -59,7 +59,7 @@ export class ToolbarInsertButton{
              * 3. if list, wrap blocks in type and wrap all elements in li
              * 4. if other insert type delete range and insert that element
              */
-            if (this.insertElType === insertElementType.Anchor){
+            if (this.insertElType === insertElementType.Anchor) {
                 const endRange = range.cloneRange();
                 endRange.collapse(false);
                 endRange.insertNode(rangeMarker);
@@ -84,12 +84,12 @@ export class ToolbarInsertButton{
 
                 const values = await modal.submission();
                 console.log(values)
-                if (range.toString().length > 0){
-                    
+                if (range.toString().length > 0) {
+
                     blockRanges.forEach(({ block, blockRange }) => {
                         const anchor = document.createElement("a");
                         const href = utils.normalizeUrl(values!.href)
-                        if(href){
+                        if (href) {
                             anchor.href = href;
                         }
                         const extractedContents = blockRange.extractContents();
@@ -105,30 +105,30 @@ export class ToolbarInsertButton{
                         blockRange.insertNode(anchor);
                     })
                 }
-                else{
+                else {
                     const anchor = document.createElement("a");
                     anchor.href = values!.href;
                     anchor.innerText = values!.title;
                     range.insertNode(anchor);
                 }
-                
+
 
             }
-            else if (this.insertElType === insertElementType.OrderedList || this.insertElType === insertElementType.UnorderedList){ 
+            else if (this.insertElType === insertElementType.OrderedList || this.insertElType === insertElementType.UnorderedList) {
                 const parent = range.commonAncestorContainer as HTMLElement;
 
-                if (parent.nodeType != Node.TEXT_NODE && (parent.tagName.toLowerCase() == "ul" || parent.tagName.toLowerCase() == "ol")){
+                if (parent.nodeType != Node.TEXT_NODE && (parent.tagName.toLowerCase() == "ul" || parent.tagName.toLowerCase() == "ol")) {
                     const endRange = range.cloneRange();
                     endRange.collapse(false);
                     endRange.insertNode(rangeMarker);
-                    const tagName:string = parent.tagName.toLowerCase()
+                    const tagName: string = parent.tagName.toLowerCase()
                     const options = {
                         [insertElementType.OrderedList]: insertElementType.UnorderedList,
                         [insertElementType.UnorderedList]: insertElementType.OrderedList
                     }
-                    if (rangeLength > 0){
-                        if (tagName != this.insertElType){
-                            const newTag = utils.toggle(options,tagName);
+                    if (rangeLength > 0) {
+                        if (tagName != this.insertElType) {
+                            const newTag = utils.toggle(options, tagName);
                             utils.changeElementTag(parent, newTag);
                         }
                         else {
@@ -136,8 +136,8 @@ export class ToolbarInsertButton{
                         }
                     }
                 }
-                else if(parent.nodeType != Node.TEXT_NODE && parent.tagName.toLowerCase() == "li" && parent.parentElement){
-                    const tagName:string = parent.parentElement.tagName.toLowerCase()
+                else if (parent.nodeType != Node.TEXT_NODE && parent.tagName.toLowerCase() == "li" && parent.parentElement) {
+                    const tagName: string = parent.parentElement.tagName.toLowerCase()
                     const endRange = range.cloneRange();
                     endRange.collapse(false);
                     endRange.insertNode(rangeMarker);
@@ -145,27 +145,27 @@ export class ToolbarInsertButton{
                         [insertElementType.OrderedList]: insertElementType.UnorderedList,
                         [insertElementType.UnorderedList]: insertElementType.OrderedList
                     }
-                    if(tagName == this.insertElType){
+                    if (tagName == this.insertElType) {
                         utils.replaceElementWithChildren(parent.parentElement);
                     }
-                    else if (tagName != this.insertElType){
-                        const newTag = utils.toggle(options,tagName);
+                    else if (tagName != this.insertElType) {
+                        const newTag = utils.toggle(options, tagName);
                         utils.changeElementTag(parent.parentElement, newTag);
                     }
                 }
-                else{
+                else {
                     const list = document.createElement(this.insertElType);
                     blockRanges.forEach(({ block, blockRange }) => {
                         const listEl = document.createElement("li");
-                        
-                        if(!range.toString().length){
+
+                        if (!range.toString().length) {
                             listEl.innerText = "\u200B";
                         }
-                        else{
+                        else {
                             const extractedContents = blockRange.extractContents();
                             listEl.appendChild(extractedContents);
                         }
-                        
+
                         list.appendChild(listEl);
                     })
                     range.deleteContents();
@@ -176,37 +176,42 @@ export class ToolbarInsertButton{
                     lastListItem?.appendChild(rangeMarker);
                 }
             }
-            else if(this.insertElType === insertElementType.CodeBlock){
+            else if (this.insertElType === insertElementType.CodeBlock) {
                 const container = range.commonAncestorContainer.parentElement;
-                const closestCode = container?.closest("code");
-                const closestPre = container?.closest("pre");
 
-                if (closestCode){
-                    utils.replaceElementWithChildren(closestCode)
+                // If cursor is inside an existing block, you can remove/unwrap it
+                const existing = container?.closest("scribby-code-block");
+                if (existing) {
+                    existing.replaceWith(document.createTextNode(existing.getAttribute("data-value") ?? ""));
+                    return;
                 }
-                if (closestPre){
-                    utils.replaceElementWithChildren(closestPre)
+
+                const block = document.createElement("scribby-code-block");
+                block.setAttribute("data-lang", "javascript");
+
+                if (range.toString().length) {
+                    block.setAttribute("data-value", range.toString());
+                } else {
+                    block.setAttribute("data-value", ""); // empty block
                 }
-                if(!closestCode && !closestPre){
-                    const pre = document.createElement("pre");
-                    const codeBlock = document.createElement("code");
 
-                    if (range.toString().length){
-                        codeBlock.textContent = range.toString();
-                    }
-                    else{
-                        codeBlock.innerText = "\u200B";
-                    }
+                range.deleteContents();
+                range.insertNode(block);
 
-                    range.deleteContents();
+                // Put your caret after the block (since it’s contenteditable=false)
+                const after = document.createTextNode("\u200B");
+                block.after(after);
 
-                    pre.appendChild(codeBlock);
-                    codeBlock.appendChild(rangeMarker)
-                    range.insertNode(pre);
+                const sel = window.getSelection();
+                if (sel) {
+                    sel.removeAllRanges();
+                    const r = document.createRange();
+                    r.setStart(after, 1);
+                    r.collapse(true);
+                    sel.addRange(r);
                 }
-                
             }
-            else{
+            else {
                 const newEl = document.createElement(this.insertElType);
                 range.insertNode(newEl);
                 utils.placeCaretatEndofElement(newEl);

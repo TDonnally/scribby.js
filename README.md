@@ -11,8 +11,8 @@ A lightweight rich text editor built with TypeScript on top of native DOM APIs a
 - **Schema-driven DOM** - enforce which elements are allowed and how they’re nested  
 - **Inline + block formatting** - headings, paragraphs, spans, links, lists, etc.   
 - **Framework-agnostic** - use it with React, Vue, Svelte, Go templates, plain HTML, etc.
-- **Zero external runtime deps** - just a single JS file once built
 - **Unopinionated Styles** - choose your own theming
+- **Code formatting** - built in code editor powered by CodeMirror that supports JavaScript, Python, C, Go, and Rust
 
 ---
 

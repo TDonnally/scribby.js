@@ -14,7 +14,6 @@ export enum nodeHierarchy{
     textEl,
     listItem,
     lists,
-    pre,
     codeblock,
     /*
     tableItem,
@@ -83,18 +82,6 @@ export const schema: Map<string, NodeSchema> = new Map([
         hierarchyLabel: nodeHierarchy.blockquote
     }],
     */
-    ["pre", {
-        defaultParent: 'div',
-        allowedParents: new Set(['div', 'li']),
-        allowedChildren: new Set(['codeblock']),
-        hierarchyLabel: nodeHierarchy.pre
-    }],
-    ["code", {
-        defaultParent: 'div',
-        allowedParents: new Set(['pre']),
-        allowedChildren: new Set(['span', 'a', 'text']),
-        hierarchyLabel: nodeHierarchy.codeblock
-    }],
 
     //inline nodes
     ["a", {
@@ -198,11 +185,11 @@ export const schema: Map<string, NodeSchema> = new Map([
         allowedChildren: new Set([]),
         hierarchyLabel: nodeHierarchy.inline
     }],
-    ["speech-output", {
+    ["scribby-code-block", {
         defaultParent: 'p',
-        allowedParents: new Set(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'a', 'span', 'a', 'ol', 'ul', 'th', 'td','tr','table','code']),
+        allowedParents: new Set(['div', 'li']),
         allowedChildren: new Set([]),
-        hierarchyLabel: nodeHierarchy.inline
+        hierarchyLabel: nodeHierarchy.codeblock
     }],
 
 ])

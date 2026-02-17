@@ -159,16 +159,26 @@ export function removeElementAttributes(root: Element): void {
     }
 }
 export function stripAttributes(root: DocumentFragment | Element): void {
+    const isInsideCodeBlock = (el: Element) =>
+        el.tagName.toLowerCase() === "scribby-code-block" ||
+        !!el.closest("scribby-code-block");
+
     if (root.nodeType === Node.ELEMENT_NODE) {
         const el = root as Element;
-        for (const attr of Array.from(el.attributes)) el.removeAttribute(attr.name);
+        if (!isInsideCodeBlock(el)) {
+            for (const attr of Array.from(el.attributes)) {
+                if (attr.name !== "href") el.removeAttribute(attr.name);
+            }
+        }
     }
 
-    for (const el of Array.from(root.querySelectorAll("*"))) {
+    for (const el of Array.from(root.querySelectorAll<HTMLElement>("*"))) {
+        if (isInsideCodeBlock(el)) continue;
+
         for (const attr of Array.from(el.attributes)) {
-            if (attr.name != "href"){
+            if (attr.name !== "href") {
                 el.removeAttribute(attr.name);
-            }   
+            }
         }
     }
 }

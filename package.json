@@ -15,15 +15,27 @@
     "dist"
   ],
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "build": "tsc -p tsconfig.json",
-    "watch": "tsc -w -p tsconfig.json",
+    "build": "npm run build:types && vite build",
+    "build:types": "tsc -p tsconfig.json --emitDeclarationOnly",
+    "dev": "vite",
     "prepublishOnly": "npm run build"
   },
   "author": "Tristan Donnally",
   "license": "MIT",
   "devDependencies": {
     "@types/dom-speech-recognition": "^0.0.7",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vite": "^7.3.1"
+  },
+  "dependencies": {
+    "@codemirror/commands": "^6.10.2",
+    "@codemirror/lang-cpp": "^6.0.3",
+    "@codemirror/lang-go": "^6.0.1",
+    "@codemirror/lang-javascript": "^6.2.4",
+    "@codemirror/lang-python": "^6.2.1",
+    "@codemirror/lang-rust": "^6.0.2",
+    "@codemirror/language": "^6.12.1",
+    "@codemirror/state": "^6.5.4",
+    "@codemirror/view": "^6.39.14"
   }
 }

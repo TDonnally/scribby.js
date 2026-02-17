@@ -22,9 +22,11 @@ export class Normalizer {
 
         const allEls = rootEl.querySelectorAll<HTMLElement>("*");
 
-        const notInSchema = Array.from(allEls).filter(el =>
-            !allowedTags.has(el.tagName.toLowerCase())
-        );
+        const notInSchema = Array.from(allEls).filter(el => {
+            if (el.closest("scribby-code-block")) return false;
+
+            return !allowedTags.has(el.tagName.toLowerCase());
+        });
         for (const el of notInSchema) {
             utils.replaceElementWithChildren(el);
         }
@@ -59,7 +61,7 @@ export class Normalizer {
                 }
                 continue;
             }
-            else if (child.nodeType === Node.ELEMENT_NODE){
+            else if (child.nodeType === Node.ELEMENT_NODE) {
                 const childEl = child as HTMLElement;
                 const childTag = childEl.tagName.toLowerCase();
                 const parent = childEl.parentElement;
@@ -73,10 +75,12 @@ export class Normalizer {
                 if (parentTag && !allowedParents.has(parentTag)) {
                     outOfOrderNodes[hierarchyLabel].push(child)
                 }
-                const grandChildren = Array.from(childEl.childNodes);
-                children.push(...grandChildren);
+                if (childTag != "scribby-code-block") {
+                    const grandChildren = Array.from(childEl.childNodes);
+                    children.push(...grandChildren);
+                }
             }
-            
+
         }
         return outOfOrderNodes;
     }
@@ -92,7 +96,6 @@ export class Normalizer {
             [nodeHierarchy.textEl]: organizeTextElNode,
             [nodeHierarchy.listItem]: organizeListItemNode,
             [nodeHierarchy.lists]: organizeListNode,
-            [nodeHierarchy.pre]: organizePreNode,
             [nodeHierarchy.codeblock]: organizeCodeNode,
             /* 
             [nodeHierarchy.tableItem]: organizeTextNode, 
@@ -139,15 +142,15 @@ export class Normalizer {
             }
         }
 
-        function organizeBRNode(brNode: Node): void{
+        function organizeBRNode(brNode: Node): void {
             const el = brNode as HTMLElement
             const parent = brNode.parentNode as HTMLElement;
             const parentTag = parent?.tagName.toLocaleLowerCase();
-            if(parentTag == "div"){
+            if (parentTag == "div") {
                 const p = document.createElement("p");
                 p.textContent = "\u200B";
                 parent.insertBefore(p, el);
-                
+
             }
             el.remove();
         }
@@ -189,12 +192,12 @@ export class Normalizer {
                     utils.changeElementTag(child as HTMLElement, "li");
                 }
             }
-            else if(parentTag === "li"){
+            else if (parentTag === "li") {
                 for (const child of node.childNodes) {
                     utils.replaceElementWithChildren(child as HTMLElement);
                 }
             }
-            else if(textTags.includes(parentTag)){
+            else if (textTags.includes(parentTag)) {
                 utils.makeChildSiblingofParent(node as HTMLElement);
             }
             else if (parentTag === "a") {
@@ -205,7 +208,7 @@ export class Normalizer {
             else if (parentTag === "table" || parentTag === "tr") {
                 parent.removeChild(node);
             }
-            else if (parentTag === "code"){
+            else if (parentTag === "code") {
                 for (const child of node.childNodes) {
                     utils.replaceElementWithChildren(child as HTMLElement);
                 }
@@ -228,21 +231,21 @@ export class Normalizer {
                 // convert lis to p
                 for (const child of node.childNodes) {
                     const childEl = child as HTMLElement;
-                    if(childEl.tagName.toLowerCase() == "li"){
-                        utils.changeElementTag(childEl,"p");
+                    if (childEl.tagName.toLowerCase() == "li") {
+                        utils.changeElementTag(childEl, "p");
                     }
                 }
-                
+
             }
             else if (textTags.includes(parentTag)) {
                 for (const child of node.childNodes) {
                     utils.replaceElementWithChildren(child as HTMLElement);
                 }
             }
-            else if(parentTag === "li"){
+            else if (parentTag === "li") {
                 utils.makeChildSiblingofParent(node as HTMLElement);
             }
-            else if (parentTag === "code"){
+            else if (parentTag === "code") {
                 for (const child of node.childNodes) {
                     utils.replaceElementWithChildren(child as HTMLElement);
                 }
@@ -258,24 +261,24 @@ export class Normalizer {
                 listItem.appendChild(node);
             }
             else if (textTags.includes(parentTag)) {
-                while (parentTag && textTags.includes(parentTag)){
+                while (parentTag && textTags.includes(parentTag)) {
                     utils.makeChildSiblingofParent(node as HTMLElement);
                     parentTag = node.parentElement?.tagName.toLocaleLowerCase();
                 }
-                
+
 
             }
             else if (parentTag === "code") {
-                while (parentTag && textTags.includes(parentTag)){
+                while (parentTag && textTags.includes(parentTag)) {
                     utils.makeChildSiblingofParent(node as HTMLElement);
                     parentTag = node.parentElement?.tagName.toLocaleLowerCase();
                 }
-                
+
 
             }
             utils.replaceElementWithChildren(node as HTMLElement);
         }
-        function organizePreNode(node:Node): void{
+         function organizeCodeNode(node:Node): void{
             const parent = node.parentNode as HTMLElement;
             let parentTag: string | undefined = parent?.tagName.toLowerCase();
             if (parentTag === "ol" || parentTag === "ul") {
@@ -296,15 +299,6 @@ export class Normalizer {
             }
             utils.replaceElementWithChildren(node as HTMLElement);
         }
-        function organizeCodeNode(node:Node): void{
-            const parent = node.parentNode as HTMLElement;
-
-            const pre = document.createElement("pre");
-            parent.insertBefore(pre, node);
-            pre.appendChild(node);
-            
-            utils.replaceElementWithChildren(node as HTMLElement);
-        }
     }
     removeEmptyNodes(root: Node): void {
         const rootEl = root as HTMLElement;
@@ -312,11 +306,68 @@ export class Normalizer {
 
         for (const node of allNodes) {
             const hasText = node.textContent?.trim().length! > 0;
-            const hasBr   = node.querySelector("br") !== null;
+            const hasBr = node.querySelector("br") !== null;
 
             if (!hasText && !hasBr) {
                 node.remove();
             }
         }
+    }
+    // normalizing code
+    normalizeLangId(raw: string | null | undefined): string {
+        const s = (raw ?? "").toLowerCase();
+        if (!s) return "javascript";
+
+        if (s === "js" || s === "javascript" || s === "ts" || s === "typescript") return "javascript";
+        if (s === "py" || s === "python") return "python";
+        if (s === "c" || s === "cpp" || s === "c++" || s === "cc" || s === "cplusplus") return "cpp";
+        if (s === "go" || s === "golang") return "go";
+        if (s === "rs" || s === "rust") return "rust";
+
+        return "javascript";
+    }
+
+    inferLangFromEl(el: Element): string {
+        const classList = Array.from(el.classList);
+
+        for (const c of classList) {
+            const m = c.match(/^(language|lang)-(.+)$/i);
+            if (m?.[2]) return this.normalizeLangId(m[2]);
+        }
+
+        for (const c of classList) {
+            if (["python", "javascript", "js", "typescript", "ts", "go", "golang", "rust", "rs", "c", "cpp", "c++"].includes(c.toLowerCase())) {
+                return this.normalizeLangId(c);
+            }
+        }
+
+        return "javascript";
+    }
+
+    convertPastedCodeBlocks(root: ParentNode) {
+        const already = root.querySelectorAll?.("scribby-code-block");
+        if (already?.length) return;
+
+        const pres = root.querySelectorAll?.("pre") ?? [];
+
+        pres.forEach((pre) => {
+            // dont convert if inside an existing scribby code block
+            if (pre.closest("scribby-code-block")) return;
+
+            const code = pre.querySelector("code");
+            const lang = this.normalizeLangId(
+                (code && this.inferLangFromEl(code)) || this.inferLangFromEl(pre)
+            );
+
+            const text = (code?.textContent ?? pre.textContent ?? "");
+
+            if (!text.trim().length) return;
+
+            const block = document.createElement("scribby-code-block");
+            block.setAttribute("data-lang", lang);
+            block.setAttribute("data-value", text.replace(/\r\n/g, "\n"));
+
+            pre.replaceWith(block);
+        });
     }
 }

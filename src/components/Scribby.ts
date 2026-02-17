@@ -9,6 +9,8 @@ import { HistoryManager, Snapshot } from "../history_manager/history_manager.js"
 import { WhisperClient } from "../whisper/whisper.js";
 
 import * as utils from "../utilities/utilities.js";
+import { RangeMarker } from "./RangeMarker.js";
+import { ScribbyCodeBlock } from "./CodeBlock.js";
 
 
 const parser = new DOMParser();
@@ -96,6 +98,10 @@ export class Scribby {
         this.normalizer = new Normalizer(this.el);
 
         this.el.insertAdjacentElement("beforebegin", this.toolbar.el);
+
+        // initialize web components
+        customElements.define("range-marker", RangeMarker);
+        customElements.define("scribby-code-block", ScribbyCodeBlock);
 
         this.el.addEventListener("keydown", (e) => {
             if (e.ctrlKey) {
@@ -224,40 +230,6 @@ export class Scribby {
                 if (node.nodeType === Node.TEXT_NODE) {
                     node = node.parentElement;
                 }
-
-                const el = node as HTMLElement | null;
-                const codeAncestor = el?.closest("code");
-
-                if (codeAncestor) {
-                    e.preventDefault();
-
-                    const beforeRange = range.cloneRange();
-
-                    beforeRange.setStart(codeAncestor, 0);
-
-                    const textBeforeCaret = beforeRange.toString();
-                    const lines = textBeforeCaret.split("\n");
-                    const currentLine = lines.pop() ?? "";
-                    const match = currentLine.match(/^[\t ]*/);
-                    let indent = match ? match[0] : "";
-
-                    if (currentLine.slice(-1) === "{") {
-                        indent = "\t" + indent;
-                    }
-
-                    range.deleteContents();
-                    const br = document.createTextNode("\n");
-                    const text = document.createTextNode(indent);
-                    range.insertNode(text);
-                    range.insertNode(br);
-                    range.setStartAfter(text);
-                    range.collapse(true);
-                    codeAncestor.normalize();
-
-                    
-                    return;
-                }
-                
             }
         })
 
@@ -342,6 +314,7 @@ export class Scribby {
                 fragment.appendChild(snippet.body.firstChild);
             }
             // normalize fragment
+            this.normalizer.convertPastedCodeBlocks(fragment);
             this.normalizer.removeNotSupportedNodes(fragment);
             const fromScribby = !!html && markRegex.test(html);
             if (!fromScribby){
@@ -567,9 +540,11 @@ export class Scribby {
                 this.selection = range;
                 this.el.dispatchEvent(events.activateStyleButtons);
 
-                // check if we are inside an anchor and activate modal
+                
                 const parent = range.commonAncestorContainer.parentElement;
                 const closestAnchor = parent?.closest("a");
+                const closestCodeBlock = parent?.closest("scribby-code-block");
+                // check if we are inside an anchor and activate modal
                 if (closestAnchor && this.currentInsertModal == null){
                     const linkModal = new LinkModal(
                         this,
@@ -579,9 +554,10 @@ export class Scribby {
                     this.currentTextModal = linkModal;
                     linkModal.mount();
                 }
-                else{
-                    this.el.focus();
-                }
+                // check if we are inside codemirror code block
+                else if(!closestCodeBlock){
+                     this.el.focus();
+                } 
             }
             
             

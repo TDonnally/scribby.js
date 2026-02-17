@@ -1,5 +1,4 @@
 import { Scribby } from "./Scribby.js";
-import { SpeechOutput } from "../custom_elements/SpeechOutput.js";
 import { TextBuffer } from "../buffers/text_buffer.js";
 import { WhisperClient } from "../whisper/whisper.js";
 import * as events from "../events/custom_events.js";
@@ -14,7 +13,7 @@ export class SpeechToText {
     innerContent: string;
     input: Input;
     el!: HTMLButtonElement;
-    outputEl!: SpeechOutput;
+    outputEl!: HTMLSpanElement;
     whisper!: WhisperClient;
     constructor(
         scribby: Scribby,

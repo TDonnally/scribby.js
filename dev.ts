@@ -1,4 +1,4 @@
-import { Scribby } from "./components/Scribby.js";
+import { Scribby } from "./src/components/Scribby.js";
 
 document.addEventListener("DOMContentLoaded", () => {
     const editor = new Scribby("#scribby",
