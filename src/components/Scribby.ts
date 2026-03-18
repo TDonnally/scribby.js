@@ -78,7 +78,7 @@ export class Scribby {
             throw new Error(`No element with selector: ${this.selector}`);
         }
 
-        if (!this.content) this.content = container.innerHTML
+        if (!this.content) this.content = container.innerHTML;
 
         this.el = document.createElement("div");
         this.el.contentEditable = 'true';
@@ -93,7 +93,7 @@ export class Scribby {
 
         this.historyManager.push(initSnapshot);
 
-        container.appendChild(this.el);
+        container.replaceChildren(this.el);
         this.toolbar = new Toolbar(this).mount();
         this.normalizer = new Normalizer(this.el);
 
@@ -170,17 +170,27 @@ export class Scribby {
                 if (!range) return;
                 const parent = range.startContainer;
                 const parentEl = parent as HTMLElement;
-                let closestElement: HTMLLIElement | null;
+                let closestElement: HTMLElement | null;
                 if (parent.nodeType != Node.ELEMENT_NODE) {
                     const nodeParent = parent.parentElement;
                     if (!nodeParent) return;
                     closestElement = nodeParent.closest("li, code");
                 }
+                else if (parentEl.tagName.toLowerCase() === "ol" || parentEl.tagName.toLowerCase() === "ul") {
+                    parentEl.remove();
+                    return
+                }
                 else {
                     closestElement = parentEl.closest("li, code");
                 }
                 if (closestElement && closestElement.tagName.toLowerCase() === "li") {
-                    if ((!closestElement.textContent.trim() || closestElement.textContent.trim() == '\u200B') && !closestElement.children.length) {
+                    const text = closestElement.textContent.replace(/[\s\u200B]+/g, "");
+
+                    const hasOnlyBrChildren = Array.from(closestElement.children).every(
+                        (child) => child.tagName === "BR"
+                    );
+
+                    if (!text && (!closestElement.children.length || hasOnlyBrChildren)) {
                         closestElement.remove();
                     }
                     else {
@@ -193,7 +203,7 @@ export class Scribby {
                         if (!content.querySelector("li")) {
                             li.appendChild(content);
                             if (!li.childNodes.length) {
-                                li.innerText = "\u200B";
+                                li.appendChild(document.createTextNode("\u200B"));
                             }
                             listContainer.appendChild(li);
                         }
@@ -203,6 +213,7 @@ export class Scribby {
                         }
                         range.insertNode(listContainer);
                         utils.placeCaretatEndofElement(listContainer);
+                        this.el.normalize();
                     }
                 }
                 else if (closestElement && closestElement.tagName.toLowerCase() === "code") {
@@ -236,7 +247,7 @@ export class Scribby {
         const mark = "<!--scribby-origin:1-->"
         const markRegex = /<!--\s*scribby-origin:1\s*-->/i;
         this.el.addEventListener("copy", (e) => {
-            
+
             if (!e.clipboardData) return;
             e.preventDefault();
 
@@ -276,10 +287,10 @@ export class Scribby {
             }
 
             this.selection?.deleteContents();
-            if(this.selection?.commonAncestorContainer){
+            if (this.selection?.commonAncestorContainer) {
                 this.normalizer.removeEmptyNodes(this.selection?.commonAncestorContainer);
             }
-            
+
         })
         this.el.addEventListener("paste", (e) => {
             /**
@@ -317,7 +328,7 @@ export class Scribby {
             this.normalizer.convertPastedCodeBlocks(fragment);
             this.normalizer.removeNotSupportedNodes(fragment);
             const fromScribby = !!html && markRegex.test(html);
-            if (!fromScribby){
+            if (!fromScribby) {
                 utils.stripAttributes(fragment);
                 const spans = fragment.querySelectorAll("span");
                 console.log(spans)
@@ -343,7 +354,7 @@ export class Scribby {
         })
 
         this.el.addEventListener("input", (e) => {
-            
+
             if (this.timeoutId !== null) {
                 clearTimeout(this.timeoutId);
             }
@@ -357,6 +368,11 @@ export class Scribby {
                 };
 
                 this.historyManager.push(snapshot);
+
+                // send out auto save event
+                this.content = this.el.innerHTML
+                const saveEvent = new CustomEvent("save-document")
+                document.dispatchEvent(saveEvent);
             }, this.historyUpdateDelayonInput);
             // normalize after input
             this.normalizer.removeNotSupportedNodes(this.el);
@@ -445,7 +461,7 @@ export class Scribby {
                 }
 
             }
-            else if(range.collapsed && container.nodeType === Node.ELEMENT_NODE && container.tagName.toLowerCase() === "span"){
+            else if (range.collapsed && container.nodeType === Node.ELEMENT_NODE && container.tagName.toLowerCase() === "span") {
                 const classList = Array.from(container.classList);
                 classes["class"] = classList
                 const style = container.getAttribute("style");
@@ -540,12 +556,12 @@ export class Scribby {
                 this.selection = range;
                 this.el.dispatchEvent(events.activateStyleButtons);
 
-                
+
                 const parent = range.commonAncestorContainer.parentElement;
                 const closestAnchor = parent?.closest("a");
                 const closestCodeBlock = parent?.closest("scribby-code-block");
                 // check if we are inside an anchor and activate modal
-                if (closestAnchor && this.currentInsertModal == null){
+                if (closestAnchor && this.currentInsertModal == null) {
                     const linkModal = new LinkModal(
                         this,
                         this.selection.getBoundingClientRect(),
@@ -555,12 +571,12 @@ export class Scribby {
                     linkModal.mount();
                 }
                 // check if we are inside codemirror code block
-                else if(!closestCodeBlock){
-                     this.el.focus();
-                } 
+                else if (!closestCodeBlock) {
+                    this.el.focus();
+                }
             }
-            
-            
+
+
         });
 
         return this
