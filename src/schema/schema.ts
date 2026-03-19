@@ -111,13 +111,13 @@ export const schema: Map<string, NodeSchema> = new Map([
     // lists
     ["ol", {
         defaultParent: 'div',
-        allowedParents: new Set(['div','li','td']),
+        allowedParents: new Set(['div','td']),
         allowedChildren: new Set(['li']),
         hierarchyLabel: nodeHierarchy.lists
     }],
     ["ul", {
         defaultParent: 'div',
-        allowedParents: new Set(['div','li','td']),
+        allowedParents: new Set(['div','td']),
         allowedChildren: new Set(['li']),
         hierarchyLabel: nodeHierarchy.lists
     }],

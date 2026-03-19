@@ -115,50 +115,50 @@ export class ToolbarInsertButton {
 
             }
             else if (this.insertElType === insertElementType.OrderedList || this.insertElType === insertElementType.UnorderedList) {
-                const parent = range.commonAncestorContainer as HTMLElement;
+                const containerNode = range.commonAncestorContainer;
+                const containerEl = containerNode.nodeType === Node.TEXT_NODE
+                    ? containerNode.parentElement as HTMLElement
+                    : containerNode as HTMLElement;
 
-                if (parent.nodeType != Node.TEXT_NODE && (parent.tagName.toLowerCase() == "ul" || parent.tagName.toLowerCase() == "ol")) {
+                const currentLi = containerEl?.closest("li");
+                const currentList = containerEl?.closest("ol, ul") as HTMLElement | null;
+
+                if (currentList) {
                     const endRange = range.cloneRange();
                     endRange.collapse(false);
                     endRange.insertNode(rangeMarker);
-                    const tagName: string = parent.tagName.toLowerCase()
-                    const options = {
-                        [insertElementType.OrderedList]: insertElementType.UnorderedList,
-                        [insertElementType.UnorderedList]: insertElementType.OrderedList
+
+                    const tagName = currentList.tagName.toLowerCase();
+
+                    if (tagName == this.insertElType) {
+                        utils.replaceElementWithChildren(currentList);
                     }
-                    if (rangeLength > 0) {
-                        if (tagName != this.insertElType) {
-                            const newTag = utils.toggle(options, tagName);
-                            utils.changeElementTag(parent, newTag);
-                        }
-                        else {
-                            utils.replaceElementWithChildren(parent);
-                        }
+                    else {
+                        utils.changeElementTag(currentList, this.insertElType);
                     }
                 }
-                else if (parent.nodeType != Node.TEXT_NODE && parent.tagName.toLowerCase() == "li" && parent.parentElement) {
-                    const tagName: string = parent.parentElement.tagName.toLowerCase()
+                else if (currentLi && currentLi.parentElement && (currentLi.parentElement.tagName.toLowerCase() == "ol" || currentLi.parentElement.tagName.toLowerCase() == "ul")) {
                     const endRange = range.cloneRange();
                     endRange.collapse(false);
                     endRange.insertNode(rangeMarker);
-                    const options = {
-                        [insertElementType.OrderedList]: insertElementType.UnorderedList,
-                        [insertElementType.UnorderedList]: insertElementType.OrderedList
-                    }
+
+                    const list = currentLi.parentElement;
+                    const tagName = list.tagName.toLowerCase();
+
                     if (tagName == this.insertElType) {
-                        utils.replaceElementWithChildren(parent.parentElement);
+                        utils.replaceElementWithChildren(list);
                     }
-                    else if (tagName != this.insertElType) {
-                        const newTag = utils.toggle(options, tagName);
-                        utils.changeElementTag(parent.parentElement, newTag);
+                    else {
+                        utils.changeElementTag(list, this.insertElType);
                     }
                 }
                 else {
                     const list = document.createElement(this.insertElType);
-                    blockRanges.forEach(({ block, blockRange }) => {
+
+                    blockRanges.forEach(({ blockRange }) => {
                         const listEl = document.createElement("li");
 
-                        if (!range.toString().length) {
+                        if (!blockRange.toString().length) {
                             listEl.innerText = "\u200B";
                         }
                         else {
@@ -167,12 +167,12 @@ export class ToolbarInsertButton {
                         }
 
                         list.appendChild(listEl);
-                    })
+                    });
+
                     range.deleteContents();
                     range.insertNode(list);
 
-                    // add a range marker to recreate range
-                    const lastListItem = list.lastElementChild
+                    const lastListItem = list.lastElementChild;
                     lastListItem?.appendChild(rangeMarker);
                 }
             }

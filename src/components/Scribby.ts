@@ -165,6 +165,8 @@ export class Scribby {
 
             }
             if (e.key === "Tab") {
+                 
+                 
                 e.preventDefault();
                 const range = this.selection;
                 if (!range) return;
@@ -183,6 +185,9 @@ export class Scribby {
                 else {
                     closestElement = parentEl.closest("li, code");
                 }
+                /**
+                 * Pausing nested lists for now. Is going to take more time.
+                 *
                 if (closestElement && closestElement.tagName.toLowerCase() === "li") {
                     const text = closestElement.textContent.replace(/[\s\u200B]+/g, "");
 
@@ -215,8 +220,9 @@ export class Scribby {
                         utils.placeCaretatEndofElement(listContainer);
                         this.el.normalize();
                     }
-                }
-                else if (closestElement && closestElement.tagName.toLowerCase() === "code") {
+                        
+                }*/
+                if (closestElement && closestElement.tagName.toLowerCase() === "code") {
                     const fourSpaces = document.createTextNode("\t");
                     range.insertNode(fourSpaces);
                     const contents = range.extractContents();
