@@ -3,9 +3,8 @@ export const BLOCK_SELECTOR = "p,h1,h2,h3,h4,h5,h6,li,blockquote,code";
 /**
  * Get Element object/objects or Element attributes
  */
-export function getBlock(el: HTMLElement, root: HTMLElement): HTMLElement {
-    const block = el.closest(BLOCK_SELECTOR);
-    return (block as HTMLElement) ?? (root as HTMLElement);
+export function getBlock(el: HTMLElement, root: HTMLElement): HTMLElement | null {
+    return el.closest(BLOCK_SELECTOR) as HTMLElement | null;
 }
 export function getBlockRanges(range: Range, root: HTMLElement): Array<{ block: HTMLElement, blockRange: Range }> {
     const result = new Array();
@@ -16,7 +15,10 @@ export function getBlockRanges(range: Range, root: HTMLElement): Array<{ block: 
         .filter(block => range.intersectsNode(block));
 
     if (blocks.length === 0) {
-        blocks.push(getBlock(range.startContainer.parentElement as HTMLElement, root));
+        const block = getBlock(range.startContainer.parentElement as HTMLElement, root);
+        if (block) {
+            blocks.push(block);
+        }
     }
 
     blocks.forEach((block, index) => {

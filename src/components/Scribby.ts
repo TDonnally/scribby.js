@@ -319,6 +319,55 @@ export class Scribby {
                     selection?.addRange(newRange);
                 }
             }
+            if (e.key === 'Delete' || e.key === 'Backspace'){
+                // prevent completely emptying editor
+                if (this.el.childNodes.length === 1 && !(this.el.children[0].textContent ?? "").replace(/[\s\u200B]+/g, "")){
+                    e.preventDefault();
+                    return;
+                }
+
+                const range = this.selection;
+                if (!range) return;
+                const parent = range.startContainer;
+                const parentEl = parent as HTMLElement;
+                console.log(parent)
+                // handle code deleting code block
+                let closestLine: HTMLElement | null;
+                let codeBlock: HTMLElement | null;
+                if (parent.nodeType != Node.ELEMENT_NODE) {
+                    const nodeParent = parent.parentElement;
+                    if (!nodeParent) return;
+                    closestLine = nodeParent.closest(".cm-line");
+                    codeBlock = nodeParent.closest("scribby-code-block");
+                }
+                else {
+                    closestLine = parentEl.closest(".cm-line");
+                    codeBlock = parentEl.closest("scribby-code-block");
+                }
+                const prev = closestLine?.previousElementSibling as HTMLElement | null;
+                const next = closestLine?.nextElementSibling as HTMLElement | null;
+                const hasNoText = !!closestLine && !(closestLine.textContent ?? "").replace(/[\s\u200B]+/g, "");
+                if(prev === null && next === null && hasNoText){
+                    e.preventDefault();
+                    let target = codeBlock?.nextElementSibling as HTMLElement;
+                    if(target === null){
+                        const entryP = document.createElement("p");
+                        const br = document.createElement("br");
+                        entryP.appendChild(br);
+                        codeBlock?.after(entryP);
+                        target = entryP;
+                    }
+                    const newRange = document.createRange();
+                    newRange.selectNodeContents(target);
+                    newRange.collapse(false);
+                    const selection = window.getSelection();
+                    if (selection){
+                        selection.removeAllRanges();
+                    }
+                    selection?.addRange(newRange);
+                    codeBlock?.remove();
+                }
+            }
         })
 
         const mark = "<!--scribby-origin:1-->"

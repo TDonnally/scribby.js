@@ -78,6 +78,10 @@ export class ToolbarStyleButton {
             if (!range) return;
             const isRangeCollapsed = range.collapsed;
 
+            if (range.startContainer.parentElement?.closest("scribby-code-editor")){
+                return
+            }
+
             const frontMarker = document.createElement("range-marker");
             const backMarker = document.createElement("range-marker");
             frontMarker.classList.add("front");
