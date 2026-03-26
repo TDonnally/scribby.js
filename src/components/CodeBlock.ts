@@ -1,7 +1,8 @@
 import { EditorState, Compartment } from "@codemirror/state";
 import { EditorView, keymap, lineNumbers } from "@codemirror/view";
 import { indentWithTab, defaultKeymap } from "@codemirror/commands";
-import { syntaxHighlighting, defaultHighlightStyle } from "@codemirror/language";
+import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
+import { tags } from "@lezer/highlight";
 
 import { javascript } from "@codemirror/lang-javascript";
 import { python } from "@codemirror/lang-python";
@@ -18,6 +19,20 @@ const LANG_LABELS: Record<LangId, string> = {
     go: "Go",
     rust: "Rust",
 };
+const vsCodeHighlightStyle = HighlightStyle.define([
+    { tag: tags.keyword, color: "#569cd6" },
+    { tag: [tags.name, tags.deleted, tags.character, tags.propertyName, tags.macroName], color: "#9cdcfe" },
+    { tag: [tags.function(tags.variableName), tags.labelName], color: "#dcdcaa" },
+    { tag: [tags.color, tags.constant(tags.name), tags.standard(tags.name)], color: "#4fc1ff" },
+    { tag: [tags.definition(tags.name), tags.separator], color: "#d4d4d4" },
+    { tag: [tags.className], color: "#4ec9b0" },
+    { tag: [tags.number, tags.changed, tags.annotation, tags.modifier, tags.self, tags.namespace], color: "#b5cea8" },
+    { tag: [tags.typeName], color: "#4ec9b0" },
+    { tag: [tags.operator, tags.operatorKeyword], color: "#d4d4d4" },
+    { tag: [tags.string], color: "#ce9178" },
+    { tag: [tags.meta, tags.comment], color: "#6a9955", fontStyle: "italic" },
+    { tag: [tags.invalid], color: "#f44747" }
+]);
 
 function langExtension(lang: LangId) {
     switch (lang) {
@@ -80,33 +95,17 @@ export class ScribbyCodeBlock extends HTMLElement {
     connectedCallback() {
         this.setAttribute("contenteditable", "false");
 
-        // Base styling
-        this.style.display = "block";
-        this.style.borderRadius = "10px";
-        this.style.border = "1px solid rgba(255,255,255,0.12)";
-        this.style.overflow = "hidden"; // keeps rounded corners clean
+        this.classList.add("code-block");
 
-        // Build toolbar
         const toolbar = document.createElement("div");
-        toolbar.style.display = "flex";
-        toolbar.style.alignItems = "center";
-        toolbar.style.gap = "8px";
-        toolbar.style.padding = "8px";
-        toolbar.style.borderBottom = "1px solid rgba(255,255,255,0.08)";
-        toolbar.style.background = "rgba(255,255,255,0.02)";
+        toolbar.classList.add("code-block-toolbar");
 
         const label = document.createElement("span");
         label.textContent = "Language:";
-        label.style.fontSize = "12px";
-        label.style.opacity = "0.8";
+        label.classList.add("code-block-label");
 
         const select = document.createElement("select");
-        select.style.fontSize = "12px";
-        select.style.padding = "4px 6px";
-        select.style.borderRadius = "6px";
-        select.style.border = "1px solid rgba(255,255,255,0.12)";
-        select.style.background = "transparent";
-        select.style.color = "inherit";
+        select.classList.add("code-block-select");
 
         (Object.keys(LANG_LABELS) as LangId[]).forEach((k) => {
             const opt = document.createElement("option");
@@ -117,7 +116,7 @@ export class ScribbyCodeBlock extends HTMLElement {
 
         // Host for CodeMirror
         const editorHost = document.createElement("div");
-        editorHost.style.padding = "8px";
+        editorHost.classList.add("code-block-editor-host");
 
         // Keep refs
         this.selectEl = select;
@@ -126,13 +125,6 @@ export class ScribbyCodeBlock extends HTMLElement {
         const startDoc = this.value || "";
         const initialLang = this.lang;
         select.value = initialLang;
-
-        // Stop the parent editor from stealing focus
-        const stop = (e: Event) => e.stopPropagation();
-        toolbar.addEventListener("mousedown", stop);
-        toolbar.addEventListener("keydown", stop);
-        editorHost.addEventListener("mousedown", stop);
-        editorHost.addEventListener("keydown", stop);
 
         // Language dropdown handler
         select.addEventListener("change", (e) => {
@@ -160,7 +152,7 @@ export class ScribbyCodeBlock extends HTMLElement {
                 lineNumbers(),
                 keymap.of([indentWithTab, ...defaultKeymap]),
 
-                syntaxHighlighting(defaultHighlightStyle),
+                syntaxHighlighting(vsCodeHighlightStyle),
 
                 // dynamic language config
                 this.language.of(langExtension(initialLang)),

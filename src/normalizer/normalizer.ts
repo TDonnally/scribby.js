@@ -253,92 +253,92 @@ export class Normalizer {
             utils.replaceElementWithChildren(node as HTMLElement);
         }
         function organizeListNode(node: Node): void {
-    const nodeEl = node as HTMLElement;
-    const parent = node.parentNode as HTMLElement;
-    let parentTag: string | undefined = parent?.tagName.toLowerCase();
+            const nodeEl = node as HTMLElement;
+            const parent = node.parentNode as HTMLElement;
+            let parentTag: string | undefined = parent?.tagName.toLowerCase();
 
-    if (parentTag === "ol" || parentTag === "ul") {
-        const liChildren = Array.from(nodeEl.children).filter(
-            (child) => child.tagName.toLowerCase() === "li"
-        );
+            if (parentTag === "ol" || parentTag === "ul") {
+                const liChildren = Array.from(nodeEl.children).filter(
+                    (child) => child.tagName.toLowerCase() === "li"
+                );
 
-        if (liChildren.length) {
-            liChildren.forEach((li) => {
-                parent.insertBefore(li, nodeEl);
-            });
-            nodeEl.remove();
-            return;
-        }
-
-        const listItem = document.createElement("li");
-        parent.insertBefore(listItem, nodeEl);
-        listItem.appendChild(nodeEl);
-        return;
-    }
-    else if (parentTag === "li") {
-        const parentList = parent.parentElement as HTMLElement | null;
-        if (!parentList || (parentList.tagName.toLowerCase() !== "ol" && parentList.tagName.toLowerCase() !== "ul")) {
-            utils.replaceElementWithChildren(nodeEl);
-            return;
-        }
-
-        const children = Array.from(nodeEl.childNodes);
-        let insertRef: HTMLElement = parent;
-
-        children.forEach((child) => {
-            if (child.nodeType === Node.TEXT_NODE) {
-                const text = child.textContent?.replace(/[\s\u200B]+/g, "");
-                if (text) {
-                    parent.insertBefore(child, nodeEl);
-                }
-                else {
-                    child.remove();
-                }
-            }
-            else if ((child as HTMLElement).nodeType === Node.ELEMENT_NODE) {
-                const childEl = child as HTMLElement;
-                const childTag = childEl.tagName.toLowerCase();
-
-                if (childTag === "li") {
-                    parentList.insertBefore(childEl, insertRef.nextSibling);
-                    insertRef = childEl;
-                }
-                else if (childTag === "ol" || childTag === "ul") {
-                    const nestedLis = Array.from(childEl.children).filter(
-                        (nested) => nested.tagName.toLowerCase() === "li"
-                    );
-
-                    nestedLis.forEach((nested) => {
-                        parentList.insertBefore(nested, insertRef.nextSibling);
-                        insertRef = nested as HTMLElement;
+                if (liChildren.length) {
+                    liChildren.forEach((li) => {
+                        parent.insertBefore(li, nodeEl);
                     });
-
-                    childEl.remove();
+                    nodeEl.remove();
+                    return;
                 }
-                else {
-                    parent.insertBefore(childEl, nodeEl);
+
+                const listItem = document.createElement("li");
+                parent.insertBefore(listItem, nodeEl);
+                listItem.appendChild(nodeEl);
+                return;
+            }
+            else if (parentTag === "li") {
+                const parentList = parent.parentElement as HTMLElement | null;
+                if (!parentList || (parentList.tagName.toLowerCase() !== "ol" && parentList.tagName.toLowerCase() !== "ul")) {
+                    utils.replaceElementWithChildren(nodeEl);
+                    return;
+                }
+
+                const children = Array.from(nodeEl.childNodes);
+                let insertRef: HTMLElement = parent;
+
+                children.forEach((child) => {
+                    if (child.nodeType === Node.TEXT_NODE) {
+                        const text = child.textContent?.replace(/[\s\u200B]+/g, "");
+                        if (text) {
+                            parent.insertBefore(child, nodeEl);
+                        }
+                        else {
+                            child.remove();
+                        }
+                    }
+                    else if ((child as HTMLElement).nodeType === Node.ELEMENT_NODE) {
+                        const childEl = child as HTMLElement;
+                        const childTag = childEl.tagName.toLowerCase();
+
+                        if (childTag === "li") {
+                            parentList.insertBefore(childEl, insertRef.nextSibling);
+                            insertRef = childEl;
+                        }
+                        else if (childTag === "ol" || childTag === "ul") {
+                            const nestedLis = Array.from(childEl.children).filter(
+                                (nested) => nested.tagName.toLowerCase() === "li"
+                            );
+
+                            nestedLis.forEach((nested) => {
+                                parentList.insertBefore(nested, insertRef.nextSibling);
+                                insertRef = nested as HTMLElement;
+                            });
+
+                            childEl.remove();
+                        }
+                        else {
+                            parent.insertBefore(childEl, nodeEl);
+                        }
+                    }
+                });
+
+                nodeEl.remove();
+                return;
+            }
+            else if (textTags.includes(parentTag)) {
+                while (parentTag && textTags.includes(parentTag)) {
+                    utils.makeChildSiblingofParent(nodeEl);
+                    parentTag = node.parentElement?.tagName.toLowerCase();
                 }
             }
-        });
+            else if (parentTag === "code") {
+                while (parentTag === "code") {
+                    utils.makeChildSiblingofParent(nodeEl);
+                    parentTag = node.parentElement?.tagName.toLowerCase();
+                }
+            }
 
-        nodeEl.remove();
-        return;
-    }
-    else if (textTags.includes(parentTag)) {
-        while (parentTag && textTags.includes(parentTag)) {
-            utils.makeChildSiblingofParent(nodeEl);
-            parentTag = node.parentElement?.tagName.toLowerCase();
+            utils.replaceElementWithChildren(nodeEl);
         }
-    }
-    else if (parentTag === "code") {
-        while (parentTag === "code") {
-            utils.makeChildSiblingofParent(nodeEl);
-            parentTag = node.parentElement?.tagName.toLowerCase();
-        }
-    }
-
-    utils.replaceElementWithChildren(nodeEl);
-}
         function organizeCodeNode(node: Node): void {
             const parent = node.parentNode as HTMLElement;
             let parentTag: string | undefined = parent?.tagName.toLowerCase();

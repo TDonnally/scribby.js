@@ -242,10 +242,81 @@ export class Scribby {
             if (e.key === 'Enter') {
                 const range = this.selection;
                 if (!range) return;
-                console.log(range.startContainer)
-                let node: Node | null = range.startContainer;
-                if (node.nodeType === Node.TEXT_NODE) {
-                    node = node.parentElement;
+                const parent = range.startContainer;
+                const parentEl = parent as HTMLElement;
+                console.log(parent)
+                let closestLine: HTMLElement | null;
+                let codeBlock: HTMLElement | null;
+                if (parent.nodeType != Node.ELEMENT_NODE) {
+                    const nodeParent = parent.parentElement;
+                    if (!nodeParent) return;
+                    closestLine = nodeParent.closest(".cm-line");
+                    codeBlock = nodeParent.closest("scribby-code-block");
+                }
+                else {
+                    closestLine = parentEl.closest(".cm-line");
+                    codeBlock = parentEl.closest("scribby-code-block");
+                }
+                const prev = closestLine?.previousElementSibling as HTMLElement | null;
+                const next = closestLine?.nextElementSibling?.nextElementSibling as HTMLElement | null;
+                const prevHasNoText = !!prev && !(prev.textContent ?? "").replace(/[\s\u200B]+/g, "");
+                if(next === null && prevHasNoText){
+                    e.preventDefault();
+                    let target = codeBlock?.nextElementSibling as HTMLElement;
+                    if(target === null){
+                        const entryP = document.createElement("p");
+                        const br = document.createElement("br");
+                        entryP.appendChild(br);
+                        codeBlock?.after(entryP);
+                        target = entryP;
+                    }
+                    const newRange = document.createRange();
+                    newRange.selectNodeContents(target);
+                    newRange.collapse(false);
+                    const selection = window.getSelection();
+                    if (selection){
+                        selection.removeAllRanges();
+                    }
+                    selection?.addRange(newRange);
+                }
+            }
+            if (e.key === "ArrowDown"){
+                const range = this.selection;
+                if (!range) return;
+                const parent = range.startContainer;
+                const parentEl = parent as HTMLElement;
+                console.log(parent)
+                let closestLine: HTMLElement | null;
+                let codeBlock: HTMLElement | null;
+                if (parent.nodeType != Node.ELEMENT_NODE) {
+                    const nodeParent = parent.parentElement;
+                    if (!nodeParent) return;
+                    closestLine = nodeParent.closest(".cm-line");
+                    codeBlock = nodeParent.closest("scribby-code-block");
+                }
+                else {
+                    closestLine = parentEl.closest(".cm-line");
+                    codeBlock = parentEl.closest("scribby-code-block");
+                }
+                
+                if(closestLine?.nextElementSibling === null){
+                    e.preventDefault();
+                    let target = codeBlock?.nextElementSibling as HTMLElement;
+                    if(target === null){
+                        const entryP = document.createElement("p");
+                        const br = document.createElement("br");
+                        entryP.appendChild(br);
+                        codeBlock?.after(entryP);
+                        target = entryP;
+                    }
+                    const newRange = document.createRange();
+                    newRange.selectNodeContents(target);
+                    newRange.collapse(false);
+                    const selection = window.getSelection();
+                    if (selection){
+                        selection.removeAllRanges();
+                    }
+                    selection?.addRange(newRange);
                 }
             }
         })
@@ -576,7 +647,9 @@ export class Scribby {
                     this.currentTextModal = linkModal;
                     linkModal.mount();
                 }
+                
                 // check if we are inside codemirror code block
+                
                 else if (!closestCodeBlock) {
                     this.el.focus();
                 }
