@@ -89,6 +89,7 @@ export class Normalizer {
      * The logic is slightly different for each so it feels cleaner this way even if it is more verbose
      */
     fixHierarchyViolations(outOfOrderNodes: Record<nodeHierarchy, Array<Node>>): void {
+        const scribbyEl = this.scribbyEl;
         const nodes = outOfOrderNodes;
         const nodeTypetoMethod: Record<nodeHierarchy, (node: Node) => void> = {
             [nodeHierarchy.br]: organizeBRNode,
@@ -97,6 +98,7 @@ export class Normalizer {
             [nodeHierarchy.listItem]: organizeListItemNode,
             [nodeHierarchy.lists]: organizeListNode,
             [nodeHierarchy.codeblock]: organizeCodeNode,
+            [nodeHierarchy.speechOutput]: organizeSpeechOutput,
             /* 
             [nodeHierarchy.tableItem]: organizeTextNode, 
             [nodeHierarchy.tableRow]: organizeTextNode,
@@ -359,6 +361,20 @@ export class Normalizer {
                 }
             }
             utils.replaceElementWithChildren(node as HTMLElement);
+        }
+        function organizeSpeechOutput(node: Node): void {
+            const nodeEl = node as HTMLElement;
+            let container = nodeEl.parentElement as HTMLElement | null;
+
+            while (container && container.parentElement && container.parentElement !== scribbyEl) {
+                container = container.parentElement;
+            }
+
+            if (container && container.parentElement === scribbyEl) {
+                scribbyEl.insertBefore(nodeEl, container.nextSibling);
+            }
+
+            utils.replaceElementWithChildren(nodeEl);
         }
     }
     removeEmptyNodes(root: Node): void {

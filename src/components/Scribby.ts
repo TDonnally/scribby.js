@@ -11,6 +11,10 @@ import { WhisperClient } from "../whisper/whisper.js";
 import * as utils from "../utilities/utilities.js";
 import { RangeMarker } from "./RangeMarker.js";
 import { ScribbyCodeBlock } from "./CodeBlock.js";
+import { SpeechOutput } from "./SpeechOutput/SpeechOutput.js";
+import { PlayButton } from "./SpeechOutput/PlayButton.js";
+import { StopButton } from "./SpeechOutput/StopButton.js";
+import { RecordButton } from "./SpeechOutput/RecordButton.js";
 
 
 const parser = new DOMParser();
@@ -102,6 +106,10 @@ export class Scribby {
         // initialize web components
         customElements.define("range-marker", RangeMarker);
         customElements.define("scribby-code-block", ScribbyCodeBlock);
+        customElements.define("speech-output", SpeechOutput);
+        customElements.define("play-button",  PlayButton);
+        customElements.define("stop-button", StopButton);
+        customElements.define("record-button", RecordButton);
 
         this.el.addEventListener("keydown", (e) => {
             if (e.ctrlKey) {

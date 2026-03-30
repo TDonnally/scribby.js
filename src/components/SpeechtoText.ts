@@ -1,6 +1,7 @@
 import { Scribby } from "./Scribby.js";
 import { TextBuffer } from "../buffers/text_buffer.js";
 import { WhisperClient } from "../whisper/whisper.js";
+import { SpeechOutput } from "./SpeechOutput/SpeechOutput.js";
 import * as events from "../events/custom_events.js";
 import * as utils from "../utilities/utilities.js";
 
@@ -48,115 +49,17 @@ export class SpeechToText {
         this.worker.onmessage = (e) => {
             this.buffer.remove();
         }
-        this.scribby.el.addEventListener("stop-listening", (e) => {
-            if (this.isListening) {
-                this.isListening = false;
-                this.el.classList.remove("active");
-
-                if (this.recorder) {
-                    this.recorder?.stop();
-                }
-                this.recorder = null;
-                this.stream?.getTracks().forEach(t => t.stop());
-                this.stream = null;
-
-                utils.replaceElementWithChildren(this.outputEl);
-            }
+        document.addEventListener("start-recording", async (e) => {
+            await this.startRecording();
+        })
+        document.addEventListener("stop-recording", async (e) => {
+            await this.stopRecording();
         })
         this.el.addEventListener("click", async (e) => {
             if (this.isListening) {
-                this.isListening = false;
-                this.el.classList.remove("active");
-
-                if (this.recorder) {
-                    this.recorder?.stop();
-                }
-                this.recorder = null;
-                this.stream?.getTracks().forEach(t => t.stop());
-                this.stream = null;
-
-                utils.replaceElementWithChildren(this.outputEl);
+                this.stopRecording();
             } else {
-                this.scribby.el.dispatchEvent(events.stopListening);
-                const range = this.scribby.selection;
-                if (!range) return;
-
-                this.outputEl = document.createElement("span");
-                this.outputEl.classList.add("output");
-                range.collapse(false);
-                range.insertNode(this.outputEl);
-
-                this.isListening = true;
-                this.el.classList.add("active");
-
-                this.buffer = new TextBuffer("", this.outputEl);
-                try {
-                    const constraints = {
-                        video: this.input === Input.mic ? false : true,
-                        audio: true,
-                    } as any;
-                    if (this.input === Input.mic) {
-                        try {
-                            this.stream = await navigator.mediaDevices.getUserMedia(constraints);
-                        }
-                        catch {
-                            this.scribby.el.dispatchEvent(events.stopListening);
-                        }
-
-                    }
-                    else if (this.input === Input.speaker) {
-                        try {
-                            this.stream = await navigator.mediaDevices.getDisplayMedia(constraints);
-                        }
-                        catch {
-                            this.scribby.el.dispatchEvent(events.stopListening);
-                        }
-                    }
-                    if (!this.stream) return;
-                    const audioTracks = this.stream.getAudioTracks();
-
-                    console.log("Audio tracks:", audioTracks);
-
-                    if (!audioTracks.length) {
-                        alert("No audio track detected. Make sure you checked 'Share system audio'.");
-                        return;
-                    }
-
-                    const audioStream = new MediaStream(audioTracks);
-
-                    const audioContext = new AudioContext();
-                    const source = audioContext.createMediaStreamSource(audioStream);
-
-                    const analyser = audioContext.createAnalyser();
-                    source.connect(analyser);
-                    analyser.fftSize = 256;
-                    const bufferLength = analyser.frequencyBinCount;
-                    const dataArray = new Uint8Array(bufferLength);
-
-                    this.recorder = this.createRecorder(audioStream, analyser, bufferLength, dataArray);
-
-                    this.recorder.start(200);
-
-                    audioTracks[0].addEventListener("ended", () => {
-                        this.isListening = false;
-
-                        this.recorder?.stop();
-                        this.recorder = null;
-
-                        this.el.classList.remove("active");
-                        this.buffer.removeAll();
-
-                        audioStream.getTracks().forEach(t => t.stop());
-
-                        audioContext?.close().catch(() => { });
-
-                        utils.replaceElementWithChildren(this.outputEl);
-                    });
-
-                } catch (err) {
-                    console.error("getDisplayMedia failed:", err);
-                }
-
+                await this.startRecording();
             }
         });
     }
@@ -235,6 +138,122 @@ export class SpeechToText {
         const volumePercent = Math.min(100, Math.floor((rms / 90) * 100));
 
         return volumePercent
+    }
+    public stopRecording() {
+        this.isListening = false;
+        this.el.classList.remove("active");
+
+        if (this.recorder) {
+            this.recorder?.stop();
+        }
+        this.recorder = null;
+        this.stream?.getTracks().forEach(t => t.stop());
+        this.stream = null;
+    }
+    public async startRecording() {
+        const stopRecording = new CustomEvent("stop-recording");
+        document.dispatchEvent(stopRecording);
+        const range = this.scribby.selection;
+        if (!range) return;
+
+        const speechOutput = document.createElement("speech-output") as SpeechOutput;
+        speechOutput.controller = this;
+
+        let container =
+            range.startContainer.nodeType === Node.TEXT_NODE
+                ? range.startContainer.parentElement
+                : range.startContainer as HTMLElement | null;
+
+        while (container && container.parentElement && container.parentElement !== this.scribby.el) {
+            container = container.parentElement;
+        }
+
+        if (container && container.parentElement === this.scribby.el) {
+            this.scribby.el.insertBefore(speechOutput, container.nextSibling);
+        }
+        else {
+            range.insertNode(speechOutput);
+        }
+
+        range.setStartAfter(speechOutput);
+        range.collapse(true);
+
+        this.outputEl = speechOutput.querySelector(".output") as HTMLSpanElement;
+
+        this.isListening = true;
+        this.el.classList.add("active");
+
+        this.buffer = new TextBuffer("", this.outputEl);
+        try {
+            const constraints = {
+                video: this.input === Input.mic ? false : true,
+                audio: true,
+            } as any;
+            if (this.input === Input.mic) {
+                try {
+                    this.stream = await navigator.mediaDevices.getUserMedia(constraints);
+                }
+                catch {
+                    const stopRecording = new CustomEvent("stop-recording");
+                    document.dispatchEvent(stopRecording);
+                }
+
+            }
+            else if (this.input === Input.speaker) {
+                try {
+                    this.stream = await navigator.mediaDevices.getDisplayMedia(constraints);
+                }
+                catch {
+                    const stopRecording = new CustomEvent("stop-recording");
+                    document.dispatchEvent(stopRecording);
+                }
+            }
+            if (!this.stream) return;
+            const audioTracks = this.stream.getAudioTracks();
+
+            console.log("Audio tracks:", audioTracks);
+
+            if (!audioTracks.length) {
+                alert("No audio track detected. Make sure you checked 'Share system audio'.");
+                return;
+            }
+
+            const audioStream = new MediaStream(audioTracks);
+
+            const audioContext = new AudioContext();
+            const source = audioContext.createMediaStreamSource(audioStream);
+
+            const analyser = audioContext.createAnalyser();
+            source.connect(analyser);
+            analyser.fftSize = 256;
+            const bufferLength = analyser.frequencyBinCount;
+            const dataArray = new Uint8Array(bufferLength);
+
+            this.recorder = this.createRecorder(audioStream, analyser, bufferLength, dataArray);
+
+            this.recorder.start(200);
+
+            audioTracks[0].addEventListener("ended", () => {
+                this.isListening = false;
+
+                this.recorder?.stop();
+                this.recorder = null;
+
+                this.el.classList.remove("active");
+                this.buffer.removeAll();
+
+                audioStream.getTracks().forEach(t => t.stop());
+
+                audioContext?.close().catch(() => { });
+
+                utils.replaceElementWithChildren(this.outputEl);
+            });
+
+        } catch (err) {
+            console.error("getDisplayMedia failed:", err);
+        }
+
+
     }
 }
 
