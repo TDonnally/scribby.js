@@ -14,8 +14,10 @@ export class StopButton extends HTMLElement{
         this.btn = this.querySelector("button")!;
 
         this.btn.addEventListener("click", (e) => {
-            const stopRecording = new CustomEvent("stop-recording");
-            document.dispatchEvent(stopRecording);
+            const stopRecording = new CustomEvent("stop-recording", {
+                bubbles: true
+            });
+            this.dispatchEvent(stopRecording);
         })
     }
 }

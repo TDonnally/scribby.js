@@ -16,6 +16,11 @@ export class SpeechToText {
     el!: HTMLButtonElement;
     outputEl!: HTMLSpanElement;
     whisper!: WhisperClient;
+
+    speechOutput!: SpeechOutput
+    waitingSpan: HTMLSpanElement | null = null;
+    waitingInterval: number | null = null;
+
     constructor(
         scribby: Scribby,
         innerContent: string,
@@ -45,13 +50,14 @@ export class SpeechToText {
         this.whisper = this.scribby.whisper
         this.el.disabled = false;
 
+        this.waitingSpan = document.createElement("span");
+        this.waitingSpan.classList.add("waiting-span");
+        this.waitingSpan.innerText = "listening.";
+
         this.worker = new Worker("/scripts/text_buffer_loop.js");
         this.worker.onmessage = (e) => {
             this.buffer.remove();
         }
-        document.addEventListener("start-recording", async (e) => {
-            await this.startRecording();
-        })
         document.addEventListener("stop-recording", async (e) => {
             await this.stopRecording();
         })
@@ -59,7 +65,7 @@ export class SpeechToText {
             if (this.isListening) {
                 this.stopRecording();
             } else {
-                await this.startRecording();
+                await this.startRecording(null);
             }
         });
     }
@@ -69,7 +75,15 @@ export class SpeechToText {
                 const transcript = await this.whisper.transcribeBlob(blob, { language: "en", threads: 8 });
                 console.log(transcript);
                 if (!transcript.includes("BLANK_AUDIO")) {
+                    if(this.waitingSpan){
+                        this.waitingSpan.remove();
+                        this.waitingSpan = null;
+                        if (this.waitingInterval){
+                            clearInterval(this.waitingInterval);
+                        }
+                    }
                     this.buffer.add(transcript);
+                    this.speechOutput.dataset.transcription = this.speechOutput.dataset.transcription + transcript;
                     this.worker.postMessage([transcript]);
                 }
             })
@@ -149,37 +163,81 @@ export class SpeechToText {
         this.recorder = null;
         this.stream?.getTracks().forEach(t => t.stop());
         this.stream = null;
+
+        if (this.waitingInterval){
+            clearInterval(this.waitingInterval);
+        }
     }
-    public async startRecording() {
+    public async startRecording(target: SpeechOutput | null) {
         const stopRecording = new CustomEvent("stop-recording");
         document.dispatchEvent(stopRecording);
+        if (this.waitingInterval){
+            clearInterval(this.waitingInterval);
+        }
         const range = this.scribby.selection;
         if (!range) return;
 
-        const speechOutput = document.createElement("speech-output") as SpeechOutput;
-        speechOutput.controller = this;
+        if (!target){
+            const res = await fetch("/audio", {
+                method: "POST", 
+                headers: {
+                    Accept: "application/json"
+                },
+            })
+            if (!res.ok){
+                const msg = await res.text().catch(() => "");
+                console.error(`Create audio failed: ${res.status}`, msg);
+                return
+            }
 
-        let container =
-            range.startContainer.nodeType === Node.TEXT_NODE
-                ? range.startContainer.parentElement
-                : range.startContainer as HTMLElement | null;
+            const data = await res.json();
+            const id = data.id;
 
-        while (container && container.parentElement && container.parentElement !== this.scribby.el) {
-            container = container.parentElement;
+            this.speechOutput = document.createElement("speech-output") as SpeechOutput;
+            this.speechOutput.dataset.audioId = id;
+            this.speechOutput.controller = this;
+
+            let container =
+                range.startContainer.nodeType === Node.TEXT_NODE
+                    ? range.startContainer.parentElement
+                    : range.startContainer as HTMLElement | null;
+
+            while (container && container.parentElement && container.parentElement !== this.scribby.el) {
+                container = container.parentElement;
+            }
+
+            if (container && container.parentElement === this.scribby.el) {
+                this.scribby.el.insertBefore(this.speechOutput, container.nextSibling);
+            }
+            else {
+                range.insertNode(this.speechOutput);
+            }
+
+            range.setStartAfter(this.speechOutput);
+            range.collapse(true);
         }
-
-        if (container && container.parentElement === this.scribby.el) {
-            this.scribby.el.insertBefore(speechOutput, container.nextSibling);
+        else{
+            this.speechOutput = target;
         }
-        else {
-            range.insertNode(speechOutput);
+        
+        this.outputEl = this.speechOutput.querySelector(".output") as HTMLSpanElement;
+        if(this.waitingSpan){
+            this.outputEl.append(this.waitingSpan);
+            this.waitingInterval = setInterval(() => {
+                if (!this.waitingSpan) return;
+                const text = this.waitingSpan.innerText!;
+                const count = text.split(".").length - 1;
+
+                if (count < 3){
+                    this.waitingSpan.textContent = text + ".";
+                }   
+                else {
+                    this.waitingSpan.textContent = text.slice(0, -2);
+                }
+                 
+            }, 1000)
         }
-
-        range.setStartAfter(speechOutput);
-        range.collapse(true);
-
-        this.outputEl = speechOutput.querySelector(".output") as HTMLSpanElement;
-
+        
         this.isListening = true;
         this.el.classList.add("active");
 

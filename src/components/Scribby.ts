@@ -15,6 +15,7 @@ import { SpeechOutput } from "./SpeechOutput/SpeechOutput.js";
 import { PlayButton } from "./SpeechOutput/PlayButton.js";
 import { StopButton } from "./SpeechOutput/StopButton.js";
 import { RecordButton } from "./SpeechOutput/RecordButton.js";
+import { AudioVisualizer } from "./SpeechOutput/AudioVisualizer.js";
 
 
 const parser = new DOMParser();
@@ -110,6 +111,7 @@ export class Scribby {
         customElements.define("play-button",  PlayButton);
         customElements.define("stop-button", StopButton);
         customElements.define("record-button", RecordButton);
+        customElements.define("audio-visualizer", AudioVisualizer);
 
         this.el.addEventListener("keydown", (e) => {
             if (e.ctrlKey) {

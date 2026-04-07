@@ -23,7 +23,7 @@ export class Normalizer {
         const allEls = rootEl.querySelectorAll<HTMLElement>("*");
 
         const notInSchema = Array.from(allEls).filter(el => {
-            if (el.closest("scribby-code-block")) return false;
+            if (el.closest("scribby-code-block") || el.closest("speech-output")) return false;
 
             return !allowedTags.has(el.tagName.toLowerCase());
         });
@@ -75,7 +75,7 @@ export class Normalizer {
                 if (parentTag && !allowedParents.has(parentTag)) {
                     outOfOrderNodes[hierarchyLabel].push(child)
                 }
-                if (childTag != "scribby-code-block") {
+                if (childTag != "scribby-code-block" || "speech-output") {
                     const grandChildren = Array.from(childEl.childNodes);
                     children.push(...grandChildren);
                 }

@@ -2,10 +2,6 @@ export const activateStyleButtons = new CustomEvent('activate-style-buttons', {
     bubbles: true, 
     cancelable: true 
 });
-export const stopListening = new CustomEvent('stop-recording', {
-    bubbles: true, 
-    cancelable: true 
-});
 
 // styling
 export const bold = new CustomEvent('bold', {

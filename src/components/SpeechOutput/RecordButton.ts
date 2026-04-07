@@ -14,8 +14,10 @@ export class RecordButton extends HTMLElement{
         this.btn = this.querySelector("button")!;
 
         this.btn.addEventListener("click", (e) => {
-            const startRecording = new CustomEvent("start-recording");
-            document.dispatchEvent(startRecording);
+            const startRecording = new CustomEvent("start-recording", {
+                bubbles: true
+            });
+            this.dispatchEvent(startRecording);
         })
     }
 }

@@ -10,8 +10,10 @@ export class PlayButton extends HTMLElement{
         this.btn = this.querySelector("button")!;
 
         this.btn.addEventListener("click", (e) => {
-            const playRecording = new CustomEvent("play-audio");
-            document.dispatchEvent(playRecording);
+            const playRecording = new CustomEvent("play-audio", {
+                bubbles: true
+            });
+            this.dispatchEvent(playRecording);
         })
     }
 }
