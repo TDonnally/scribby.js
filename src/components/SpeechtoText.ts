@@ -2,8 +2,6 @@ import { Scribby } from "./Scribby.js";
 import { TextBuffer } from "../buffers/text_buffer.js";
 import { WhisperClient } from "../whisper/whisper.js";
 import { SpeechOutput } from "./SpeechOutput/SpeechOutput.js";
-import * as events from "../events/custom_events.js";
-import * as utils from "../utilities/utilities.js";
 
 export enum Input {
     mic = "mic",
@@ -89,6 +87,9 @@ export class SpeechToText {
             })
             .catch((err) => console.error("transcribe failed", err));
     }
+    private saveBlob(blob: Blob){
+        const res = fetch("/audio/");
+    }
     private createRecorder(audioStream: MediaStream, analyser: AnalyserNode, bufferLength: number, dataArray: Uint8Array<ArrayBuffer>): MediaRecorder {
         const MIN_BLOB_SIZE = 200000;
 
@@ -124,7 +125,9 @@ export class SpeechToText {
                 currentBlobSize = 0;
                 packageReady = false;
 
-                this.enqueueTranscribe(finalBlob);
+                this.enqueueTranscribe(finalBlob);;
+
+                this.saveBlob(finalBlob);
             }
         };
 
@@ -304,7 +307,7 @@ export class SpeechToText {
 
                 audioContext?.close().catch(() => { });
 
-                utils.replaceElementWithChildren(this.outputEl);
+                //utils.replaceElementWithChildren(this.outputEl);
             });
 
         } catch (err) {
