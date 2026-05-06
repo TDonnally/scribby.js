@@ -6,7 +6,6 @@ tpl.innerHTML = `
         <div class = "output-header">
             <audio-visualizer></audio-visualizer>
             <div class = "buttons">
-                <stop-button></stop-button>
             </div>
         </div>
         <div class = "output-container">
@@ -27,8 +26,11 @@ nonRecordingBtnsState.innerHTML = `
 `
 
 
+
+
 export class SpeechOutput extends HTMLElement{
     controller!: SpeechToText;
+    recording: Boolean = false; 
 
     connectedCallback(){
         this.appendChild(tpl.content.cloneNode(true));
@@ -40,6 +42,13 @@ export class SpeechOutput extends HTMLElement{
             this.dataset.transcription = ""
         }
         const btnsContainer = this.querySelector(".buttons");
+
+        if (this.recording){
+            btnsContainer?.appendChild(recordingBtnsState.content.cloneNode(true))
+        }
+        else {
+            btnsContainer?.appendChild(nonRecordingBtnsState.content.cloneNode(true))
+        }
 
         this.addEventListener("start-recording", async (e) => {
             await this.controller.startRecording(this);
