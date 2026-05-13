@@ -57,8 +57,9 @@ export class RecordButton extends HTMLElement {
 
         this.menu = document.createElement("record-input-modal");
         this.menu.style.position = "absolute";
-        this.menu.style.left = "0";
-        this.menu.style.top = `calc(100% + 8px)`;
+        this.menu.style.left = "50%";
+        this.menu.style.top = "calc(100% + 14px)";
+        this.menu.style.transform = "translateX(-50%)";
         this.menu.style.zIndex = "20";
 
         this.appendChild(this.menu);

@@ -5,6 +5,7 @@ type PlaybackSegment = {
     sequence_number: number;
     url: string;
     mime_type?: string;
+    duration_ms: number;
 };
 
 const tpl = document.createElement("template");
@@ -45,6 +46,7 @@ export class SpeechOutput extends HTMLElement {
     private playbackOffsets: number[] = [];
     private playbackSegmentIndex = 0;
     private playing = false;
+    private endingPlayback = false;
 
     connectedCallback() {
         if (!this.firstChild) {
@@ -63,15 +65,25 @@ export class SpeechOutput extends HTMLElement {
         this.refreshButtons();
         this.setupPlayback();
 
-        this.addEventListener("start-recording", async (e: Event) => {
+        const recordingId = this.dataset.audioId;
+        if (recordingId) {
+            this.loadPlaybackManifest(recordingId).catch(console.error);
+        }
+
+        this.addEventListener("start-recording", (e: Event) => {
             const custom = e as CustomEvent<{ input?: Input }>;
-            if (!this.controller || !custom.detail?.input) {
+            if (!custom.detail?.input) {
                 return;
             }
 
-            await this.controller.startRecording(this, custom.detail.input);
-            this.recording = true;
-            this.refreshButtons();
+            this.dataset.input = custom.detail.input;
+
+            document.dispatchEvent(new CustomEvent("request-speech-controller", {
+                detail: {
+                    input: custom.detail.input,
+                    target: this,
+                }
+            }));
         });
 
         this.addEventListener("play-audio", async () => {
@@ -114,6 +126,14 @@ export class SpeechOutput extends HTMLElement {
             this.updatePlayButton(this.playing);
         }
     }
+    public async refreshPlayback(): Promise<void> {
+        const recordingId = this.dataset.audioId;
+        if (!recordingId) {
+            return;
+        }
+
+        await this.loadPlaybackManifest(recordingId);
+    }
 
     private setupPlayback() {
         this.audioEl.preload = "metadata";
@@ -123,6 +143,10 @@ export class SpeechOutput extends HTMLElement {
         });
 
         this.audioEl.addEventListener("pause", () => {
+            if (this.endingPlayback) {
+                return;
+            }
+
             this.playing = false;
             this.updatePlayButton(false);
             this.syncScrubber();
@@ -142,11 +166,19 @@ export class SpeechOutput extends HTMLElement {
                 return;
             }
 
+            this.endingPlayback = true;
             this.playing = false;
             this.updatePlayButton(false);
-            this.syncScrubber(this.getTotalPlaybackDuration());
+
+            this.playbackSegmentIndex = 0;
             this.audioEl.removeAttribute("src");
             this.audioEl.load();
+
+            this.syncScrubber(0);
+
+            queueMicrotask(() => {
+                this.endingPlayback = false;
+            });
         });
     }
 
@@ -179,47 +211,22 @@ export class SpeechOutput extends HTMLElement {
         }
     }
 
-    private async getAudioDuration(url: string): Promise<number> {
-        return new Promise((resolve, reject) => {
-            const audio = new Audio();
-
-            const cleanup = () => {
-                audio.removeEventListener("loadedmetadata", onLoaded);
-                audio.removeEventListener("error", onError);
-            };
-
-            const onLoaded = () => {
-                cleanup();
-                resolve(Number.isFinite(audio.duration) ? audio.duration : 0);
-            };
-
-            const onError = () => {
-                cleanup();
-                reject(new Error(`Failed to load metadata for ${url}`));
-            };
-
-            audio.preload = "metadata";
-            audio.addEventListener("loadedmetadata", onLoaded);
-            audio.addEventListener("error", onError);
-            audio.src = url;
-            audio.load();
-        });
-    }
-
     private async loadPlaybackManifest(recordingId: string): Promise<void> {
         this.playbackSegments = await this.fetchPlaybackSegments(recordingId);
-        this.playbackDurations = await Promise.all(
-            this.playbackSegments.map((segment) => this.getAudioDuration(segment.url))
+        this.playbackDurations = this.playbackSegments.map(
+            (segment) => (segment.duration_ms || 0) / 1000
         );
 
         this.playbackOffsets = [];
         let offset = 0;
+
         for (const duration of this.playbackDurations) {
             this.playbackOffsets.push(offset);
             offset += duration;
         }
 
         this.playbackSegmentIndex = 0;
+        this.syncScrubber(0);
     }
 
     private getTotalPlaybackDuration(): number {

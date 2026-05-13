@@ -44,6 +44,7 @@ export class SpeechToText {
     private transcriptChunks: Blob[] = [];
     private transcriptBytes = 0;
     private static readonly TRANSCRIBE_MIN_BYTES = 200000;
+    private segmentStartedAt: number | null = null;
 
     constructor(
         scribby: Scribby,
@@ -77,6 +78,20 @@ export class SpeechToText {
             await this.stopRecording();
         });
 
+        document.addEventListener("request-speech-controller", async (e: Event) => {
+            const custom = e as CustomEvent<{ input?: Input; target?: SpeechOutput }>;
+            if (!custom.detail?.input || !custom.detail?.target) {
+                return;
+            }
+
+            if (custom.detail.input !== this.input) {
+                return;
+            }
+
+            custom.detail.target.controller = this;
+            await this.startRecording(custom.detail.target, custom.detail.input);
+        });
+
         this.el.addEventListener("click", async () => {
             if (this.isListening) {
                 await this.stopRecording();
@@ -106,13 +121,22 @@ export class SpeechToText {
             .catch((err) => console.error("transcribe failed", err));
     }
 
-    private async saveMultipartPart(blob: Blob, finalPart = false): Promise<void> {
+    private async saveMultipartPart(blob: Blob, finalPart = false, durationMs?: number): Promise<void> {
         if (!this.activeSegmentId) {
             throw new Error("No active segment id");
         }
 
+        const params = new URLSearchParams({
+            part_number: String(this.nextPartNumber),
+            final_part: String(finalPart),
+        });
+
+        if (finalPart && typeof durationMs === "number") {
+            params.set("duration_ms", String(durationMs));
+        }
+
         const res = await fetch(
-            `/audio/segments/${this.activeSegmentId}/blob?part_number=${this.nextPartNumber}&final_part=${finalPart}`,
+            `/audio/segments/${this.activeSegmentId}/blob?${params.toString()}`,
             {
                 method: "PUT",
                 credentials: "include",
@@ -132,12 +156,16 @@ export class SpeechToText {
         this.hasUploadedMultipartPart = true;
     }
 
-    private async saveWholeFile(blob: Blob): Promise<void> {
+    private async saveWholeFile(blob: Blob, durationMs: number): Promise<void> {
         if (!this.activeSegmentId) {
             throw new Error("No active segment id");
         }
 
-        const res = await fetch(`/audio/segments/${this.activeSegmentId}/file`, {
+        const params = new URLSearchParams({
+            duration_ms: String(durationMs),
+        });
+
+        const res = await fetch(`/audio/segments/${this.activeSegmentId}/file?${params.toString()}`, {
             method: "PUT",
             credentials: "include",
             headers: {
@@ -158,17 +186,22 @@ export class SpeechToText {
         }
 
         const blob = new Blob([this.headerBlob, ...this.pendingChunks], { type: this.currentMimeType });
+        const durationMs = this.getSegmentDurationMs();
 
         if (this.hasUploadedMultipartPart || this.pendingBytes >= SpeechToText.MULTIPART_MIN_BYTES) {
-            await this.saveMultipartPart(blob, finalPart);
+            await this.saveMultipartPart(blob, finalPart, durationMs);
         } else if (finalPart) {
-            await this.saveWholeFile(blob);
+            await this.saveWholeFile(blob, durationMs);
         } else {
             await this.saveMultipartPart(blob, false);
         }
 
         this.pendingChunks = [];
         this.pendingBytes = 0;
+
+        if (finalPart && this.speechOutput) {
+            this.speechOutput.refreshPlayback().catch(console.error);
+        }
     }
 
     private flushPendingTranscript(): void {
@@ -201,6 +234,12 @@ export class SpeechToText {
 
         const data = await res.json();
         return data.segment_id;
+    }
+    private getSegmentDurationMs(): number {
+        if (!this.segmentStartedAt) {
+            return 0;
+        }
+        return Math.max(0, Date.now() - this.segmentStartedAt);
     }
 
     private resetUploadState() {
@@ -264,9 +303,13 @@ export class SpeechToText {
         recorder.onstop = () => {
             this.flushPendingTranscript();
 
-            this.flushPendingAudio(true).catch((err) => {
-                console.error("final audio flush failed", err);
-            });
+            this.flushPendingAudio(true)
+                .catch((err) => {
+                    console.error("final audio flush failed", err);
+                })
+                .finally(() => {
+                    this.segmentStartedAt = null;
+                });
         };
 
         return recorder;
@@ -288,6 +331,7 @@ export class SpeechToText {
 
         return volumePercent;
     }
+
 
     public async stopRecording() {
         this.isListening = false;
@@ -453,6 +497,7 @@ export class SpeechToText {
             const dataArray = new Uint8Array(bufferLength);
 
             this.recorder = this.createRecorder(audioStream, analyser, bufferLength, dataArray);
+            this.segmentStartedAt = Date.now();
             this.recorder.start(200);
 
             audioTracks[0].addEventListener("ended", () => {
@@ -465,7 +510,7 @@ export class SpeechToText {
                 this.buffer.removeAll();
 
                 audioStream.getTracks().forEach((t) => t.stop());
-                audioContext.close().catch(() => {});
+                audioContext.close().catch(() => { });
 
                 if (this.speechOutput) {
                     this.speechOutput.recording = false;

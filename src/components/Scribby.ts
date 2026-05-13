@@ -115,6 +115,7 @@ export class Scribby {
         customElements.define("record-button", RecordButton);
         customElements.define("audio-visualizer", AudioVisualizer);
         customElements.define("audio-scrubber", AudioScrubber);
+        customElements.define("record-input-modal", RecordInputModal);
 
         this.el.addEventListener("keydown", (e) => {
             if (e.ctrlKey) {
