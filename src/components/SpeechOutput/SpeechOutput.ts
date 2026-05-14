@@ -7,6 +7,13 @@ type PlaybackSegment = {
     mime_type?: string;
     duration_ms: number;
 };
+type TranscriptChunk = {
+    id: string;
+    text: string;
+    start_sec: number;
+    end_sec: number;
+    segment_id: string | null;
+};
 
 const tpl = document.createElement("template");
 tpl.innerHTML = `
@@ -48,6 +55,12 @@ export class SpeechOutput extends HTMLElement {
     private playing = false;
     private endingPlayback = false;
 
+    private transcriptChunks: TranscriptChunk[] = [];
+    private activeTranscriptId: string | null = null;
+    
+    private typingWorker: Worker | null = null;
+    private visibleTextByChunkId = new Map<string, string>();
+
     connectedCallback() {
         if (!this.firstChild) {
             this.appendChild(tpl.content.cloneNode(true));
@@ -56,11 +69,52 @@ export class SpeechOutput extends HTMLElement {
         this.outputEl = this.querySelector(".output") as HTMLElement;
         this.buttonsEl = this.querySelector(".buttons") as HTMLDivElement;
 
-        if (this.dataset.transcription) {
-            this.outputEl.innerText = this.dataset.transcription;
-        } else {
-            this.dataset.transcription = "";
+        if (!this.typingWorker) {
+            this.typingWorker = new Worker("/scripts/text_buffer_loop.js");
+
+            this.typingWorker.onmessage = (e: MessageEvent<{
+                id: string;
+                text: string;
+                done?: boolean;
+            }>) => {
+                const { id, text, done } = e.data;
+
+                const textEl = this.outputEl.querySelector<HTMLElement>(
+                    `.transcript-chunk[data-transcript-id="${id}"] .transcript-text`
+                );
+
+                if (!textEl) {
+                    return;
+                }
+
+                textEl.textContent = done ? text + " " : text;
+
+                if (done) {
+                    this.visibleTextByChunkId.delete(id);
+                } else {
+                    this.visibleTextByChunkId.set(id, text);
+                }
+            };
         }
+
+        this.outputEl.addEventListener("click", async (e: MouseEvent) => {
+            const target = e.target as HTMLElement;
+            const chunkEl = target.closest<HTMLElement>(".transcript-chunk");
+
+            if (!chunkEl) {
+                return;
+            }
+
+            const startSec = Number(chunkEl.dataset.startSec);
+            if (!Number.isFinite(startSec)) {
+                return;
+            }
+
+            await this.seekPlayback(startSec);
+        });
+
+        this.loadTranscriptFromDataset();
+        this.renderTranscript();
 
         this.refreshButtons();
         this.setupPlayback();
@@ -111,6 +165,9 @@ export class SpeechOutput extends HTMLElement {
     }
 
     disconnectedCallback() {
+        this.typingWorker?.terminate();
+        this.typingWorker = null;
+
         this.audioEl.pause();
         this.audioEl.removeAttribute("src");
         this.audioEl.load();
@@ -140,6 +197,7 @@ export class SpeechOutput extends HTMLElement {
 
         this.audioEl.addEventListener("timeupdate", () => {
             this.syncScrubber();
+            this.syncTranscriptHighlight();
         });
 
         this.audioEl.addEventListener("pause", () => {
@@ -180,6 +238,111 @@ export class SpeechOutput extends HTMLElement {
                 this.endingPlayback = false;
             });
         });
+    }
+
+    public addTranscriptChunk(chunk: TranscriptChunk) {
+        this.transcriptChunks.push(chunk);
+        this.saveTranscriptToDataset();
+
+        this.visibleTextByChunkId.set(chunk.id, "");
+        this.renderTranscript();
+
+        this.typingWorker?.postMessage({
+            id: chunk.id,
+            text: chunk.text,
+            delayMs: 20,
+        });
+    }
+
+    private loadTranscriptFromDataset() {
+        const raw = this.dataset.transcriptJson;
+
+        if (!raw) {
+            this.transcriptChunks = [];
+            return;
+        }
+
+        try {
+            const parsed = JSON.parse(raw);
+            this.transcriptChunks = Array.isArray(parsed) ? parsed : [];
+        } catch {
+            this.transcriptChunks = [];
+        }
+    }
+
+    private saveTranscriptToDataset() {
+        this.dataset.transcriptJson = JSON.stringify(this.transcriptChunks);
+
+        this.dataset.transcription = this.transcriptChunks
+            .map((chunk) => chunk.text)
+            .join(" ");
+    }
+
+    private renderTranscript() {
+        this.outputEl.replaceChildren();
+
+        for (const chunk of this.transcriptChunks) {
+            const span = document.createElement("span");
+            span.classList.add("transcript-chunk");
+            span.dataset.transcriptId = chunk.id;
+            span.dataset.startSec = String(chunk.start_sec);
+            span.dataset.endSec = String(chunk.end_sec);
+
+            if (chunk.id === this.activeTranscriptId) {
+                span.classList.add("active");
+            }
+
+            const timestamp = document.createElement("button");
+            timestamp.type = "button";
+            timestamp.classList.add("transcript-time");
+            timestamp.textContent = this.formatTime(chunk.start_sec);
+
+            const text = document.createElement("span");
+            text.classList.add("transcript-text");
+
+            const visibleText = this.visibleTextByChunkId.get(chunk.id);
+
+            if (visibleText !== undefined) {
+                text.textContent = visibleText;
+            } else {
+                text.textContent = chunk.text + " ";
+            }
+
+            span.append(timestamp, text);
+            this.outputEl.append(span);
+        }
+    }
+
+    private syncTranscriptHighlight(forcedTime?: number) {
+        const currentTime = forcedTime ?? this.getAbsolutePlaybackTime();
+
+        const active = this.transcriptChunks.find((chunk) => {
+            return currentTime >= chunk.start_sec && currentTime < chunk.end_sec;
+        });
+
+        const nextActiveId = active?.id ?? null;
+
+        if (nextActiveId === this.activeTranscriptId) {
+            return;
+        }
+
+        this.activeTranscriptId = nextActiveId;
+
+        const chunks = this.outputEl.querySelectorAll<HTMLElement>(".transcript-chunk");
+
+        for (const chunkEl of chunks) {
+            chunkEl.classList.toggle(
+                "active",
+                chunkEl.dataset.transcriptId === this.activeTranscriptId
+            );
+        }
+    }
+
+    private formatTime(seconds: number): string {
+        const whole = Math.max(0, Math.floor(seconds));
+        const mins = Math.floor(whole / 60);
+        const secs = whole % 60;
+        return `${mins}:${secs.toString().padStart(2, "0")}`;
     }
 
     private async fetchPlaybackSegments(recordingId: string): Promise<PlaybackSegment[]> {
@@ -252,8 +415,11 @@ export class SpeechOutput extends HTMLElement {
             return;
         }
 
+        const currentTime = forcedTime ?? this.getAbsolutePlaybackTime();
+
         scrubber.setDuration(this.getTotalPlaybackDuration());
-        scrubber.setCurrentTime(forcedTime ?? this.getAbsolutePlaybackTime());
+        scrubber.setCurrentTime(currentTime);
+        this.syncTranscriptHighlight(currentTime);
     }
 
     private async loadPlaybackSource(url: string): Promise<void> {

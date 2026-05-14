@@ -1,5 +1,4 @@
 import { Scribby } from "./Scribby.js";
-import { TextBuffer } from "../buffers/text_buffer.js";
 import { WhisperClient } from "../whisper/whisper.js";
 import { SpeechOutput } from "./SpeechOutput/SpeechOutput.js";
 
@@ -7,6 +6,13 @@ export enum Input {
     mic = "mic",
     speaker = "speaker"
 }
+type TranscriptChunk = {
+    id: string;
+    text: string;
+    start_sec: number;
+    end_sec: number;
+    segment_id: string | null;
+};
 
 export class SpeechToText {
     scribby: Scribby;
@@ -24,15 +30,15 @@ export class SpeechToText {
 
     private stream: MediaStream | null = null;
     private recorder: MediaRecorder | null = null;
-    private buffer!: TextBuffer;
     private transcribeQueue: Promise<void> = Promise.resolve();
-    private worker!: Worker;
 
     private recordingId: string | null = null;
     private activeSegmentId: string | null = null;
     private nextPartNumber = 1;
+    private segmentStartedAt: number | null = null;
 
     private static readonly MULTIPART_MIN_BYTES = 5 * 1024 * 1024;
+    
 
     private headerBlob: Blob | null = null;
     private pendingChunks: Blob[] = [];
@@ -43,8 +49,8 @@ export class SpeechToText {
     private transcriptHeaderBlob: Blob | null = null;
     private transcriptChunks: Blob[] = [];
     private transcriptBytes = 0;
-    private static readonly TRANSCRIBE_MIN_BYTES = 200000;
-    private segmentStartedAt: number | null = null;
+    private static readonly TRANSCRIBE_MIN_BYTES = 50000;
+    private transcriptWindowStartedAt: number | null = null;
 
     constructor(
         scribby: Scribby,
@@ -68,11 +74,6 @@ export class SpeechToText {
         this.waitingSpan = document.createElement("span");
         this.waitingSpan.classList.add("waiting-span");
         this.waitingSpan.innerText = "listening.";
-
-        this.worker = new Worker("/scripts/text_buffer_loop.js");
-        this.worker.onmessage = () => {
-            this.buffer.remove();
-        };
 
         document.addEventListener("stop-recording", async () => {
             await this.stopRecording();
@@ -101,22 +102,42 @@ export class SpeechToText {
         });
     }
 
-    private enqueueTranscribe(blob: Blob) {
+    private enqueueTranscribe(blob: Blob, startMs: number, endMs: number) {
         this.transcribeQueue = this.transcribeQueue
             .then(async () => {
-                const transcript = await this.whisper.transcribeBlob(blob, { language: "en", threads: 8 });
-                if (!transcript.includes("BLANK_AUDIO")) {
-                    if (this.waitingSpan) {
-                        this.waitingSpan.remove();
-                        this.waitingSpan = null;
-                        if (this.waitingInterval) {
-                            clearInterval(this.waitingInterval);
-                        }
-                    }
-                    this.buffer.add(transcript);
-                    this.speechOutput.dataset.transcription = (this.speechOutput.dataset.transcription || "") + transcript;
-                    this.worker.postMessage([transcript]);
+                const transcript = await this.whisper.transcribeBlob(blob, {
+                    language: "en",
+                    threads: 8,
+                });
+
+                if (transcript.includes("BLANK_AUDIO")) {
+                    return;
                 }
+
+                const text = transcript.trim();
+                if (!text) {
+                    return;
+                }
+
+                if (this.waitingSpan) {
+                    this.waitingSpan.remove();
+                    this.waitingSpan = null;
+
+                    if (this.waitingInterval) {
+                        clearInterval(this.waitingInterval);
+                        this.waitingInterval = null;
+                    }
+                }
+
+                const chunk: TranscriptChunk = {
+                    id: crypto.randomUUID(),
+                    text,
+                    start_sec: startMs / 1000,
+                    end_sec: endMs / 1000,
+                    segment_id: this.activeSegmentId,
+                };
+
+                this.speechOutput.addTranscriptChunk(chunk);
             })
             .catch((err) => console.error("transcribe failed", err));
     }
@@ -209,13 +230,18 @@ export class SpeechToText {
             return;
         }
 
+        const startMs = this.transcriptWindowStartedAt ?? 0;
+        const endMs = this.getSegmentDurationMs();
+
         const blob = new Blob([this.transcriptHeaderBlob, ...this.transcriptChunks], {
             type: this.currentMimeType,
         });
 
-        this.enqueueTranscribe(blob);
+        this.enqueueTranscribe(blob, startMs, endMs);
+
         this.transcriptChunks = [];
         this.transcriptBytes = 0;
+        this.transcriptWindowStartedAt = endMs;
     }
 
     private async createNewSegment(recordingId: string): Promise<string> {
@@ -251,6 +277,7 @@ export class SpeechToText {
         this.transcriptHeaderBlob = null;
         this.transcriptChunks = [];
         this.transcriptBytes = 0;
+        this.transcriptWindowStartedAt = null;
     }
 
     private createRecorder(
@@ -281,6 +308,9 @@ export class SpeechToText {
                 this.headerBlob = e.data;
                 this.transcriptHeaderBlob = e.data;
                 return;
+            }
+            if (this.transcriptWindowStartedAt === null) {
+                this.transcriptWindowStartedAt = this.getSegmentDurationMs();
             }
 
             this.pendingChunks.push(e.data);
@@ -454,8 +484,6 @@ export class SpeechToText {
         this.isListening = true;
         this.el.classList.add("active");
 
-        this.buffer = new TextBuffer("", this.outputEl);
-
         try {
             const constraints = {
                 video: this.input === Input.mic ? false : true,
@@ -507,7 +535,6 @@ export class SpeechToText {
                 this.recorder = null;
 
                 this.el.classList.remove("active");
-                this.buffer.removeAll();
 
                 audioStream.getTracks().forEach((t) => t.stop());
                 audioContext.close().catch(() => { });
