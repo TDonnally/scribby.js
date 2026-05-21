@@ -21,7 +21,13 @@ export class AudioScrubber extends HTMLElement {
         this.currentEl = this.querySelector(".current") as HTMLSpanElement;
         this.totalEl = this.querySelector(".total") as HTMLSpanElement;
 
+        this.syncDisabled();
+
         this.range.addEventListener("input", () => {
+            if (this.hasAttribute("disabled")) {
+                return;
+            }
+
             const time = Number(this.range.value);
             const seekEvent = new CustomEvent("seek-audio", {
                 bubbles: true,
@@ -29,6 +35,20 @@ export class AudioScrubber extends HTMLElement {
             });
             this.dispatchEvent(seekEvent);
         });
+    }
+
+    static get observedAttributes() {
+        return ["disabled"];
+    }
+
+    attributeChangedCallback() {
+        this.syncDisabled();
+    }
+
+    private syncDisabled() {
+        if (!this.range) return;
+
+        this.range.disabled = this.hasAttribute("disabled");
     }
 
     setDuration(seconds: number) {

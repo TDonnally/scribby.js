@@ -19,7 +19,7 @@ export class SpeechToText {
     innerContent: string;
     input: Input;
     el!: HTMLButtonElement;
-    outputEl!: HTMLSpanElement;
+    outputEl!: HTMLDivElement;
     whisper!: WhisperClient;
 
     speechOutput!: SpeechOutput;
@@ -465,7 +465,7 @@ export class SpeechToText {
             }
         }
 
-        this.outputEl = this.speechOutput.querySelector(".output") as HTMLSpanElement;
+        this.outputEl = this.speechOutput.querySelector(".output") as HTMLDivElement;
         if (this.waitingSpan) {
             this.outputEl.append(this.waitingSpan);
             this.waitingInterval = setInterval(() => {

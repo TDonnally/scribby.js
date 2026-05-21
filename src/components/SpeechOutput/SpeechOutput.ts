@@ -20,11 +20,23 @@ tpl.innerHTML = `
     <div contenteditable="false">
         <div class="output-header">
             <audio-visualizer></audio-visualizer>
-            <div class="buttons"></div>
+            <div class="record-controls"></div>
         </div>
-        <audio-scrubber></audio-scrubber>
+
+        <div class="playback-controls">
+            <play-button></play-button>
+            <audio-scrubber></audio-scrubber>
+        </div>
+
         <div class="output-container">
-            <span class="output"></span>
+            <button class="output-expand-toggle" type="button" aria-label="Expand transcript">
+                <svg class="expand-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                    <title>arrow-expand</title>
+                    <path d="M10,21V19H6.41L10.91,14.5L9.5,13.09L5,17.59V14H3V21H10M14.5,10.91L19,6.41V10H21V3H14V5H17.59L13.09,9.5L14.5,10.91Z" />
+                </svg>
+            </button>
+
+            <div class="output"></div>
         </div>
     </div>
 `;
@@ -37,14 +49,13 @@ recordingBtnsState.innerHTML = `
 const nonRecordingBtnsState = document.createElement("template");
 nonRecordingBtnsState.innerHTML = `
     <record-button></record-button>
-    <play-button></play-button>
 `;
 
 export class SpeechOutput extends HTMLElement {
     controller: SpeechToText | null = null;
     recording: Boolean = false;
 
-    private buttonsEl!: HTMLDivElement;
+    private recordControlsEl!: HTMLDivElement;
     private outputEl!: HTMLElement;
     private audioEl = new Audio();
 
@@ -57,9 +68,13 @@ export class SpeechOutput extends HTMLElement {
 
     private transcriptChunks: TranscriptChunk[] = [];
     private activeTranscriptId: string | null = null;
-    
+
     private typingWorker: Worker | null = null;
     private visibleTextByChunkId = new Map<string, string>();
+
+    private outputContainerEl!: HTMLElement;
+    private outputExpandToggleEl!: HTMLButtonElement;
+    private outputExpanded = false;
 
     connectedCallback() {
         if (!this.firstChild) {
@@ -67,7 +82,13 @@ export class SpeechOutput extends HTMLElement {
         }
 
         this.outputEl = this.querySelector(".output") as HTMLElement;
-        this.buttonsEl = this.querySelector(".buttons") as HTMLDivElement;
+        this.recordControlsEl = this.querySelector(".record-controls") as HTMLDivElement;
+        this.outputContainerEl = this.querySelector(".output-container") as HTMLElement;
+        this.outputExpandToggleEl = this.querySelector(".output-expand-toggle") as HTMLButtonElement;
+
+        this.outputExpandToggleEl.addEventListener("click", () => {
+            this.toggleOutputExpanded();
+        });
 
         if (!this.typingWorker) {
             this.typingWorker = new Worker("/scripts/text_buffer_loop.js");
@@ -141,10 +162,18 @@ export class SpeechOutput extends HTMLElement {
         });
 
         this.addEventListener("play-audio", async () => {
+            if (this.recording) {
+                return;
+            }
+
             await this.togglePlayback();
         });
 
         this.addEventListener("seek-audio", async (e: Event) => {
+            if (this.recording) {
+                return;
+            }
+
             const custom = e as CustomEvent<{ time: number }>;
             await this.seekPlayback(custom.detail.time);
         });
@@ -174,14 +203,16 @@ export class SpeechOutput extends HTMLElement {
     }
 
     public refreshButtons() {
-        if (!this.buttonsEl) return;
+        if (!this.recordControlsEl) return;
 
         if (this.recording) {
-            this.buttonsEl.replaceChildren(recordingBtnsState.content.cloneNode(true));
+            this.recordControlsEl.replaceChildren(recordingBtnsState.content.cloneNode(true));
         } else {
-            this.buttonsEl.replaceChildren(nonRecordingBtnsState.content.cloneNode(true));
-            this.updatePlayButton(this.playing);
+            this.recordControlsEl.replaceChildren(nonRecordingBtnsState.content.cloneNode(true));
         }
+
+        this.updatePlaybackDisabledState();
+        this.updatePlayButton(this.playing);
     }
     public async refreshPlayback(): Promise<void> {
         const recordingId = this.dataset.audioId;
@@ -373,6 +404,18 @@ export class SpeechOutput extends HTMLElement {
             playButton.setPlaying(playing);
         }
     }
+    private updatePlaybackDisabledState() {
+        const playButton = this.querySelector("play-button");
+        const scrubber = this.querySelector("audio-scrubber");
+
+        if (this.recording) {
+            playButton?.setAttribute("disabled", "");
+            scrubber?.setAttribute("disabled", "");
+        } else {
+            playButton?.removeAttribute("disabled");
+            scrubber?.removeAttribute("disabled");
+        }
+    }
 
     private async loadPlaybackManifest(recordingId: string): Promise<void> {
         this.playbackSegments = await this.fetchPlaybackSegments(recordingId);
@@ -540,5 +583,29 @@ export class SpeechOutput extends HTMLElement {
         }));
 
         await this.playSegmentAt(index, localTime);
+    }
+    private toggleOutputExpanded() {
+        this.outputExpanded = !this.outputExpanded;
+
+        this.outputContainerEl.classList.toggle("expanded", this.outputExpanded);
+
+        this.outputExpandToggleEl.innerHTML = this.outputExpanded
+            ? `
+            <svg class="collapse-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                <title>window-minimize</title>
+                <path d="M20,14H4V10H20" />
+            </svg>
+        `
+            : `
+            <svg class="expand-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                <title>arrow-expand</title>
+                <path d="M10,21V19H6.41L10.91,14.5L9.5,13.09L5,17.59V14H3V21H10M14.5,10.91L19,6.41V10H21V3H14V5H17.59L13.09,9.5L14.5,10.91Z" />
+            </svg>
+        `;
+
+        this.outputExpandToggleEl.setAttribute(
+            "aria-label",
+            this.outputExpanded ? "Collapse transcript" : "Expand transcript"
+        );
     }
 }
