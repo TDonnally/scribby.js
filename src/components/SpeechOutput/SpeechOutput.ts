@@ -19,14 +19,14 @@ const tpl = document.createElement("template");
 tpl.innerHTML = `
     <div contenteditable="false">
         <div class="output-header">
-            <audio-visualizer></audio-visualizer>
+            <div class="playback-controls">
+                <play-button></play-button>
+                <audio-scrubber></audio-scrubber>
+            </div>
             <div class="record-controls"></div>
         </div>
 
-        <div class="playback-controls">
-            <play-button></play-button>
-            <audio-scrubber></audio-scrubber>
-        </div>
+        
 
         <div class="output-container">
             <button class="output-expand-toggle" type="button" aria-label="Expand transcript">
@@ -446,6 +446,15 @@ export class SpeechOutput extends HTMLElement {
 
         const offset = this.playbackOffsets[this.playbackSegmentIndex] ?? 0;
         return offset + (this.audioEl.currentTime || 0);
+    }
+    public getTimelineDurationMs(): number {
+        const audioDurationMs = this.getTotalPlaybackDuration() * 1000;
+
+        const transcriptDurationMs = this.transcriptChunks.reduce((max, chunk) => {
+            return Math.max(max, chunk.end_sec * 1000);
+        }, 0);
+
+        return Math.max(audioDurationMs, transcriptDurationMs);
     }
 
     private syncScrubber(forcedTime?: number) {

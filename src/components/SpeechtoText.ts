@@ -36,9 +36,10 @@ export class SpeechToText {
     private activeSegmentId: string | null = null;
     private nextPartNumber = 1;
     private segmentStartedAt: number | null = null;
+    private segmentTimelineOffsetMs = 0;
 
     private static readonly MULTIPART_MIN_BYTES = 5 * 1024 * 1024;
-    
+
 
     private headerBlob: Blob | null = null;
     private pendingChunks: Blob[] = [];
@@ -132,11 +133,10 @@ export class SpeechToText {
                 const chunk: TranscriptChunk = {
                     id: crypto.randomUUID(),
                     text,
-                    start_sec: startMs / 1000,
-                    end_sec: endMs / 1000,
+                    start_sec: (this.segmentTimelineOffsetMs + startMs) / 1000,
+                    end_sec: (this.segmentTimelineOffsetMs + endMs) / 1000,
                     segment_id: this.activeSegmentId,
                 };
-
                 this.speechOutput.addTranscriptChunk(chunk);
             })
             .catch((err) => console.error("transcribe failed", err));
@@ -419,6 +419,7 @@ export class SpeechToText {
             this.recordingId = data.recording_id;
             this.activeSegmentId = data.segment_id;
             this.resetUploadState();
+            this.segmentTimelineOffsetMs = 0;
 
             this.speechOutput = document.createElement("speech-output") as SpeechOutput;
             if (this.recordingId) {
@@ -455,8 +456,13 @@ export class SpeechToText {
             }
 
             try {
+                await this.speechOutput.refreshPlayback();
+
+                this.segmentTimelineOffsetMs = this.speechOutput.getTimelineDurationMs();
+
                 this.activeSegmentId = await this.createNewSegment(this.recordingId);
                 this.resetUploadState();
+
                 this.speechOutput.recording = true;
                 this.speechOutput.refreshButtons();
             } catch (err) {
