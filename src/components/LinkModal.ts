@@ -35,8 +35,18 @@ export class LinkModal {
         const parent = this.modalForm.offsetParent as HTMLElement;
         const parentRect = parent.getBoundingClientRect();
 
-        const left = this.referenceRect.left - parentRect.left + (this.referenceRect.width / 2);
-        const top = this.referenceRect.top - parentRect.top - modalRect.height - 12;
+        const left =
+            this.referenceRect.left -
+            parentRect.left +
+            parent.scrollLeft +
+            (this.referenceRect.width / 2) -
+            (modalRect.width / 2);
+
+        const top =
+            this.referenceRect.bottom -
+            parentRect.top +
+            parent.scrollTop +
+            12;
         this.modalForm.style.left = `${left}px`;
         this.modalForm.style.top = `${top}px`;
 

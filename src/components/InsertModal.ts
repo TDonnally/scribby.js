@@ -40,6 +40,7 @@ export class InsertModal {
     mount() {
         this.modalForm.classList.add("insert-modal");
         this.modalForm.classList.add("modal");
+        this.submitButton.classList.add("btn-small", "confirm")
         this.modalForm.innerHTML = this.innerContent;
         this.modalForm.append(this.submitButton);
         this.scribby.el.parentElement!.append(this.modalForm);

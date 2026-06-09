@@ -443,8 +443,20 @@ export class SpeechToText {
                 range!.insertNode(this.speechOutput);
             }
 
-            range!.setStartAfter(this.speechOutput);
-            range!.collapse(true);
+            const p = document.createElement("p");
+            p.appendChild(document.createElement("br"));
+            this.speechOutput.after(p);
+
+            const sel = window.getSelection();
+            if (sel) {
+                sel.removeAllRanges();
+
+                const r = document.createRange();
+                r.setStart(p, 0);
+                r.collapse(true);
+
+                sel.addRange(r);
+            }
         } else {
             this.speechOutput = target;
             this.speechOutput.controller = this;
