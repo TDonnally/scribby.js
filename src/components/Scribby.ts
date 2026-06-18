@@ -17,6 +17,7 @@ import { StopButton } from "./SpeechOutput/StopButton.js";
 import { RecordButton } from "./SpeechOutput/RecordButton.js";
 import { AudioScrubber } from "./SpeechOutput/AudioScrubber.js";
 import { RecordInputModal } from "./SpeechOutput/RecordInputModal.js";
+import { ConfirmOverlay } from "./ConfirmOverlay.js";
 
 
 const parser = new DOMParser();
@@ -109,13 +110,14 @@ export class Scribby {
         customElements.define("range-marker", RangeMarker);
         customElements.define("scribby-code-block", ScribbyCodeBlock);
         customElements.define("speech-output", SpeechOutput);
-        customElements.define("play-button",  PlayButton);
+        customElements.define("play-button", PlayButton);
         customElements.define("stop-button", StopButton);
         customElements.define("record-button", RecordButton);
         customElements.define("audio-scrubber", AudioScrubber);
         customElements.define("record-input-modal", RecordInputModal);
+        customElements.define("confirm-overlay", ConfirmOverlay);
 
-        this.el.addEventListener("keydown", (e) => {
+        this.el.addEventListener("keydown", async (e) => {
             if (e.ctrlKey) {
                 if (e.shiftKey) {
                     e.preventDefault();
@@ -177,8 +179,8 @@ export class Scribby {
 
             }
             if (e.key === "Tab") {
-                 
-                 
+
+
                 e.preventDefault();
                 const range = this.selection;
                 if (!range) return;
@@ -272,10 +274,10 @@ export class Scribby {
                 const prev = closestLine?.previousElementSibling as HTMLElement | null;
                 const next = closestLine?.nextElementSibling?.nextElementSibling as HTMLElement | null;
                 const prevHasNoText = !!prev && !(prev.textContent ?? "").replace(/[\s\u200B]+/g, "");
-                if(next === null && prevHasNoText){
+                if (next === null && prevHasNoText) {
                     e.preventDefault();
                     let target = codeBlock?.nextElementSibling as HTMLElement;
-                    if(target === null){
+                    if (target === null) {
                         const entryP = document.createElement("p");
                         const br = document.createElement("br");
                         entryP.appendChild(br);
@@ -286,13 +288,13 @@ export class Scribby {
                     newRange.selectNodeContents(target);
                     newRange.collapse(false);
                     const selection = window.getSelection();
-                    if (selection){
+                    if (selection) {
                         selection.removeAllRanges();
                     }
                     selection?.addRange(newRange);
                 }
             }
-            if (e.key === "ArrowDown"){
+            if (e.key === "ArrowDown") {
                 const range = this.selection;
                 if (!range) return;
                 const parent = range.startContainer;
@@ -310,11 +312,11 @@ export class Scribby {
                     closestLine = parentEl.closest(".cm-line");
                     codeBlock = parentEl.closest("scribby-code-block");
                 }
-                
-                if(closestLine?.nextElementSibling === null){
+
+                if (closestLine?.nextElementSibling === null) {
                     e.preventDefault();
                     let target = codeBlock?.nextElementSibling as HTMLElement;
-                    if(target === null){
+                    if (target === null) {
                         const entryP = document.createElement("p");
                         const br = document.createElement("br");
                         entryP.appendChild(br);
@@ -325,59 +327,195 @@ export class Scribby {
                     newRange.selectNodeContents(target);
                     newRange.collapse(false);
                     const selection = window.getSelection();
-                    if (selection){
+                    if (selection) {
                         selection.removeAllRanges();
                     }
                     selection?.addRange(newRange);
                 }
             }
-            if (e.key === 'Delete' || e.key === 'Backspace'){
-                // prevent completely emptying editor
-                if (this.el.childNodes.length === 1 && !(this.el.children[0].textContent ?? "").replace(/[\s\u200B]+/g, "")){
+            if (e.key === "Delete" || e.key === "Backspace") {
+                if (
+                    this.el.childNodes.length === 1 &&
+                    !(this.el.children[0].textContent ?? "").replace(/[\s\u200B]+/g, "")
+                ) {
                     e.preventDefault();
                     return;
                 }
 
                 const range = this.selection;
                 if (!range) return;
-                const parent = range.startContainer;
-                const parentEl = parent as HTMLElement;
-                console.log(parent)
-                // handle code deleting code block
-                let closestLine: HTMLElement | null;
-                let codeBlock: HTMLElement | null;
-                if (parent.nodeType != Node.ELEMENT_NODE) {
-                    const nodeParent = parent.parentElement;
-                    if (!nodeParent) return;
-                    closestLine = nodeParent.closest(".cm-line");
-                    codeBlock = nodeParent.closest("scribby-code-block");
-                }
-                else {
-                    closestLine = parentEl.closest(".cm-line");
-                    codeBlock = parentEl.closest("scribby-code-block");
-                }
-                const prev = closestLine?.previousElementSibling as HTMLElement | null;
-                const next = closestLine?.nextElementSibling as HTMLElement | null;
-                const hasNoText = !!closestLine && !(closestLine.textContent ?? "").replace(/[\s\u200B]+/g, "");
-                if(prev === null && next === null && hasNoText){
-                    e.preventDefault();
-                    let target = codeBlock?.nextElementSibling as HTMLElement;
-                    if(target === null){
-                        const entryP = document.createElement("p");
-                        const br = document.createElement("br");
-                        entryP.appendChild(br);
-                        codeBlock?.after(entryP);
-                        target = entryP;
-                    }
+
+                const protectedSelector = "scribby-code-block, speech-output";
+
+                const startEl =
+                    range.startContainer.nodeType === Node.ELEMENT_NODE
+                        ? range.startContainer as HTMLElement
+                        : range.startContainer.parentElement;
+
+                if (!startEl) return;
+
+                const getBlockLabel = (el: HTMLElement) => {
+                    if (el.matches("scribby-code-block")) return "code block";
+                    return "audio block";
+                };
+
+                const confirmDelete = async (el: HTMLElement) => {
+                    return await ConfirmOverlay.open({
+                        message: `This action will delete this ${getBlockLabel(el)}. Are you sure?`,
+                        continueBtnTxt: "Continue",
+                        cancelBtnTxt: "Cancel",
+                    });
+                };
+
+                const placeCaretIn = (target: HTMLElement) => {
                     const newRange = document.createRange();
                     newRange.selectNodeContents(target);
                     newRange.collapse(false);
+
                     const selection = window.getSelection();
-                    if (selection){
+
+                    if (selection) {
                         selection.removeAllRanges();
+                        selection.addRange(newRange);
                     }
-                    selection?.addRange(newRange);
-                    codeBlock?.remove();
+                };
+
+                const ensureCaretTargetAfter = (el: HTMLElement) => {
+                    let target = el.nextElementSibling as HTMLElement | null;
+
+                    if (!target) {
+                        const entryP = document.createElement("p");
+                        entryP.appendChild(document.createElement("br"));
+                        el.after(entryP);
+                        target = entryP;
+                    }
+
+                    return target;
+                };
+
+                const getTopLevelChild = (node: Node) => {
+                    let el =
+                        node.nodeType === Node.ELEMENT_NODE
+                            ? node as HTMLElement
+                            : node.parentElement;
+
+                    while (el && el.parentElement !== this.el) {
+                        el = el.parentElement;
+                    }
+
+                    return el;
+                };
+
+                const isAtStartOfTopLevelChild = (range: Range, topLevelChild: HTMLElement) => {
+                    const beforeRange = document.createRange();
+                    beforeRange.selectNodeContents(topLevelChild);
+                    beforeRange.setEnd(range.startContainer, range.startOffset);
+
+                    return !(beforeRange.toString() ?? "").replace(/[\s\u200B]+/g, "");
+                };
+
+                const isAtEndOfTopLevelChild = (range: Range, topLevelChild: HTMLElement) => {
+                    const afterRange = document.createRange();
+                    afterRange.selectNodeContents(topLevelChild);
+                    afterRange.setStart(range.startContainer, range.startOffset);
+
+                    return !(afterRange.toString() ?? "").replace(/[\s\u200B]+/g, "");
+                };
+
+                if (!range.collapsed) {
+                    const protectedBlocks = Array.from(
+                        this.el.querySelectorAll<HTMLElement>(protectedSelector)
+                    ).filter((el) => range.intersectsNode(el));
+
+                    if (protectedBlocks.length > 0) {
+                        e.preventDefault();
+
+                        const firstBlock = protectedBlocks[0];
+
+                        const confirmed = await confirmDelete(firstBlock);
+                        if (!confirmed) return;
+
+                        range.deleteContents();
+
+                        const selection = window.getSelection();
+                        if (selection) {
+                            selection.removeAllRanges();
+                            selection.addRange(range);
+                        }
+
+                        return;
+                    }
+                }
+
+                const audioBlock = startEl.closest<HTMLElement>("scribby-audio, scribby-audio-block");
+
+                if (audioBlock) {
+                    e.preventDefault();
+
+                    const confirmed = await confirmDelete(audioBlock);
+                    if (!confirmed) return;
+
+                    const target = ensureCaretTargetAfter(audioBlock);
+                    placeCaretIn(target);
+                    audioBlock.remove();
+
+                    return;
+                }
+
+                const closestLine = startEl.closest<HTMLElement>(".cm-line");
+                const codeBlock = startEl.closest<HTMLElement>("scribby-code-block");
+
+                if (codeBlock && closestLine) {
+                    const prev = closestLine.previousElementSibling as HTMLElement | null;
+                    const next = closestLine.nextElementSibling as HTMLElement | null;
+                    const hasNoText = !(closestLine.textContent ?? "").replace(/[\s\u200B]+/g, "");
+
+                    if (prev === null && next === null && hasNoText) {
+                        e.preventDefault();
+
+                        const confirmed = await confirmDelete(codeBlock);
+                        if (!confirmed) return;
+
+                        const target = ensureCaretTargetAfter(codeBlock);
+                        placeCaretIn(target);
+                        codeBlock.remove();
+
+                        return;
+                    }
+                }
+
+                const topLevelChild = getTopLevelChild(range.startContainer);
+
+                if (topLevelChild && e.key === "Backspace" && isAtStartOfTopLevelChild(range, topLevelChild)) {
+                    const previous = topLevelChild.previousElementSibling as HTMLElement | null;
+
+                    if (previous?.matches(protectedSelector)) {
+                        e.preventDefault();
+
+                        const confirmed = await confirmDelete(previous);
+                        if (!confirmed) return;
+
+                        placeCaretIn(topLevelChild);
+                        previous.remove();
+
+                        return;
+                    }
+                }
+
+                if (topLevelChild && e.key === "Delete" && isAtEndOfTopLevelChild(range, topLevelChild)) {
+                    const next = topLevelChild.nextElementSibling as HTMLElement | null;
+
+                    if (next?.matches(protectedSelector)) {
+                        e.preventDefault();
+
+                        const confirmed = await confirmDelete(next);
+                        if (!confirmed) return;
+
+                        placeCaretIn(topLevelChild);
+                        next.remove();
+
+                        return;
+                    }
                 }
             }
         })
@@ -708,9 +846,9 @@ export class Scribby {
                     this.currentTextModal = linkModal;
                     linkModal.mount();
                 }
-                
+
                 // check if we are inside codemirror code block
-                
+
                 else if (!closestCodeBlock) {
                     this.el.focus();
                 }
