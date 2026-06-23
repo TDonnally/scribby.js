@@ -169,8 +169,27 @@ export class SpeechToText {
         );
 
         if (!res.ok) {
-            const text = await res.text();
-            throw new Error(`Failed to upload multipart blob: ${res.status} ${text}`);
+            const msg = await res.text().catch(() => "");
+
+            let errorBody: any = {};
+
+            try {
+                errorBody = msg ? JSON.parse(msg) : {};
+            } catch {
+                errorBody = {
+                    error: msg || `Failed to upload multipart blob: ${res.status}`,
+                };
+            }
+
+            if (res.status === 402) {
+                window.dispatchEvent(
+                    new CustomEvent("usage-limit", {
+                        detail: errorBody,
+                    })
+                );
+            }
+
+            throw new Error(`Failed to upload multipart blob: ${res.status} ${errorBody.error || msg}`);
         }
 
         this.nextPartNumber += 1;
@@ -196,8 +215,27 @@ export class SpeechToText {
         });
 
         if (!res.ok) {
-            const text = await res.text();
-            throw new Error(`Failed to upload single file: ${res.status} ${text}`);
+            const msg = await res.text().catch(() => "");
+
+            let errorBody: any = {};
+
+            try {
+                errorBody = msg ? JSON.parse(msg) : {};
+            } catch {
+                errorBody = {
+                    error: msg || `Failed to upload single file: ${res.status}`,
+                };
+            }
+
+            if (res.status === 402) {
+                window.dispatchEvent(
+                    new CustomEvent("usage-limit", {
+                        detail: errorBody,
+                    })
+                );
+            }
+
+            throw new Error(`Failed to upload single file: ${res.status} ${errorBody.error || msg}`);
         }
     }
 

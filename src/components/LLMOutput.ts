@@ -110,13 +110,32 @@ export class LLMOutput {
 
                 this.initStreaming(outputEl);
 
-                const full = await this.generateOutput(
-                    input,
-                    (chunk) => {
-                        this.pushStreamingChunk(outputEl, chunk);
-                    },
-                    controller.signal
-                );
+                try {
+                    await this.generateOutput(
+                        input,
+                        (chunk) => {
+                            this.pushStreamingChunk(outputEl, chunk);
+                        },
+                        controller.signal
+                    );
+
+                    utils.replaceElementWithChildren(outputEl);
+                    this.streamingBuffer = "";
+
+                    this.scribby.normalizer.removeNotSupportedNodes(this.scribby.el);
+                    const outOfOrderNodes = this.scribby.normalizer.flagNodeHierarchyViolations(this.scribby.el);
+                    this.scribby.normalizer.fixHierarchyViolations(outOfOrderNodes);
+                    this.scribby.normalizer.removeEmptyNodes(this.scribby.el);
+                } catch (err) {
+                    console.error("summary generation failed", err);
+                    outputEl.remove();
+                } finally {
+                    this.streamingBuffer = "";
+                    this.scribby.el.classList.remove("disabled");
+                    this.scribby.el.contentEditable = "true";
+                    this.el.classList.remove("active");
+                    this.isGenerating = false;
+                }
                 utils.replaceElementWithChildren(outputEl);
                 this.streamingBuffer = "";
 
@@ -148,7 +167,27 @@ export class LLMOutput {
         });
 
         if (!response.ok) {
-            throw new Error(`Response status: ${response.status}`);
+            const msg = await response.text().catch(() => "");
+
+            let errorBody: any = {};
+
+            try {
+                errorBody = msg ? JSON.parse(msg) : {};
+            } catch {
+                errorBody = {
+                    error: msg || `Response status: ${response.status}`,
+                };
+            }
+
+            if (response.status === 402) {
+                window.dispatchEvent(
+                    new CustomEvent("usage-limit", {
+                        detail: errorBody,
+                    })
+                );
+            }
+
+            throw new Error(errorBody.error || `Response status: ${response.status}`);
         }
         if (!response.body) {
             return await response.text();
