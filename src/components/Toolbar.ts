@@ -27,6 +27,9 @@ export class Toolbar {
     tabAudioText: SpeechToText;
     LLMOutput: LLMOutput;
 
+    private isMobileLayout: boolean | null = null;
+    private hasMounted = false;
+
     constructor(
         scribby: Scribby,
     ) {
@@ -111,8 +114,14 @@ export class Toolbar {
             `);
     }
     mount() {
+        if (this.hasMounted) {
+            return this;
+        }
+
+        this.hasMounted = true;
+
         this.el.classList.add("toolbar");
-        this.mobileEl.classList.add("toolbar", "mobile");
+
         this.textType.mount();
         this.bold.mount();
         this.italic.mount();
@@ -130,8 +139,123 @@ export class Toolbar {
         this.tabAudioText.mount();
         this.LLMOutput.mount();
 
-        // Desktop
-        if (window.innerWidth > 1000) {
+        this.scribby.el.insertAdjacentElement("beforebegin", this.el);
+        this.renderToolbar();
+
+        window.addEventListener("resize", this.handleResize);
+
+        return this;
+    }
+    /**
+     * Not sure if should be seperate component but I think this should be fine
+     */
+    private createMobileSubmenu(
+        label: string,
+        icon: string,
+        buttons: HTMLElement[],
+    ): HTMLDivElement {
+        const wrapper = document.createElement("div");
+        wrapper.classList.add("mobile-toolbar-item");
+
+        const trigger = document.createElement("button");
+        trigger.type = "button";
+        trigger.classList.add("toolbar-button", "mobile-toolbar-trigger");
+        trigger.setAttribute("aria-label", label);
+        trigger.setAttribute("aria-expanded", "false");
+        trigger.innerHTML = icon;
+
+        const submenu = document.createElement("div");
+        submenu.classList.add("mobile-toolbar-submenu", "modal");
+        submenu.setAttribute("aria-label", label);
+
+        buttons.forEach((button) => {
+            submenu.appendChild(button);
+        });
+
+        trigger.addEventListener("click", (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+
+            const wasOpen = submenu.classList.contains("active");
+
+            this.closeMobileSubmenus();
+
+            if (wasOpen) {
+                return;
+            }
+
+            submenu.classList.add("active");
+            trigger.classList.add("active");
+            trigger.setAttribute("aria-expanded", "true");
+
+            queueMicrotask(() => {
+                document.addEventListener("click", this.handleMobileOutsideClick, { once: true });
+            });
+        });
+
+        submenu.addEventListener("click", (e) => {
+            e.stopPropagation();
+
+            const target = e.target as HTMLElement | null;
+            if (target?.closest("button")) {
+                this.closeMobileSubmenus();
+            }
+        });
+
+        wrapper.append(trigger, submenu);
+
+        return wrapper;
+    }
+
+    private closeMobileSubmenus() {
+        this.el.querySelectorAll(".mobile-toolbar-submenu.active").forEach((submenu) => {
+            submenu.classList.remove("active");
+        });
+
+        this.el.querySelectorAll(".mobile-toolbar-trigger.active").forEach((trigger) => {
+            trigger.classList.remove("active");
+            trigger.setAttribute("aria-expanded", "false");
+        });
+    }
+    private createDivider(): HTMLDivElement {
+        const divider = document.createElement("div");
+        divider.classList.add("toolbar-divider");
+        divider.setAttribute("aria-hidden", "true");
+        return divider;
+    }
+    private handleMobileOutsideClick = (e: MouseEvent) => {
+        const target = e.target as Node | null;
+
+        if (target && this.el.contains(target)) {
+            return;
+        }
+
+        this.closeMobileSubmenus();
+    };
+    private handleResize = () => {
+        const nextIsMobile = window.innerWidth <= 1000;
+
+        if (this.isMobileLayout === nextIsMobile) {
+            return;
+        }
+
+        this.renderToolbar();
+    };
+    private renderToolbar() {
+        const isMobile = window.innerWidth <= 1000;
+
+        this.isMobileLayout = isMobile;
+        this.closeMobileSubmenus();
+
+        this.el.replaceChildren();
+
+        const dropdownMenu = this.textType.el.querySelector(".dropdown-menu");
+        const dropdownTrigger = this.textType.el.querySelector(".dropdown-menu-container > button");
+
+        dropdownMenu?.classList.remove("show");
+        dropdownTrigger?.classList.remove("active");
+
+        if (!isMobile) {
             this.el.appendChild(this.textType.el);
             this.el.appendChild(this.bold.el);
             this.el.appendChild(this.italic.el);
@@ -160,93 +284,139 @@ export class Toolbar {
             this.el.appendChild(this.createDivider());
 
             this.el.appendChild(this.LLMOutput.el);
-            this.scribby.el.insertAdjacentElement("beforebegin", this.el);
-        }
-        // Mobile
-        else {
-            // save, undo, and redo will go here once I enable that 
-            this.el.appendChild(this.textType.el);
 
-            const insertSubmenuButton = document.createElement("button");
-            insertSubmenuButton.classList.add("toolbar-button");
-            insertSubmenuButton.innerHTML = `
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><title>plus</title><path d="M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z" /></svg>
-            `
-            const insertSubmenu = this.createMobileSubmenu(insertSubmenuButton, this.el);
-
-            insertSubmenu.appendChild(this.anchor.el);
-            insertSubmenu.appendChild(this.codeBlock.el);
-
-            this.el.appendChild(insertSubmenuButton);
-            this.el.appendChild(insertSubmenu);
-
-            this.el.appendChild(this.speechToText.el);
-            this.el.appendChild(this.LLMOutput.el);
-
-
-
-            this.mobileEl.appendChild(this.bold.el);
-            this.mobileEl.appendChild(this.italic.el);
-            this.mobileEl.appendChild(this.underline.el);
-            this.mobileEl.appendChild(this.strikethrough.el);
-
-            // lists and alignment need to be in smaller buttons that will pop out
-            const listSubmenuButton = document.createElement("button");
-            listSubmenuButton.classList.add("toolbar-button");
-            listSubmenuButton.innerHTML = `
-                <svg fill="currentColor" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><title>format-list-bulleted</title><path d="M7,5H21V7H7V5M7,13V11H21V13H7M4,4.5A1.5,1.5 0 0,1 5.5,6A1.5,1.5 0 0,1 4,7.5A1.5,1.5 0 0,1 2.5,6A1.5,1.5 0 0,1 4,4.5M4,10.5A1.5,1.5 0 0,1 5.5,12A1.5,1.5 0 0,1 4,13.5A1.5,1.5 0 0,1 2.5,12A1.5,1.5 0 0,1 4,10.5M7,19V17H21V19H7M4,16.5A1.5,1.5 0 0,1 5.5,18A1.5,1.5 0 0,1 4,19.5A1.5,1.5 0 0,1 2.5,18A1.5,1.5 0 0,1 4,16.5Z" /></svg>
-            `;
-            const listSubmenu = this.createMobileSubmenu(listSubmenuButton, this.mobileEl);
-
-            listSubmenu.appendChild(this.orderedList.el);
-            listSubmenu.appendChild(this.unorderedList.el);
-
-            const alignmentButton = document.createElement("button");
-            alignmentButton.classList.add("toolbar-button");
-            alignmentButton.innerHTML = `
-                <svg fill="currentColor" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><title>format-align-left</title><path d="M3,3H21V5H3V3M3,7H15V9H3V7M3,11H21V13H3V11M3,15H15V17H3V15M3,19H21V21H3V19Z" /></svg>
-            `;
-            const alignmentSubmenu = this.createMobileSubmenu(alignmentButton, this.mobileEl);
-
-            alignmentSubmenu.appendChild(this.alignLeft.el);
-            alignmentSubmenu.appendChild(this.alignCenter.el);
-            alignmentSubmenu.appendChild(this.alignRight.el);
-
-            this.mobileEl.appendChild(listSubmenuButton);
-            this.mobileEl.appendChild(alignmentButton);
-            this.mobileEl.appendChild(listSubmenu);
-            this.mobileEl.appendChild(alignmentSubmenu);
-
-            this.scribby.el.insertAdjacentElement("beforebegin", this.el);
-            this.scribby.el.insertAdjacentElement("beforebegin", this.mobileEl);
+            return;
         }
 
-        return this;
+        this.el.appendChild(this.textType.el);
+
+        const styleIcon = `
+        <svg fill="currentColor" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+            <title>format-text</title>
+            <path d="M18.5,4L19.66,8.35L18.7,8.61C18.25,7.74 17.79,6.87 17.26,6.43C16.73,6 16.11,6 15.5,6H13V16.5C13,17 13,17.5 13.33,17.75C13.67,18 14.33,18 15,18V19H9V18C9.67,18 10.33,18 10.67,17.75C11,17.5 11,17 11,16.5V6H8.5C7.89,6 7.27,6 6.74,6.43C6.21,6.87 5.75,7.74 5.3,8.61L4.34,8.35L5.5,4H18.5Z" />
+        </svg>
+    `;
+
+        const alignmentIcon = `
+        <svg fill="currentColor" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+            <title>format-align-left</title>
+            <path d="M3,3H21V5H3V3M3,7H15V9H3V7M3,11H21V13H3V11M3,15H15V17H3V15M3,19H21V21H3V19Z" />
+        </svg>
+    `;
+
+        const insertIcon = `
+        <svg fill="currentColor" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+            <title>plus</title>
+            <path d="M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z" />
+        </svg>
+    `;
+
+        const toolsIcon = `
+        <svg fill="currentColor" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+            <title>tools</title>
+            <path d="M21.71 20.29L20.29 21.71A1 1 0 0 1 18.88 21.71L7 9.85A3.81 3.81 0 0 1 6 10A4 4 0 0 1 2.22 4.7L4.76 7.24L5.29 6.71L6.71 5.29L7.24 4.76L4.7 2.22A4 4 0 0 1 10 6A3.81 3.81 0 0 1 9.85 7L21.71 18.88A1 1 0 0 1 21.71 20.29M2.29 18.88A1 1 0 0 0 2.29 20.29L3.71 21.71A1 1 0 0 0 5.12 21.71L10.59 16.25L7.76 13.42M20 2L16 4V6L13.83 8.17L15.83 10.17L18 8H20L22 4Z" />
+        </svg>
+    `;
+
+        this.el.appendChild(this.createMobileSubmenu(
+            "Text styles",
+            styleIcon,
+            [
+                this.bold.el,
+                this.italic.el,
+                this.underline.el,
+                this.strikethrough.el,
+                this.inlineCode.el,
+            ],
+        ));
+
+        this.el.appendChild(this.createMobileSubmenu(
+            "Alignment",
+            alignmentIcon,
+            [
+                this.alignLeft.el,
+                this.alignCenter.el,
+                this.alignRight.el,
+            ],
+        ));
+
+        this.el.appendChild(this.createMobileSubmenu(
+            "Insert",
+            insertIcon,
+            [
+                this.anchor.el,
+                this.codeBlock.el,
+                this.orderedList.el,
+                this.unorderedList.el,
+            ],
+        ));
+
+        this.el.appendChild(this.createMobileSubmenu(
+            "Tools",
+            toolsIcon,
+            [
+                this.speechToText.el,
+                this.tabAudioText.el,
+                this.LLMOutput.el,
+            ],
+        ));
+
+        this.el.appendChild(this.createUndoButton());
+        this.el.appendChild(this.createRedoButton());
     }
-    /**
-     * Not sure if should be seperate component but I think this should be fine
-     */
-    private createMobileSubmenu(
-        button: HTMLButtonElement,
-        container: HTMLDivElement,
-    ): HTMLDivElement {
-        const submenu = document.createElement("div");
-        submenu.classList.add("mobile-toolbar-submenu");
+    private createUndoButton(): HTMLButtonElement {
+        const undoButton = document.createElement("button");
+        undoButton.type = "button";
+        undoButton.classList.add("toolbar-button", "mobile-undo-button");
+        undoButton.setAttribute("aria-label", "Undo");
+        undoButton.innerHTML = `
+        <svg fill="currentColor" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+            <title>undo</title>
+            <path d="M20 13.5C20 17.09 17.09 20 13.5 20H6V18H13.5C16 18 18 16 18 13.5S16 9 13.5 9H7.83L10.91 12.09L9.5 13.5L4 8L9.5 2.5L10.92 3.91L7.83 7H13.5C17.09 7 20 9.91 20 13.5Z" />
+        </svg>
+    `;
 
-        button.addEventListener("click", (e) => {
-            submenu.classList.add("active");
-        })
+        undoButton.addEventListener("click", (e) => {
+            e.preventDefault();
+            e.stopPropagation();
 
-        submenu.addEventListener("click", (e) => {
-            submenu.classList.remove("active");
-        })
+            this.closeMobileSubmenus();
 
-        return submenu
+            const snapshot = this.scribby.historyManager.undo();
+            if (!snapshot) return;
+
+            this.scribby.el.innerHTML = snapshot.html;
+            this.scribby.historyManager.restoreSelection(this.scribby.el, snapshot.selection);
+        });
+
+        return undoButton;
     }
-    private createDivider(): HTMLDivElement {
-        const divider = document.createElement("div");
-        divider.classList.add("toolbar-divider");
-        divider.setAttribute("aria-hidden", "true");
-        return divider;
+
+    private createRedoButton(): HTMLButtonElement {
+        const redoButton = document.createElement("button");
+        redoButton.type = "button";
+        redoButton.classList.add("toolbar-button", "mobile-redo-button");
+        redoButton.setAttribute("aria-label", "Redo");
+        redoButton.innerHTML = `
+        <svg fill="currentColor" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+            <title>redo</title>
+            <path d="M10.5 18H18V20H10.5C6.91 20 4 17.09 4 13.5S6.91 7 10.5 7H16.17L13.08 3.91L14.5 2.5L20 8L14.5 13.5L13.09 12.09L16.17 9H10.5C8 9 6 11 6 13.5S8 18 10.5 18Z" />
+        </svg>
+    `;
+
+        redoButton.addEventListener("click", (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+
+            this.closeMobileSubmenus();
+
+            const snapshot = this.scribby.historyManager.redo();
+            if (!snapshot) return;
+
+            this.scribby.el.innerHTML = snapshot.html;
+            this.scribby.historyManager.restoreSelection(this.scribby.el, snapshot.selection);
+        });
+
+        return redoButton;
     }
 }
