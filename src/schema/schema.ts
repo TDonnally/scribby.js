@@ -16,6 +16,7 @@ export enum nodeHierarchy{
     lists,
     codeblock,
     speechOutput,
+    summaryOutput,
     /*
     tableItem,
     tableRow, 
@@ -197,6 +198,12 @@ export const schema: Map<string, NodeSchema> = new Map([
         allowedParents: new Set(['div']),
         allowedChildren: new Set([]),
         hierarchyLabel: nodeHierarchy.speechOutput
+    }],
+    ["summary-output", {
+        defaultParent: 'p',
+        allowedParents: new Set(['div, li']),
+        allowedChildren: new Set([]),
+        hierarchyLabel: nodeHierarchy.summaryOutput
     }],
 
 ])

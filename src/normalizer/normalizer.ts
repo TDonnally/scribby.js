@@ -99,6 +99,7 @@ export class Normalizer {
             [nodeHierarchy.lists]: organizeListNode,
             [nodeHierarchy.codeblock]: organizeCodeNode,
             [nodeHierarchy.speechOutput]: organizeSpeechOutput,
+            [nodeHierarchy.summaryOutput]:organizeSummaryOutput,
             /* 
             [nodeHierarchy.tableItem]: organizeTextNode, 
             [nodeHierarchy.tableRow]: organizeTextNode,
@@ -363,6 +364,20 @@ export class Normalizer {
             utils.replaceElementWithChildren(node as HTMLElement);
         }
         function organizeSpeechOutput(node: Node): void {
+            const nodeEl = node as HTMLElement;
+            let container = nodeEl.parentElement as HTMLElement | null;
+
+            while (container && container.parentElement && container.parentElement !== scribbyEl) {
+                container = container.parentElement;
+            }
+
+            if (container && container.parentElement === scribbyEl) {
+                scribbyEl.insertBefore(nodeEl, container.nextSibling);
+            }
+
+            utils.replaceElementWithChildren(nodeEl);
+        }
+        function organizeSummaryOutput(node: Node): void {
             const nodeEl = node as HTMLElement;
             let container = nodeEl.parentElement as HTMLElement | null;
 

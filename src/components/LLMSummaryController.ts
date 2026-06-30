@@ -1,11 +1,13 @@
 import { Scribby } from "./Scribby.js";
 import { schema } from "../schema/schema.js";
 import * as utils from "../utilities/utilities.js"
+import { PromptModal } from "./LLMOutput/PromptModal.js";
 
-export class LLMOutput {
+export class LLMSummaryController {
     scribby: Scribby;
     innerContent: string;
     el!: HTMLButtonElement;
+    menu: PromptModal | null = null;
     constructor(
         scribby: Scribby,
         innerContent: string,
@@ -50,7 +52,7 @@ export class LLMOutput {
         return new RegExp(`</(?:${alternation})\\s*>`, "gi");
     }
 
-    private initStreaming(outputEl: HTMLElement): void {
+    private initStreaming(): void {
         this.streamingBuffer = "";
         this.boundaryRegex = this.buildBoundaryRegexFromSchema();
     }
@@ -88,15 +90,42 @@ export class LLMOutput {
 
         this.el.addEventListener("click", async (e) => {
             if (!this.isGenerating) {
-                console.log("generating")
-                this.isGenerating = true;
-
-                const parser = new DOMParser();
 
                 const range = this.scribby.selection;
                 if (!range) return;
                 const input = range.toString();
 
+                const rangeMarker = document.createElement("range-marker");
+                const endRange = range.cloneRange();
+                endRange.collapse(false);
+                endRange.insertNode(rangeMarker);
+
+                this.menu = document.createElement("prompt-modal") as PromptModal;
+
+                const submission = this.menu.submission(
+                    this.scribby,
+                    rangeMarker.getBoundingClientRect()
+                );
+
+                setTimeout(() => {
+                    document.addEventListener("click", this.handleOutsideClick);
+                }, 0);
+
+                const values = await submission;
+
+                document.removeEventListener("click", this.handleOutsideClick);
+                rangeMarker.remove();
+                this.menu = null;
+
+                if (!values) return;
+                const additionalContext = values.additional_context;
+
+                console.log("generating");
+                this.isGenerating = true;
+
+                const parser = new DOMParser();
+
+                /** TODO: Update this output element */
                 const outputEl = document.createElement("span");
                 outputEl.classList.add("output");
 
@@ -105,10 +134,14 @@ export class LLMOutput {
                 this.el.classList.add("active");
 
                 const controller = new AbortController();
+
+                /** TODO: Store contents so that we can undo the summary */
                 range.deleteContents();
                 range.insertNode(outputEl);
 
-                this.initStreaming(outputEl);
+                this.scribby.el.appendChild(document.createElement("summary-output"));
+
+                this.initStreaming();
 
                 try {
                     await this.generateOutput(
@@ -211,4 +244,19 @@ export class LLMOutput {
 
         return full;
     }
+    private closeMenu() {
+        this.menu?.close();
+        this.menu = null;
+    }
+
+    private handleOutsideClick = (e: MouseEvent) => {
+        const target = e.target as Node | null;
+
+        if (target && this.menu && this.menu.contains(target)) {
+            return;
+        }
+
+        document.removeEventListener("click", this.handleOutsideClick);
+        this.closeMenu();
+    };
 }

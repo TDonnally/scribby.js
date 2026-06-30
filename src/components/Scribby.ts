@@ -18,6 +18,9 @@ import { RecordButton } from "./SpeechOutput/RecordButton.js";
 import { AudioScrubber } from "./SpeechOutput/AudioScrubber.js";
 import { RecordInputModal } from "./SpeechOutput/RecordInputModal.js";
 import { ConfirmOverlay } from "./ConfirmOverlay.js";
+import { PromptModal } from "./LLMOutput/PromptModal.js";
+import { SummaryOutput } from "./LLMOutput/SummaryOutput.js";
+import { PromptTextBox } from "./LLMOutput/PromptTextBox.js";
 
 
 const parser = new DOMParser();
@@ -116,6 +119,9 @@ export class Scribby {
         customElements.define("audio-scrubber", AudioScrubber);
         customElements.define("record-input-modal", RecordInputModal);
         customElements.define("confirm-overlay", ConfirmOverlay);
+        customElements.define("prompt-modal", PromptModal);
+        customElements.define("summary-output", SummaryOutput);
+        customElements.define("prompt-text-box", PromptTextBox);
 
         this.el.addEventListener("keydown", async (e) => {
             if (e.ctrlKey) {
