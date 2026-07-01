@@ -23,7 +23,7 @@ export class Normalizer {
         const allEls = rootEl.querySelectorAll<HTMLElement>("*");
 
         const notInSchema = Array.from(allEls).filter(el => {
-            if (el.closest("scribby-code-block") || el.closest("speech-output")) return false;
+            if (el.closest("scribby-code-block") || el.closest("speech-output") || el.closest("summary-output")) return false;
 
             return !allowedTags.has(el.tagName.toLowerCase());
         });

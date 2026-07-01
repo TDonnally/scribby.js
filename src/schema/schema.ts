@@ -201,7 +201,7 @@ export const schema: Map<string, NodeSchema> = new Map([
     }],
     ["summary-output", {
         defaultParent: 'p',
-        allowedParents: new Set(['div, li']),
+        allowedParents: new Set(['div', 'li']),
         allowedChildren: new Set([]),
         hierarchyLabel: nodeHierarchy.summaryOutput
     }],

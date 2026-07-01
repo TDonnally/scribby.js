@@ -2,6 +2,7 @@ import { Scribby } from "./Scribby.js";
 import { schema } from "../schema/schema.js";
 import * as utils from "../utilities/utilities.js"
 import { PromptModal } from "./LLMOutput/PromptModal.js";
+import { SummaryOutput } from "./LLMOutput/SummaryOutput.js";
 
 export class LLMSummaryController {
     scribby: Scribby;
@@ -57,8 +58,8 @@ export class LLMSummaryController {
         this.boundaryRegex = this.buildBoundaryRegexFromSchema();
     }
 
-    private flushCompleteElements(outputEl: HTMLElement): void {
-        if (!this.boundaryRegex) return;
+    private flushCompleteElements(outputEl: HTMLElement): boolean {
+        if (!this.boundaryRegex) return false;
 
         let lastSafeIdx = -1;
         this.boundaryRegex.lastIndex = 0;
@@ -68,7 +69,7 @@ export class LLMSummaryController {
             lastSafeIdx = this.boundaryRegex.lastIndex;
         }
 
-        if (lastSafeIdx === -1) return;
+        if (lastSafeIdx === -1) return false;
 
         const htmlToAppend = this.streamingBuffer.slice(0, lastSafeIdx);
         this.streamingBuffer = this.streamingBuffer.slice(lastSafeIdx);
@@ -76,12 +77,17 @@ export class LLMSummaryController {
         const tpl = document.createElement("template");
         tpl.innerHTML = htmlToAppend;
 
+        if (!tpl.content.childNodes.length) {
+            return false;
+        }
+
         outputEl.append(tpl.content);
+        return true;
     }
 
-    private pushStreamingChunk(outputEl: HTMLElement, chunk: string): void {
+    private pushStreamingChunk(outputEl: HTMLElement, chunk: string): boolean {
         this.streamingBuffer += chunk;
-        this.flushCompleteElements(outputEl);
+        return this.flushCompleteElements(outputEl);
     }
 
     mount() {
@@ -120,61 +126,50 @@ export class LLMSummaryController {
                 if (!values) return;
                 const additionalContext = values.additional_context;
 
-                console.log("generating");
+                console.log("summarizing");
                 this.isGenerating = true;
 
-                const parser = new DOMParser();
-
-                /** TODO: Update this output element */
-                const outputEl = document.createElement("span");
-                outputEl.classList.add("output");
-
-                this.scribby.el.classList.add("disabled");
-                this.scribby.el.contentEditable = "false";
-                this.el.classList.add("active");
+                const summaryOutput = document.createElement("summary-output") as SummaryOutput;
 
                 const controller = new AbortController();
 
                 /** TODO: Store contents so that we can undo the summary */
                 range.deleteContents();
-                range.insertNode(outputEl);
-
-                this.scribby.el.appendChild(document.createElement("summary-output"));
+                range.insertNode(summaryOutput);
+                const outputEl = summaryOutput.querySelector(".output")! as HTMLElement;
 
                 this.initStreaming();
+                summaryOutput.setState("summarizing");
+
+                let receivedFirstBlock = false;
 
                 try {
                     await this.generateOutput(
                         input,
                         (chunk) => {
-                            this.pushStreamingChunk(outputEl, chunk);
+                            const flushedBlock = this.pushStreamingChunk(outputEl, chunk);
+
+                            if (flushedBlock && !receivedFirstBlock) {
+                                receivedFirstBlock = true;
+                                summaryOutput.setState("generating");
+                            }
+
+                            summaryOutput.dataset.value = outputEl.innerHTML;
                         },
                         controller.signal
                     );
 
-                    utils.replaceElementWithChildren(outputEl);
                     this.streamingBuffer = "";
-
-                    this.scribby.normalizer.removeNotSupportedNodes(this.scribby.el);
-                    const outOfOrderNodes = this.scribby.normalizer.flagNodeHierarchyViolations(this.scribby.el);
-                    this.scribby.normalizer.fixHierarchyViolations(outOfOrderNodes);
-                    this.scribby.normalizer.removeEmptyNodes(this.scribby.el);
                 } catch (err) {
                     console.error("summary generation failed", err);
                     outputEl.remove();
                 } finally {
                     this.streamingBuffer = "";
-                    this.scribby.el.classList.remove("disabled");
-                    this.scribby.el.contentEditable = "true";
-                    this.el.classList.remove("active");
                     this.isGenerating = false;
                 }
-                utils.replaceElementWithChildren(outputEl);
                 this.streamingBuffer = "";
 
-                this.scribby.el.classList.remove("disabled");
-                this.scribby.el.contentEditable = "true"
-                this.el.classList.remove("active");
+                summaryOutput.dataset.value = outputEl.innerHTML;
 
                 this.scribby.normalizer.removeNotSupportedNodes(this.scribby.el);
                 const outOfOrderNodes = this.scribby.normalizer.flagNodeHierarchyViolations(this.scribby.el);
