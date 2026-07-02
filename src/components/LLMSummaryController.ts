@@ -1,14 +1,27 @@
 import { Scribby } from "./Scribby.js";
 import { schema } from "../schema/schema.js";
-import * as utils from "../utilities/utilities.js"
+import * as utils from "../utilities/utilities.js";
 import { PromptModal } from "./LLMOutput/PromptModal.js";
 import { SummaryOutput } from "./LLMOutput/SummaryOutput.js";
+
+type SummaryGenerateEventDetail = {
+    summaryOutput?: SummaryOutput;
+    additionalContext?: string;
+};
+
+type RunGenerationOptions = {
+    summaryOutput: SummaryOutput;
+    input: string;
+    replaceOutput?: boolean;
+    source?: EventTarget | null;
+};
 
 export class LLMSummaryController {
     scribby: Scribby;
     innerContent: string;
     el!: HTMLButtonElement;
     menu: PromptModal | null = null;
+
     constructor(
         scribby: Scribby,
         innerContent: string,
@@ -17,6 +30,7 @@ export class LLMSummaryController {
         this.innerContent = innerContent;
         this.el = document.createElement("button");
     }
+
     private isGenerating = false;
 
     private streamingBuffer = "";
@@ -59,17 +73,67 @@ export class LLMSummaryController {
     }
 
     private flushCompleteElements(outputEl: HTMLElement): boolean {
-        if (!this.boundaryRegex) return false;
+        const skip = new Set<string>(["text"]);
 
+        const voidTags = new Set<string>([
+            "br",
+            "img",
+            "hr",
+            "input",
+            "meta",
+            "link",
+        ]);
+
+        const closeableTags = new Set(
+            Array.from(schema.keys())
+                .map((k) => k.toLowerCase())
+                .filter((k) => !skip.has(k) && !voidTags.has(k))
+        );
+
+        const tagRegex = /<\/?([a-zA-Z][\w:-]*)(?:\s+[^<>]*?)?\/?\s*>/g;
+
+        const stack: string[] = [];
         let lastSafeIdx = -1;
-        this.boundaryRegex.lastIndex = 0;
 
         let match: RegExpExecArray | null;
-        while ((match = this.boundaryRegex.exec(this.streamingBuffer)) !== null) {
-            lastSafeIdx = this.boundaryRegex.lastIndex;
+
+        while ((match = tagRegex.exec(this.streamingBuffer)) !== null) {
+            const rawTag = match[0];
+            const tagName = match[1]?.toLowerCase();
+
+            if (!tagName) {
+                continue;
+            }
+
+            if (!closeableTags.has(tagName) || voidTags.has(tagName) || rawTag.endsWith("/>")) {
+                continue;
+            }
+
+            const isClosingTag = rawTag.startsWith("</");
+
+            if (!isClosingTag) {
+                stack.push(tagName);
+                continue;
+            }
+
+            if (stack[stack.length - 1] === tagName) {
+                stack.pop();
+            } else {
+                const matchingIndex = stack.lastIndexOf(tagName);
+
+                if (matchingIndex !== -1) {
+                    stack.length = matchingIndex;
+                }
+            }
+
+            if (stack.length === 0) {
+                lastSafeIdx = tagRegex.lastIndex;
+            }
         }
 
-        if (lastSafeIdx === -1) return false;
+        if (lastSafeIdx === -1) {
+            return false;
+        }
 
         const htmlToAppend = this.streamingBuffer.slice(0, lastSafeIdx);
         this.streamingBuffer = this.streamingBuffer.slice(lastSafeIdx);
@@ -94,92 +158,258 @@ export class LLMSummaryController {
         this.el.classList.add("toolbar-button");
         this.el.innerHTML = this.innerContent;
 
-        this.el.addEventListener("click", async (e) => {
-            if (!this.isGenerating) {
+        this.el.addEventListener("click", this.handleToolbarClick);
 
-                const range = this.scribby.selection;
-                if (!range) return;
-                const input = range.toString();
-
-                const rangeMarker = document.createElement("range-marker");
-                const endRange = range.cloneRange();
-                endRange.collapse(false);
-                endRange.insertNode(rangeMarker);
-
-                this.menu = document.createElement("prompt-modal") as PromptModal;
-
-                const submission = this.menu.submission(
-                    this.scribby,
-                    rangeMarker.getBoundingClientRect()
-                );
-
-                setTimeout(() => {
-                    document.addEventListener("click", this.handleOutsideClick);
-                }, 0);
-
-                const values = await submission;
-
-                document.removeEventListener("click", this.handleOutsideClick);
-                rangeMarker.remove();
-                this.menu = null;
-
-                if (!values) return;
-                const additionalContext = values.additional_context;
-
-                console.log("summarizing");
-                this.isGenerating = true;
-
-                const summaryOutput = document.createElement("summary-output") as SummaryOutput;
-
-                const controller = new AbortController();
-
-                /** TODO: Store contents so that we can undo the summary */
-                range.deleteContents();
-                range.insertNode(summaryOutput);
-                const outputEl = summaryOutput.querySelector(".output")! as HTMLElement;
-
-                this.initStreaming();
-                summaryOutput.setState("summarizing");
-
-                let receivedFirstBlock = false;
-
-                try {
-                    await this.generateOutput(
-                        input,
-                        (chunk) => {
-                            const flushedBlock = this.pushStreamingChunk(outputEl, chunk);
-
-                            if (flushedBlock && !receivedFirstBlock) {
-                                receivedFirstBlock = true;
-                                summaryOutput.setState("generating");
-                            }
-
-                            summaryOutput.dataset.value = outputEl.innerHTML;
-                        },
-                        controller.signal
-                    );
-
-                    this.streamingBuffer = "";
-                } catch (err) {
-                    console.error("summary generation failed", err);
-                    outputEl.remove();
-                } finally {
-                    this.streamingBuffer = "";
-                    this.isGenerating = false;
-                }
-                this.streamingBuffer = "";
-
-                summaryOutput.dataset.value = outputEl.innerHTML;
-
-                this.scribby.normalizer.removeNotSupportedNodes(this.scribby.el);
-                const outOfOrderNodes = this.scribby.normalizer.flagNodeHierarchyViolations(this.scribby.el);
-                this.scribby.normalizer.fixHierarchyViolations(outOfOrderNodes);
-                this.scribby.normalizer.removeEmptyNodes(this.scribby.el);
-                this.isGenerating = false;
-            }
-
-        });
+        document.addEventListener("summary-generate", this.handleDocumentSummaryGenerate);
     }
+
+    public destroy() {
+        this.el.removeEventListener("click", this.handleToolbarClick);
+        document.removeEventListener("summary-generate", this.handleDocumentSummaryGenerate);
+        document.removeEventListener("click", this.handleOutsideClick);
+    }
+
+    private handleToolbarClick = async () => {
+        if (this.isGenerating) {
+            this.dispatchBusyEvent(this.el);
+            return;
+        }
+
+        const range = this.scribby.selection;
+        if (!range) return;
+
+        let input = range.toString();
+
+        const rangeMarker = document.createElement("range-marker");
+        const endRange = range.cloneRange();
+        endRange.collapse(false);
+        endRange.insertNode(rangeMarker);
+
+        this.menu = document.createElement("prompt-modal") as PromptModal;
+
+        const submission = this.menu.submission(
+            this.scribby,
+            rangeMarker.getBoundingClientRect()
+        );
+
+        setTimeout(() => {
+            document.addEventListener("click", this.handleOutsideClick);
+        }, 0);
+
+        const values = await submission;
+
+        document.removeEventListener("click", this.handleOutsideClick);
+        this.menu = null;
+
+        if (!values) return;
+
+        const additionalContext = values.additional_context?.trim();
+
+        if (additionalContext) {
+            input += `\n\nAdditional context:\n${additionalContext}`;
+        }
+
+        const summaryOutput = document.createElement("summary-output") as SummaryOutput;
+
+        rangeMarker.replaceWith(summaryOutput);
+
+        await this.runGeneration({
+            summaryOutput,
+            input,
+            replaceOutput: true,
+            source: this.el,
+        });
+
+        this.normalizeEditor();
+    };
+
+    private handleDocumentSummaryGenerate = async (e: Event) => {
+        const custom = e as CustomEvent<SummaryGenerateEventDetail>;
+
+        if (this.isGenerating) {
+            this.dispatchBusyEvent(e.target);
+            return;
+        }
+
+        const target = e.target as Element | null;
+
+        const summaryOutput =
+            custom.detail?.summaryOutput ??
+            target?.closest("summary-output") as SummaryOutput | null;
+
+        if (!summaryOutput) {
+            console.warn("summary-generate event fired without a summary-output target");
+            return;
+        }
+
+        const additionalContext = custom.detail?.additionalContext?.trim() ?? "";
+
+        const input = this.buildInputFromSummaryOutput(
+            summaryOutput,
+            additionalContext
+        );
+
+        await this.runGeneration({
+            summaryOutput,
+            input,
+            replaceOutput: true,
+            source: e.target,
+        });
+
+        this.normalizeEditor();
+    };
+
+    private buildInputFromSummaryOutput(
+        summaryOutput: SummaryOutput,
+        additionalContext: string,
+    ): string {
+        const outputEl = summaryOutput.querySelector(".output") as HTMLElement | null;
+
+        const existingSummary = outputEl?.innerText?.trim() ?? "";
+
+        let input = "";
+
+        if (existingSummary) {
+            input += `Current summary:\n${existingSummary}`;
+        }
+
+        if (additionalContext) {
+            input += `\n\nAdditional context / requested change:\n${additionalContext}`;
+        }
+
+        return input.trim();
+    }
+
+    private async runGeneration(options: RunGenerationOptions): Promise<void> {
+        if (this.isGenerating) {
+            this.dispatchBusyEvent(options.source);
+            return;
+        }
+
+        const { summaryOutput, input, replaceOutput = false } = options;
+
+        const outputEl = summaryOutput.querySelector(".output") as HTMLElement | null;
+
+        if (!outputEl) {
+            console.warn("summary-output is missing .output element");
+            return;
+        }
+
+        this.setGeneratingUI(true);
+
+        const controller = new AbortController();
+
+        this.initStreaming();
+
+        if (replaceOutput) {
+            summaryOutput.prepareForGeneration();
+        }
+
+        summaryOutput.setState("summarizing");
+
+        let receivedFirstChunk = false;
+        let receivedFirstBlock = false;
+
+        document.dispatchEvent(
+            new CustomEvent("summary-generation-started", {
+                detail: {
+                    summaryOutput,
+                    source: options.source,
+                },
+            })
+        );
+
+        try {
+            await this.generateOutput(
+                input,
+                (chunk) => {
+                    if (!receivedFirstChunk) {
+                        receivedFirstChunk = true;
+
+                        if (replaceOutput) {
+                            outputEl.replaceChildren();
+                            summaryOutput.dataset.value = "";
+                        }
+                    }
+
+                    const flushedBlock = this.pushStreamingChunk(outputEl, chunk);
+
+                    if (flushedBlock && !receivedFirstBlock) {
+                        receivedFirstBlock = true;
+                        summaryOutput.setState("generating");
+                    }
+
+                    summaryOutput.dataset.value = outputEl.innerHTML;
+                },
+                controller.signal
+            );
+
+            summaryOutput.dataset.value = outputEl.innerHTML;
+            summaryOutput.commitCurrentOutputToHistory();
+
+            document.dispatchEvent(
+                new CustomEvent("summary-generation-finished", {
+                    detail: {
+                        summaryOutput,
+                        source: options.source,
+                    },
+                })
+            );
+        } catch (err) {
+            console.error("summary generation failed", err);
+
+            document.dispatchEvent(
+                new CustomEvent("summary-generation-failed", {
+                    detail: {
+                        summaryOutput,
+                        source: options.source,
+                        error: err,
+                    },
+                })
+            );
+        } finally {
+            this.streamingBuffer = "";
+            summaryOutput.setState("idle");
+            this.setGeneratingUI(false);
+        }
+    }
+
+    private setGeneratingUI(generating: boolean) {
+        this.isGenerating = generating;
+
+        this.el.classList.toggle("active", generating);
+        this.el.classList.toggle("generating", generating);
+
+        if (generating) {
+            this.el.setAttribute("aria-busy", "true");
+            this.el.setAttribute("aria-disabled", "true");
+        } else {
+            this.el.removeAttribute("aria-busy");
+            this.el.removeAttribute("aria-disabled");
+        }
+    }
+
+    private dispatchBusyEvent(source?: EventTarget | null) {
+        document.dispatchEvent(
+            new CustomEvent("summary-generation-busy", {
+                detail: {
+                    source,
+                },
+            })
+        );
+    }
+
+    private normalizeEditor() {
+        this.scribby.normalizer.removeNotSupportedNodes(this.scribby.el);
+
+        const outOfOrderNodes = this.scribby.normalizer.flagNodeHierarchyViolations(
+            this.scribby.el
+        );
+
+        this.scribby.normalizer.fixHierarchyViolations(outOfOrderNodes);
+        this.scribby.normalizer.removeEmptyNodes(this.scribby.el);
+    }
+
     async generateOutput(
         input: string,
         onChunk?: (chunk: string, full: string) => void,
@@ -217,6 +447,7 @@ export class LLMSummaryController {
 
             throw new Error(errorBody.error || `Response status: ${response.status}`);
         }
+
         if (!response.body) {
             return await response.text();
         }
@@ -239,6 +470,7 @@ export class LLMSummaryController {
 
         return full;
     }
+
     private closeMenu() {
         this.menu?.close();
         this.menu = null;

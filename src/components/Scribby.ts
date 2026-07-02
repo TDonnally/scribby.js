@@ -842,6 +842,7 @@ export class Scribby {
                 const parent = range.commonAncestorContainer.parentElement;
                 const closestAnchor = parent?.closest("a");
                 const closestCodeBlock = parent?.closest("scribby-code-block");
+                const closestTextBox = parent?.closest("prompt-text-box");
                 // check if we are inside an anchor and activate modal
                 if (closestAnchor && this.currentInsertModal == null) {
                     const linkModal = new LinkModal(
@@ -853,9 +854,9 @@ export class Scribby {
                     linkModal.mount();
                 }
 
-                // check if we are inside codemirror code block
+                // check if we are inside codemirror/closestTextBox code block
 
-                else if (!closestCodeBlock) {
+                else if (!closestCodeBlock && !closestTextBox) {
                     this.el.focus();
                 }
             }
