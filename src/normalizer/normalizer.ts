@@ -75,7 +75,7 @@ export class Normalizer {
                 if (parentTag && !allowedParents.has(parentTag)) {
                     outOfOrderNodes[hierarchyLabel].push(child)
                 }
-                if (childTag != "scribby-code-block" || "speech-output") {
+                if (childTag !== "scribby-code-block" && childTag !== "speech-output" && childTag !== "summary-output") {
                     const grandChildren = Array.from(childEl.childNodes);
                     children.push(...grandChildren);
                 }

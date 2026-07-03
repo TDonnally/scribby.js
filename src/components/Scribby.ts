@@ -259,45 +259,97 @@ export class Scribby {
                 }
                 this.el.dispatchEvent(new Event('input'));
             }
-            if (e.key === 'Enter') {
+            if (e.key === "Enter") {
                 const range = this.selection;
-                if (!range) return;
-                const parent = range.startContainer;
-                const parentEl = parent as HTMLElement;
-                console.log(parent)
-                let closestLine: HTMLElement | null;
-                let codeBlock: HTMLElement | null;
-                if (parent.nodeType != Node.ELEMENT_NODE) {
-                    const nodeParent = parent.parentElement;
-                    if (!nodeParent) return;
-                    closestLine = nodeParent.closest(".cm-line");
-                    codeBlock = nodeParent.closest("scribby-code-block");
+                if (!range || !range.collapsed) return;
+
+                const parent =
+                    range.startContainer.nodeType === Node.ELEMENT_NODE
+                        ? range.startContainer as HTMLElement
+                        : range.startContainer.parentElement;
+
+                if (!parent) return;
+
+                const codeBlock = parent.closest("scribby-code-block") as HTMLElement | null;
+
+                // Normal editor text: h1/p/etc.
+                if (!codeBlock) {
+                    const block = parent.closest("h1, h2, h3, h4, h5, h6, p") as HTMLElement | null;
+                    if (!block) return;
+
+                    const afterRange = document.createRange();
+                    afterRange.selectNodeContents(block);
+                    afterRange.setStart(range.startContainer, range.startOffset);
+
+                    const isAtEnd = !(afterRange.toString() ?? "").replace(/[\s\u200B]+/g, "");
+
+                    if (!isAtEnd) return;
+
+                    e.preventDefault();
+
+                    const nextP = document.createElement("p");
+                    const textNode = document.createTextNode("\u200B");
+
+                    nextP.appendChild(textNode);
+                    block.after(nextP);
+
+                    const newRange = document.createRange();
+                    newRange.setStart(textNode, 1);
+                    newRange.collapse(true);
+
+                    const selection = window.getSelection();
+                    selection?.removeAllRanges();
+                    selection?.addRange(newRange);
+
+                    this.selection = newRange;
+                    this.el.dispatchEvent(new Event("input"));
+
+                    return;
                 }
-                else {
-                    closestLine = parentEl.closest(".cm-line");
-                    codeBlock = parentEl.closest("scribby-code-block");
-                }
-                const prev = closestLine?.previousElementSibling as HTMLElement | null;
-                const next = closestLine?.nextElementSibling?.nextElementSibling as HTMLElement | null;
+
+                // CodeMirror / scribby-code-block exit behavior.
+                const closestLine = parent.closest(".cm-line") as HTMLElement | null;
+                if (!closestLine) return;
+
+                const prev = closestLine.previousElementSibling as HTMLElement | null;
+                const next = closestLine.nextElementSibling?.nextElementSibling as HTMLElement | null;
+
                 const prevHasNoText = !!prev && !(prev.textContent ?? "").replace(/[\s\u200B]+/g, "");
+
                 if (next === null && prevHasNoText) {
                     e.preventDefault();
-                    let target = codeBlock?.nextElementSibling as HTMLElement;
-                    if (target === null) {
-                        const entryP = document.createElement("p");
-                        const br = document.createElement("br");
-                        entryP.appendChild(br);
-                        codeBlock?.after(entryP);
-                        target = entryP;
+
+                    let target = codeBlock.nextElementSibling as HTMLElement | null;
+
+                    if (!target) {
+                        target = document.createElement("p");
+
+                        const textNode = document.createTextNode("\u200B");
+                        target.appendChild(textNode);
+
+                        codeBlock.after(target);
                     }
+
+                    let caretNode = Array.from(target.childNodes).find(
+                        node => node.nodeType === Node.TEXT_NODE
+                    ) as Text | undefined;
+
+                    if (!caretNode) {
+                        target.innerHTML = "";
+                        caretNode = document.createTextNode("\u200B");
+                        target.appendChild(caretNode);
+                    }
+
                     const newRange = document.createRange();
-                    newRange.selectNodeContents(target);
-                    newRange.collapse(false);
+                    newRange.setStart(caretNode, caretNode.nodeValue?.length ?? 0);
+                    newRange.collapse(true);
+
                     const selection = window.getSelection();
-                    if (selection) {
-                        selection.removeAllRanges();
-                    }
+                    selection?.removeAllRanges();
                     selection?.addRange(newRange);
+
+                    this.selection = newRange;
+                    this.el.dispatchEvent(new Event("input"));
                 }
             }
             if (e.key === "ArrowDown") {
@@ -340,18 +392,11 @@ export class Scribby {
                 }
             }
             if (e.key === "Delete" || e.key === "Backspace") {
-                if (
-                    this.el.childNodes.length === 1 &&
-                    !(this.el.children[0].textContent ?? "").replace(/[\s\u200B]+/g, "")
-                ) {
-                    e.preventDefault();
-                    return;
-                }
-
                 const range = this.selection;
                 if (!range) return;
 
-                const protectedSelector = "scribby-code-block, speech-output";
+                const protectedSelector = utils.PROTECTED_BLOCK_SELECTOR;
+                const blockSelector = utils.BLOCK_SELECTOR;
 
                 const startEl =
                     range.startContainer.nodeType === Node.ELEMENT_NODE
@@ -360,168 +405,493 @@ export class Scribby {
 
                 if (!startEl) return;
 
-                const getBlockLabel = (el: HTMLElement) => {
-                    if (el.matches("scribby-code-block")) return "code block";
-                    return "audio block";
-                };
+                if (startEl.closest(".cm-content")) {
+                    return;
+                }
 
-                const confirmDelete = async (el: HTMLElement) => {
-                    return await ConfirmOverlay.open({
-                        message: `This action will delete this ${getBlockLabel(el)}. Are you sure?`,
-                        continueBtnTxt: "Continue",
-                        cancelBtnTxt: "Cancel",
-                    });
-                };
-
-                const placeCaretIn = (target: HTMLElement) => {
-                    const newRange = document.createRange();
-                    newRange.selectNodeContents(target);
-                    newRange.collapse(false);
-
-                    const selection = window.getSelection();
-
-                    if (selection) {
-                        selection.removeAllRanges();
-                        selection.addRange(newRange);
-                    }
-                };
-
-                const ensureCaretTargetAfter = (el: HTMLElement) => {
-                    let target = el.nextElementSibling as HTMLElement | null;
-
-                    if (!target) {
-                        const entryP = document.createElement("p");
-                        entryP.appendChild(document.createElement("br"));
-                        el.after(entryP);
-                        target = entryP;
-                    }
-
-                    return target;
-                };
-
-                const getTopLevelChild = (node: Node) => {
-                    let el =
-                        node.nodeType === Node.ELEMENT_NODE
-                            ? node as HTMLElement
-                            : node.parentElement;
-
-                    while (el && el.parentElement !== this.el) {
-                        el = el.parentElement;
-                    }
-
-                    return el;
-                };
-
-                const isAtStartOfTopLevelChild = (range: Range, topLevelChild: HTMLElement) => {
-                    const beforeRange = document.createRange();
-                    beforeRange.selectNodeContents(topLevelChild);
-                    beforeRange.setEnd(range.startContainer, range.startOffset);
-
-                    return !(beforeRange.toString() ?? "").replace(/[\s\u200B]+/g, "");
-                };
-
-                const isAtEndOfTopLevelChild = (range: Range, topLevelChild: HTMLElement) => {
-                    const afterRange = document.createRange();
-                    afterRange.selectNodeContents(topLevelChild);
-                    afterRange.setStart(range.startContainer, range.startOffset);
-
-                    return !(afterRange.toString() ?? "").replace(/[\s\u200B]+/g, "");
-                };
+                const currentLi = startEl.closest<HTMLElement>("li");
+                const topLevelChild = utils.getTopLevelChild(range.startContainer, this.el);
 
                 if (!range.collapsed) {
-                    const protectedBlocks = Array.from(
-                        this.el.querySelectorAll<HTMLElement>(protectedSelector)
-                    ).filter((el) => range.intersectsNode(el));
+                    const protectedBlocks = utils.getProtectedBlocksInsideSelection(range);
 
                     if (protectedBlocks.length > 0) {
                         e.preventDefault();
 
-                        const firstBlock = protectedBlocks[0];
+                        const block = protectedBlocks[0];
+                        const label =
+                            block.matches("scribby-code-block")
+                                ? "code block"
+                                : block.matches("summary-output")
+                                    ? "summary block"
+                                    : "audio block";
 
-                        const confirmed = await confirmDelete(firstBlock);
+                        const confirmed = await ConfirmOverlay.open({
+                            message: `This action will delete this ${label}. Are you sure?`,
+                            continueBtnTxt: "Continue",
+                            cancelBtnTxt: "Cancel",
+                        });
+
                         if (!confirmed) return;
 
                         range.deleteContents();
 
-                        const selection = window.getSelection();
-                        if (selection) {
-                            selection.removeAllRanges();
-                            selection.addRange(range);
+                        if (this.el.children.length === 0) {
+                            const p = utils.makePlaceholderP();
+                            this.el.appendChild(p);
+                            const newRange = utils.placeCaretAtStart(p);
+                            if (newRange) this.selection = newRange;
+                        } else {
+                            const newRange = utils.placeRange(range);
+                            if (newRange) this.selection = newRange;
                         }
 
+                        this.el.dispatchEvent(new Event("input"));
                         return;
                     }
-                }
 
-                const audioBlock = startEl.closest<HTMLElement>("scribby-audio, scribby-audio-block");
+                    if (currentLi && utils.selectionWouldEmpty(range, currentLi)) {
+                        e.preventDefault();
 
-                if (audioBlock) {
-                    e.preventDefault();
+                        const newRange = utils.resetPlaceholderBlock(currentLi);
+                        if (newRange) this.selection = newRange;
 
-                    const confirmed = await confirmDelete(audioBlock);
-                    if (!confirmed) return;
+                        this.el.dispatchEvent(new Event("input"));
+                        return;
+                    }
 
-                    const target = ensureCaretTargetAfter(audioBlock);
-                    placeCaretIn(target);
-                    audioBlock.remove();
+                    if (
+                        topLevelChild &&
+                        topLevelChild.matches(blockSelector) &&
+                        utils.selectionWouldEmpty(range, topLevelChild) &&
+                        (
+                            topLevelChild.previousElementSibling?.matches(protectedSelector) ||
+                            topLevelChild.nextElementSibling?.matches(protectedSelector)
+                        )
+                    ) {
+                        e.preventDefault();
+
+                        const newRange = utils.resetPlaceholderBlock(topLevelChild);
+                        if (newRange) this.selection = newRange;
+
+                        this.el.dispatchEvent(new Event("input"));
+                        return;
+                    }
 
                     return;
                 }
 
-                const closestLine = startEl.closest<HTMLElement>(".cm-line");
-                const codeBlock = startEl.closest<HTMLElement>("scribby-code-block");
+                if (
+                    currentLi &&
+                    utils.collapsedDeleteWouldEmpty(range, currentLi, e.key)
+                ) {
+                    e.preventDefault();
 
-                if (codeBlock && closestLine) {
-                    const prev = closestLine.previousElementSibling as HTMLElement | null;
-                    const next = closestLine.nextElementSibling as HTMLElement | null;
-                    const hasNoText = !(closestLine.textContent ?? "").replace(/[\s\u200B]+/g, "");
+                    const newRange = utils.resetPlaceholderBlock(currentLi);
+                    if (newRange) this.selection = newRange;
 
-                    if (prev === null && next === null && hasNoText) {
+                    this.el.dispatchEvent(new Event("input"));
+                    return;
+                }
+
+                if (currentLi && utils.isPlaceholderOnlyBlock(currentLi)) {
+                    const list = currentLi.parentElement as HTMLElement | null;
+                    const prevLi = currentLi.previousElementSibling as HTMLElement | null;
+                    const nextLi = currentLi.nextElementSibling as HTMLElement | null;
+
+                    e.preventDefault();
+
+                    if (e.key === "Backspace" && prevLi?.matches("li")) {
+                        currentLi.remove();
+
+                        const newRange = utils.placeCaretAtEnd(prevLi);
+                        if (newRange) this.selection = newRange;
+
+                        this.el.dispatchEvent(new Event("input"));
+                        return;
+                    }
+
+                    if (e.key === "Delete" && nextLi?.matches("li")) {
+                        currentLi.remove();
+
+                        const newRange = utils.placeCaretAtStart(nextLi);
+                        if (newRange) this.selection = newRange;
+
+                        this.el.dispatchEvent(new Event("input"));
+                        return;
+                    }
+
+                    if (e.key === "Backspace" && nextLi?.matches("li")) {
+                        currentLi.remove();
+
+                        const newRange = utils.placeCaretAtStart(nextLi);
+                        if (newRange) this.selection = newRange;
+
+                        this.el.dispatchEvent(new Event("input"));
+                        return;
+                    }
+
+                    if (e.key === "Delete" && prevLi?.matches("li")) {
+                        currentLi.remove();
+
+                        const newRange = utils.placeCaretAtEnd(prevLi);
+                        if (newRange) this.selection = newRange;
+
+                        this.el.dispatchEvent(new Event("input"));
+                        return;
+                    }
+
+                    if (list && (list.matches("ul") || list.matches("ol"))) {
+                        const p = utils.makePlaceholderP();
+                        list.replaceWith(p);
+
+                        const newRange = utils.placeCaretAtStart(p);
+                        if (newRange) this.selection = newRange;
+
+                        this.el.dispatchEvent(new Event("input"));
+                        return;
+                    }
+
+                    const newRange = utils.resetPlaceholderBlock(currentLi);
+                    if (newRange) this.selection = newRange;
+
+                    return;
+                }
+
+                if (
+                    topLevelChild &&
+                    topLevelChild.matches(blockSelector) &&
+                    (
+                        topLevelChild.previousElementSibling?.matches(protectedSelector) ||
+                        topLevelChild.nextElementSibling?.matches(protectedSelector)
+                    ) &&
+                    utils.collapsedDeleteWouldEmpty(range, topLevelChild, e.key)
+                ) {
+                    e.preventDefault();
+
+                    const newRange = utils.resetPlaceholderBlock(topLevelChild);
+                    if (newRange) this.selection = newRange;
+
+                    this.el.dispatchEvent(new Event("input"));
+                    return;
+                }
+
+                const directProtectedBlock = startEl.closest<HTMLElement>(protectedSelector);
+
+                if (directProtectedBlock) {
+                    e.preventDefault();
+
+                    if (directProtectedBlock.matches("scribby-code-block")) {
+                        const newRange = utils.placeCaretInProtectedBlock(directProtectedBlock, "end");
+                        if (newRange) this.selection = newRange;
+                        return;
+                    }
+
+                    const label = directProtectedBlock.matches("summary-output")
+                        ? "summary block"
+                        : "audio block";
+
+                    const confirmed = await ConfirmOverlay.open({
+                        message: `This action will delete this ${label}. Are you sure?`,
+                        continueBtnTxt: "Continue",
+                        cancelBtnTxt: "Cancel",
+                    });
+
+                    if (!confirmed) return;
+
+                    const after = directProtectedBlock.nextElementSibling as HTMLElement | null;
+                    const before = directProtectedBlock.previousElementSibling as HTMLElement | null;
+                    const caretTarget = after ?? before;
+                    const edge = after ? "start" : "end";
+
+                    directProtectedBlock.remove();
+
+                    if (this.el.children.length === 0) {
+                        const p = utils.makePlaceholderP();
+                        this.el.appendChild(p);
+
+                        const newRange = utils.placeCaretAtStart(p);
+                        if (newRange) this.selection = newRange;
+                    } else if (caretTarget && caretTarget.isConnected) {
+                        const newRange =
+                            edge === "start"
+                                ? utils.placeCaretAtStart(caretTarget)
+                                : utils.placeCaretAtEnd(caretTarget);
+
+                        if (newRange) this.selection = newRange;
+                    } else {
+                        const first = this.el.firstElementChild as HTMLElement | null;
+
+                        if (first) {
+                            const newRange = utils.placeCaretAtStart(first);
+                            if (newRange) this.selection = newRange;
+                        }
+                    }
+
+                    this.el.dispatchEvent(new Event("input"));
+                    return;
+                }
+
+                if (
+                    topLevelChild &&
+                    utils.isPlaceholderOnlyBlock(topLevelChild)
+                ) {
+                    const previous = topLevelChild.previousElementSibling as HTMLElement | null;
+                    const next = topLevelChild.nextElementSibling as HTMLElement | null;
+
+                    if (e.key === "Backspace" && previous?.matches("scribby-code-block")) {
                         e.preventDefault();
 
-                        const confirmed = await confirmDelete(codeBlock);
-                        if (!confirmed) return;
-
-                        const target = ensureCaretTargetAfter(codeBlock);
-                        placeCaretIn(target);
-                        codeBlock.remove();
+                        const newRange = utils.placeCaretInProtectedBlock(previous, "end");
+                        if (newRange) this.selection = newRange;
 
                         return;
                     }
+
+                    if (e.key === "Delete" && next?.matches("scribby-code-block")) {
+                        e.preventDefault();
+
+                        const newRange = utils.placeCaretInProtectedBlock(next, "start");
+                        if (newRange) this.selection = newRange;
+
+                        return;
+                    }
+
+                    if (e.key === "Backspace" && previous?.matches(protectedSelector)) {
+                        e.preventDefault();
+
+                        const label = previous.matches("summary-output") ? "summary block" : "audio block";
+
+                        const confirmed = await ConfirmOverlay.open({
+                            message: `This action will delete this ${label}. Are you sure?`,
+                            continueBtnTxt: "Continue",
+                            cancelBtnTxt: "Cancel",
+                        });
+
+                        if (!confirmed) return;
+
+                        previous.remove();
+
+                        if (this.el.children.length === 0) {
+                            const p = utils.makePlaceholderP();
+                            this.el.appendChild(p);
+
+                            const newRange = utils.placeCaretAtStart(p);
+                            if (newRange) this.selection = newRange;
+                        } else {
+                            const newRange = utils.placeCaretAtStart(topLevelChild);
+                            if (newRange) this.selection = newRange;
+                        }
+
+                        this.el.dispatchEvent(new Event("input"));
+                        return;
+                    }
+
+                    if (e.key === "Delete" && next?.matches(protectedSelector)) {
+                        e.preventDefault();
+
+                        const label = next.matches("summary-output") ? "summary block" : "audio block";
+
+                        const confirmed = await ConfirmOverlay.open({
+                            message: `This action will delete this ${label}. Are you sure?`,
+                            continueBtnTxt: "Continue",
+                            cancelBtnTxt: "Cancel",
+                        });
+
+                        if (!confirmed) return;
+
+                        next.remove();
+
+                        if (this.el.children.length === 0) {
+                            const p = utils.makePlaceholderP();
+                            this.el.appendChild(p);
+
+                            const newRange = utils.placeCaretAtStart(p);
+                            if (newRange) this.selection = newRange;
+                        } else {
+                            const newRange = utils.placeCaretAtStart(topLevelChild);
+                            if (newRange) this.selection = newRange;
+                        }
+
+                        this.el.dispatchEvent(new Event("input"));
+                        return;
+                    }
+
+                    if (e.key === "Backspace" && !previous && next?.matches(protectedSelector)) {
+                        e.preventDefault();
+
+                        const newRange = utils.resetPlaceholderBlock(topLevelChild);
+                        if (newRange) this.selection = newRange;
+
+                        return;
+                    }
+
+                    if (e.key === "Delete" && previous?.matches(protectedSelector) && !next) {
+                        e.preventDefault();
+
+                        const newRange = utils.resetPlaceholderBlock(topLevelChild);
+                        if (newRange) this.selection = newRange;
+
+                        return;
+                    }
+
+                    if (previous?.matches(protectedSelector) && next?.matches(protectedSelector)) {
+                        e.preventDefault();
+
+                        const newRange = utils.resetPlaceholderBlock(topLevelChild);
+                        if (newRange) this.selection = newRange;
+
+                        return;
+                    }
+
+                    e.preventDefault();
+
+                    if (this.el.children.length === 1) {
+                        const newRange = utils.resetPlaceholderBlock(topLevelChild);
+                        if (newRange) this.selection = newRange;
+
+                        return;
+                    }
+
+                    if (e.key === "Backspace") {
+                        if (previous) {
+                            topLevelChild.remove();
+
+                            const newRange = utils.placeCaretAtEnd(previous);
+                            if (newRange) this.selection = newRange;
+
+                            this.el.dispatchEvent(new Event("input"));
+                            return;
+                        }
+
+                        if (next) {
+                            topLevelChild.remove();
+
+                            const newRange = utils.placeCaretAtStart(next);
+                            if (newRange) this.selection = newRange;
+
+                            this.el.dispatchEvent(new Event("input"));
+                            return;
+                        }
+                    }
+
+                    if (e.key === "Delete") {
+                        if (next) {
+                            topLevelChild.remove();
+
+                            const newRange = utils.placeCaretAtStart(next);
+                            if (newRange) this.selection = newRange;
+
+                            this.el.dispatchEvent(new Event("input"));
+                            return;
+                        }
+
+                        if (previous) {
+                            topLevelChild.remove();
+
+                            const newRange = utils.placeCaretAtEnd(previous);
+                            if (newRange) this.selection = newRange;
+
+                            this.el.dispatchEvent(new Event("input"));
+                            return;
+                        }
+                    }
+
+                    const newRange = utils.resetPlaceholderBlock(topLevelChild);
+                    if (newRange) this.selection = newRange;
+
+                    return;
                 }
 
-                const topLevelChild = getTopLevelChild(range.startContainer);
-
-                if (topLevelChild && e.key === "Backspace" && isAtStartOfTopLevelChild(range, topLevelChild)) {
+                if (
+                    topLevelChild &&
+                    e.key === "Backspace" &&
+                    utils.isAtStartOf(range, topLevelChild)
+                ) {
                     const previous = topLevelChild.previousElementSibling as HTMLElement | null;
+
+                    if (previous?.matches("scribby-code-block")) {
+                        e.preventDefault();
+
+                        const newRange = utils.placeCaretInProtectedBlock(previous, "end");
+                        if (newRange) this.selection = newRange;
+
+                        return;
+                    }
 
                     if (previous?.matches(protectedSelector)) {
                         e.preventDefault();
 
-                        const confirmed = await confirmDelete(previous);
+                        const label = previous.matches("summary-output") ? "summary block" : "audio block";
+
+                        const confirmed = await ConfirmOverlay.open({
+                            message: `This action will delete this ${label}. Are you sure?`,
+                            continueBtnTxt: "Continue",
+                            cancelBtnTxt: "Cancel",
+                        });
+
                         if (!confirmed) return;
 
-                        placeCaretIn(topLevelChild);
                         previous.remove();
 
+                        const newRange = utils.placeCaretAtStart(topLevelChild);
+                        if (newRange) this.selection = newRange;
+
+                        this.el.dispatchEvent(new Event("input"));
                         return;
                     }
                 }
 
-                if (topLevelChild && e.key === "Delete" && isAtEndOfTopLevelChild(range, topLevelChild)) {
+                if (
+                    topLevelChild &&
+                    e.key === "Delete" &&
+                    utils.isAtEndOf(range, topLevelChild)
+                ) {
                     const next = topLevelChild.nextElementSibling as HTMLElement | null;
+
+                    if (next?.matches("scribby-code-block")) {
+                        e.preventDefault();
+
+                        const newRange = utils.placeCaretInProtectedBlock(next, "start");
+                        if (newRange) this.selection = newRange;
+
+                        return;
+                    }
 
                     if (next?.matches(protectedSelector)) {
                         e.preventDefault();
 
-                        const confirmed = await confirmDelete(next);
+                        const label = next.matches("summary-output") ? "summary block" : "audio block";
+
+                        const confirmed = await ConfirmOverlay.open({
+                            message: `This action will delete this ${label}. Are you sure?`,
+                            continueBtnTxt: "Continue",
+                            cancelBtnTxt: "Cancel",
+                        });
+
                         if (!confirmed) return;
 
-                        placeCaretIn(topLevelChild);
                         next.remove();
 
+                        const newRange = utils.placeCaretAtEnd(topLevelChild);
+                        if (newRange) this.selection = newRange;
+
+                        this.el.dispatchEvent(new Event("input"));
                         return;
                     }
+                }
+
+                if (
+                    this.el.children.length === 1 &&
+                    this.el.children[0] instanceof HTMLElement &&
+                    utils.isPlaceholderOnlyBlock(this.el.children[0])
+                ) {
+                    e.preventDefault();
+
+                    const newRange = utils.resetPlaceholderBlock(this.el.children[0]);
+                    if (newRange) this.selection = newRange;
+
+                    return;
                 }
             }
         })

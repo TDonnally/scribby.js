@@ -1,5 +1,7 @@
 export const BLOCK_SELECTOR = "p,h1,h2,h3,h4,h5,h6,li,blockquote,code";
+export const PROTECTED_BLOCK_SELECTOR = "scribby-code-block, speech-output, summary-output";
 
+export type CaretEdge = "start" | "end";
 /**
  * Get Element object/objects or Element attributes
  */
@@ -75,12 +77,12 @@ export function areSiblingsEqual(a: Element, b: Element): boolean {
 /**
  * utilities that involve DOM manipulation
  */
-export function createElement(tag: string, attributes: Map<string, string>, classes: Set<string>): HTMLElement{
+export function createElement(tag: string, attributes: Map<string, string>, classes: Set<string>): HTMLElement {
     const newEl = document.createElement(tag);
-    for(const [k, v] of attributes){
+    for (const [k, v] of attributes) {
         newEl.setAttribute(k, v)
     }
-    for(const c of classes){
+    for (const c of classes) {
         newEl.classList.add(c)
     }
     return newEl
@@ -99,15 +101,15 @@ export function removeEmptyTextNodes(parent: Node): void {
         }
     });
 }
-export function replaceElementWithChildren(el: Element): void{
-    const parent = el.parentNode; 
+export function replaceElementWithChildren(el: Element): void {
+    const parent = el.parentNode;
     if (!parent) return;
     while (el.firstChild) {
         parent.insertBefore(el.firstChild, el);
     }
     el.remove();
 }
-export function changeElementTag(el: Element, tag: string): void{
+export function changeElementTag(el: Element, tag: string): void {
     const parent = el.parentElement;
     if (!parent) return;
     const newEl = document.createElement(tag);
@@ -198,7 +200,7 @@ export function removeAllComments(root: DocumentFragment | Element): void {
 /**
  * Caret
  */
-export function placeCaretatEndofElement(el: HTMLElement){
+export function placeCaretatEndofElement(el: HTMLElement) {
     const sel = window.getSelection();
     if (!sel) return;
 
@@ -213,7 +215,7 @@ export function placeCaretatEndofElement(el: HTMLElement){
 /**
  * Miscelaneous
  */
-export function toggle(Options: Record<string, string>, Key: string):string{
+export function toggle(Options: Record<string, string>, Key: string): string {
     return Options[Key]
 }
 export function normalizeUrl(input: string): string | null {
@@ -232,4 +234,238 @@ export function normalizeUrl(input: string): string | null {
     } catch {
         return null;
     }
+}
+
+
+export function cleanText(value: string | null | undefined): string {
+    return (value ?? "").replace(/[\s\u200B]+/g, "");
+}
+
+export function hasRealText(node: Node): boolean {
+    return !!cleanText(node.textContent);
+}
+
+export function makePlaceholderText(): Text {
+    return document.createTextNode("\u200B");
+}
+
+export function makePlaceholderP(): HTMLParagraphElement {
+    const p = document.createElement("p");
+    p.appendChild(makePlaceholderText());
+    return p;
+}
+
+export function placeRange(range: Range): Range | null {
+    const selection = window.getSelection();
+    if (!selection) return null;
+
+    selection.removeAllRanges();
+    selection.addRange(range);
+
+    return range;
+}
+
+export function placeCaretInTextNode(textNode: Text, offset = textNode.nodeValue?.length ?? 0): Range | null {
+    const range = document.createRange();
+    range.setStart(textNode, offset);
+    range.collapse(true);
+
+    return placeRange(range);
+}
+
+export function resetPlaceholderBlock(el: HTMLElement): Range | null {
+    el.innerHTML = "";
+
+    const textNode = makePlaceholderText();
+    el.appendChild(textNode);
+
+    return placeCaretInTextNode(textNode, 1);
+}
+
+export function getTopLevelChild(node: Node, root: HTMLElement): HTMLElement | null {
+    let el =
+        node.nodeType === Node.ELEMENT_NODE
+            ? node as HTMLElement
+            : node.parentElement;
+
+    while (el && el.parentElement !== root) {
+        el = el.parentElement;
+    }
+
+    return el;
+}
+
+export function getFirstTextNode(root: HTMLElement): Text | null {
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+
+    while (walker.nextNode()) {
+        const textNode = walker.currentNode as Text;
+        if ((textNode.nodeValue ?? "").length) return textNode;
+    }
+
+    return null;
+}
+
+export function getLastTextNode(root: HTMLElement): Text | null {
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    let last: Text | null = null;
+
+    while (walker.nextNode()) {
+        const textNode = walker.currentNode as Text;
+        if ((textNode.nodeValue ?? "").length) last = textNode;
+    }
+
+    return last;
+}
+
+export function placeCaretAtStart(el: HTMLElement): Range | null {
+    if (!hasRealText(el)) {
+        return resetPlaceholderBlock(el);
+    }
+
+    const textNode = getFirstTextNode(el);
+
+    if (textNode) {
+        return placeCaretInTextNode(textNode, 0);
+    }
+
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    range.collapse(true);
+
+    return placeRange(range);
+}
+
+export function placeCaretAtEnd(el: HTMLElement): Range | null {
+    if (!hasRealText(el)) {
+        return resetPlaceholderBlock(el);
+    }
+
+    const textNode = getLastTextNode(el);
+
+    if (textNode) {
+        return placeCaretInTextNode(textNode, textNode.nodeValue?.length ?? 0);
+    }
+
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    range.collapse(false);
+
+    return placeRange(range);
+}
+
+export function placeCaretInProtectedBlock(block: HTMLElement, edge: CaretEdge): Range | null {
+    if (block.matches("scribby-code-block")) {
+        const methodName = edge === "start" ? "focusStart" : "focusEnd";
+        const method = (block as any)[methodName];
+
+        if (typeof method === "function") {
+            method.call(block);
+            return null;
+        }
+    }
+
+    const range = document.createRange();
+    range.selectNodeContents(block);
+    range.collapse(edge === "start");
+
+    return placeRange(range);
+}
+
+export function isEmptyInlineArtifact(node: Node): boolean {
+    if (node.nodeType === Node.TEXT_NODE) {
+        return !cleanText(node.textContent);
+    }
+
+    if (node.nodeType !== Node.ELEMENT_NODE) {
+        return true;
+    }
+
+    const el = node as HTMLElement;
+    const tag = el.tagName.toLowerCase();
+
+    if (tag === "br") return true;
+
+    if (tag === "span" || tag === "a") {
+        return Array.from(el.childNodes).every(isEmptyInlineArtifact);
+    }
+
+    return false;
+}
+
+export function isPlaceholderOnlyBlock(el: HTMLElement): boolean {
+    if (!el.matches(BLOCK_SELECTOR)) return false;
+    if (hasRealText(el)) return false;
+    if (el.querySelector(PROTECTED_BLOCK_SELECTOR)) return false;
+
+    return Array.from(el.childNodes).every(isEmptyInlineArtifact);
+}
+
+export function isAtStartOf(range: Range, el: HTMLElement): boolean {
+    const beforeRange = document.createRange();
+    beforeRange.selectNodeContents(el);
+    beforeRange.setEnd(range.startContainer, range.startOffset);
+
+    return !cleanText(beforeRange.toString());
+}
+
+export function isAtEndOf(range: Range, el: HTMLElement): boolean {
+    const afterRange = document.createRange();
+    afterRange.selectNodeContents(el);
+    afterRange.setStart(range.startContainer, range.startOffset);
+
+    return !cleanText(afterRange.toString());
+}
+
+export function rangeIsInside(range: Range, el: HTMLElement): boolean {
+    return el.contains(range.startContainer) && el.contains(range.endContainer);
+}
+
+export function selectionWouldEmpty(range: Range, el: HTMLElement): boolean {
+    if (range.collapsed) return false;
+    if (!rangeIsInside(range, el)) return false;
+
+    const beforeRange = document.createRange();
+    beforeRange.selectNodeContents(el);
+    beforeRange.setEnd(range.startContainer, range.startOffset);
+
+    const afterRange = document.createRange();
+    afterRange.selectNodeContents(el);
+    afterRange.setStart(range.endContainer, range.endOffset);
+
+    return !cleanText(beforeRange.toString()) && !cleanText(afterRange.toString());
+}
+
+export function collapsedDeleteWouldEmpty(range: Range, el: HTMLElement, key: string): boolean {
+    if (!range.collapsed) return false;
+    if (!rangeIsInside(range, el)) return false;
+
+    const beforeRange = document.createRange();
+    beforeRange.selectNodeContents(el);
+    beforeRange.setEnd(range.startContainer, range.startOffset);
+
+    const afterRange = document.createRange();
+    afterRange.selectNodeContents(el);
+    afterRange.setStart(range.startContainer, range.startOffset);
+
+    const before = cleanText(beforeRange.toString());
+    const after = cleanText(afterRange.toString());
+
+    if (key === "Backspace") {
+        return before.length === 1 && after.length === 0;
+    }
+
+    if (key === "Delete") {
+        return before.length === 0 && after.length === 1;
+    }
+
+    return false;
+}
+
+export function getProtectedBlocksInsideSelection(range: Range): HTMLElement[] {
+    const fragment = range.cloneContents();
+
+    return Array.from(
+        fragment.querySelectorAll<HTMLElement>(PROTECTED_BLOCK_SELECTOR)
+    );
 }

@@ -1,4 +1,4 @@
-import { EditorState, Compartment } from "@codemirror/state";
+import { EditorState, Compartment, EditorSelection } from "@codemirror/state";
 import { EditorView, keymap, lineNumbers } from "@codemirror/view";
 import { indentWithTab, defaultKeymap } from "@codemirror/commands";
 import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
@@ -9,6 +9,9 @@ import { python } from "@codemirror/lang-python";
 import { cpp } from "@codemirror/lang-cpp";
 import { go } from "@codemirror/lang-go";
 import { rust } from "@codemirror/lang-rust";
+
+import { ConfirmOverlay } from "./ConfirmOverlay.js";
+import * as utils from "../utilities/utilities.js";
 
 type LangId = "javascript" | "python" | "cpp" | "go" | "rust";
 
@@ -154,7 +157,6 @@ export class ScribbyCodeBlock extends HTMLElement {
 
                 syntaxHighlighting(vsCodeHighlightStyle),
 
-                // dynamic language config
                 this.language.of(langExtension(initialLang)),
 
                 EditorView.updateListener.of((update) => {
@@ -169,10 +171,76 @@ export class ScribbyCodeBlock extends HTMLElement {
         });
 
         this.view = new EditorView({ state, parent: editorHost });
+
+        editorHost.addEventListener("keydown", async (e) => {
+            if (e.key !== "Backspace" && e.key !== "Delete") return;
+            if(!this.isEmpty()) return;
+        
+            e.stopPropagation(); 
+            e.preventDefault();
+
+            const confirmed = await ConfirmOverlay.open({
+                message: "This action will delete this code block. Are you sure?",
+                continueBtnTxt: "Continue",
+                cancelBtnTxt: "Cancel",
+            });
+
+            if (!confirmed) return;
+
+            let target = this.nextElementSibling as HTMLElement | null;
+
+            if (!target || target.matches(utils.PROTECTED_BLOCK_SELECTOR)) {
+                target = utils.makePlaceholderP();
+                this.after(target);
+            }
+
+            const parent = this.parentElement;
+
+            this.remove();
+
+            utils.placeCaretAtStart(target);
+
+            parent?.dispatchEvent(new Event("input"));
+        }, true);
     }
 
     disconnectedCallback() {
         this.view?.destroy();
         this.view = undefined;
+    }
+    public getValue(): string {
+        return this.view?.state.doc.toString() ?? this.getAttribute("data-value") ?? "";
+    }
+
+    public isEmpty(): boolean {
+        if (!this.view) {
+            return (this.getAttribute("data-value") ?? "").length === 0;
+        }
+
+        const doc = this.view.state.doc;
+
+        return doc.length === 0 && doc.lines === 1;
+    }
+
+    public focusStart(): void {
+        if (!this.view) return;
+
+        this.view.focus();
+
+        this.view.dispatch({
+            selection: EditorSelection.cursor(0),
+            scrollIntoView: true,
+        });
+    }
+
+    public focusEnd(): void {
+        if (!this.view) return;
+
+        this.view.focus();
+
+        this.view.dispatch({
+            selection: EditorSelection.cursor(this.view.state.doc.length),
+            scrollIntoView: true,
+        });
     }
 }
