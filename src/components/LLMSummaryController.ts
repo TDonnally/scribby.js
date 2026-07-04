@@ -211,7 +211,39 @@ export class LLMSummaryController {
 
         const summaryOutput = document.createElement("summary-output") as SummaryOutput;
 
-        rangeMarker.replaceWith(summaryOutput);
+        let container: HTMLElement | null = rangeMarker;
+
+        while (
+            container &&
+            container.parentElement &&
+            container.parentElement !== this.scribby.el
+        ) {
+            container = container.parentElement;
+        }
+
+        if (container && container.parentElement === this.scribby.el) {
+            container.after(summaryOutput);
+        } else {
+            rangeMarker.replaceWith(summaryOutput);
+        }
+
+        rangeMarker.remove();
+
+        const p = document.createElement("p");
+        p.appendChild(document.createElement("br"));
+        summaryOutput.after(p);
+
+        const sel = window.getSelection();
+        if (sel) {
+            sel.removeAllRanges();
+
+            const r = document.createRange();
+            r.setStart(p, 0);
+            r.collapse(true);
+
+            sel.addRange(r);
+            this.scribby.selection = r;
+        }
 
         await this.runGeneration({
             summaryOutput,

@@ -6,7 +6,8 @@ import { LinkModal } from "./LinkModal.js";
 
 import * as events from "../events/custom_events.js";
 import { HistoryManager, Snapshot } from "../history_manager/history_manager.js";
-import { WhisperClient } from "../whisper/whisper.js";
+import type { WhisperClient } from "../whisper/whisper.js";
+import { getLocalWhisperSupport } from "../utilities/platform.js";
 
 import * as utils from "../utilities/utilities.js";
 import { RangeMarker } from "./RangeMarker.js";
@@ -60,28 +61,16 @@ export class Scribby {
         this.timeoutId = null;
         this.historyUpdateDelayonInput = 500;
     }
-    public whisper = new WhisperClient();
+    public whisper: WhisperClient | null = null;
     public modelReadyPromise: Promise<void> | null = null;
+    public whisperEnabled = false;
+    public whisperThreadCount = 0;
     async mount() {
         (globalThis as any).Module = {
             print: () => { },
             printErr: () => { },
         };
-        this.modelReadyPromise = this.whisper
-            .initRuntime("/whisper/main.js")
-            .then(() => {
-                console.log("[whisper] runtime ready");
-                return this.whisper.loadModel("/whisper/ggml-tiny.bin", (p) => {
-                    console.log("[whisper] model", Math.round(p * 100), "%");
-                });
-            })
-            .then(() => {
-                console.log("[whisper] model ready");
-            })
-            .catch((err) => {
-                console.error("[whisper] init/load failed", err);
-                throw err;
-            });
+        this.initWhisperIfSupported();
 
         const container = document.querySelector<HTMLDivElement>(`${this.selector}`);
         if (!container) {
@@ -1235,5 +1224,52 @@ export class Scribby {
         });
 
         return this
+    }
+    private initWhisperIfSupported() {
+        const support = getLocalWhisperSupport();
+
+        this.whisperEnabled = support.enabled;
+        this.whisperThreadCount = support.transcriptionThreads;
+
+        if (!support.enabled) {
+            this.modelReadyPromise = null;
+
+            console.info("[whisper] disabled", {
+                reason: support.reason,
+                availableThreads: support.availableThreads,
+                crossOriginIsolated: window.crossOriginIsolated,
+                sharedArrayBuffer: typeof SharedArrayBuffer !== "undefined",
+            });
+
+            return;
+        }
+
+        this.modelReadyPromise = (async () => {
+            const { WhisperClient } = await import("../whisper/whisper.js");
+
+            (globalThis as any).Module = {
+                print: () => { },
+                printErr: () => { },
+            };
+
+            const whisper = new WhisperClient();
+            this.whisper = whisper;
+
+            await whisper.initRuntime("/whisper/main.js");
+
+            console.log("[whisper] runtime ready");
+
+            await whisper.loadModel("/whisper/ggml-tiny.bin", (p) => {
+                console.log("[whisper] model", Math.round(p * 100), "%");
+            });
+
+            console.log("[whisper] model ready");
+        })().catch((err) => {
+            this.whisperEnabled = false;
+            this.whisperThreadCount = 0;
+            this.whisper = null;
+
+            console.error("[whisper] init/load failed", err);
+        });
     }
 }

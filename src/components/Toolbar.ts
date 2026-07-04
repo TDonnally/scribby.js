@@ -1,4 +1,5 @@
 import { Scribby } from "./Scribby.js";
+import { isMobileToolbarLayout } from "../utilities/platform.js";
 
 import { ToolbarDropdownButton } from "./DropdownButton.js";
 import { ToolbarStyleButton, affectedElementType } from "./StyleButton.js";
@@ -135,8 +136,11 @@ export class Toolbar {
         this.anchor.mount();
         this.orderedList.mount();
         this.unorderedList.mount();
-        this.speechToText.mount();
-        this.tabAudioText.mount();
+        if (this.scribby.whisperEnabled) {
+            this.speechToText.mount();
+            this.tabAudioText.mount();
+        }
+
         this.LLMOutput.mount();
 
         this.applyTooltips();
@@ -235,7 +239,7 @@ export class Toolbar {
         this.closeMobileSubmenus();
     };
     private handleResize = () => {
-        const nextIsMobile = window.innerWidth <= 1000;
+        const nextIsMobile = isMobileToolbarLayout();
 
         if (this.isMobileLayout === nextIsMobile) {
             return;
@@ -244,7 +248,7 @@ export class Toolbar {
         this.renderToolbar();
     };
     private renderToolbar() {
-        const isMobile = window.innerWidth <= 1000;
+        const isMobile = isMobileToolbarLayout();
 
         this.isMobileLayout = isMobile;
         this.closeMobileSubmenus();
@@ -280,10 +284,12 @@ export class Toolbar {
 
             this.el.appendChild(this.createDivider());
 
-            this.el.appendChild(this.speechToText.el);
-            this.el.appendChild(this.tabAudioText.el);
+            if (this.scribby.whisperEnabled) {
+                this.el.appendChild(this.speechToText.el);
+                this.el.appendChild(this.tabAudioText.el);
 
-            this.el.appendChild(this.createDivider());
+                this.el.appendChild(this.createDivider());
+            }
 
             this.el.appendChild(this.LLMOutput.el);
 
@@ -312,14 +318,6 @@ export class Toolbar {
             <path d="M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z" />
         </svg>
     `;
-
-        const toolsIcon = `
-        <svg fill="currentColor" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
-            <title>tools</title>
-            <path d="M21.71 20.29L20.29 21.71A1 1 0 0 1 18.88 21.71L7 9.85A3.81 3.81 0 0 1 6 10A4 4 0 0 1 2.22 4.7L4.76 7.24L5.29 6.71L6.71 5.29L7.24 4.76L4.7 2.22A4 4 0 0 1 10 6A3.81 3.81 0 0 1 9.85 7L21.71 18.88A1 1 0 0 1 21.71 20.29M2.29 18.88A1 1 0 0 0 2.29 20.29L3.71 21.71A1 1 0 0 0 5.12 21.71L10.59 16.25L7.76 13.42M20 2L16 4V6L13.83 8.17L15.83 10.17L18 8H20L22 4Z" />
-        </svg>
-    `;
-
         this.el.appendChild(this.createMobileSubmenu(
             "Text styles",
             styleIcon,
@@ -353,15 +351,7 @@ export class Toolbar {
             ],
         ));
 
-        this.el.appendChild(this.createMobileSubmenu(
-            "Tools",
-            toolsIcon,
-            [
-                this.speechToText.el,
-                this.tabAudioText.el,
-                this.LLMOutput.el,
-            ],
-        ));
+        this.el.appendChild(this.LLMOutput.el);
 
         this.el.appendChild(this.createUndoButton());
         this.el.appendChild(this.createRedoButton());

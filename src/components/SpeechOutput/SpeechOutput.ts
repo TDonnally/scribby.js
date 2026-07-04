@@ -1,4 +1,5 @@
 import { SpeechToText, Input } from "../SpeechtoText";
+import { getLocalWhisperSupport, isMobileToolbarLayout, } from "../../utilities/platform.js";
 
 type PlaybackSegment = {
     segment_id: string;
@@ -191,6 +192,7 @@ export class SpeechOutput extends HTMLElement {
             }
             this.pausePlayback();
         });
+        window.addEventListener("resize", (e) => {this.refreshButtons()});
     }
 
     disconnectedCallback() {
@@ -200,10 +202,22 @@ export class SpeechOutput extends HTMLElement {
         this.audioEl.pause();
         this.audioEl.removeAttribute("src");
         this.audioEl.load();
+        window.removeEventListener("resize", (e) => {this.refreshButtons()});
     }
 
     public refreshButtons() {
         if (!this.recordControlsEl) return;
+
+        const hideRecordControls =
+            isMobileToolbarLayout() ||
+            !getLocalWhisperSupport().enabled;
+
+        if (hideRecordControls && !this.recording) {
+            this.recordControlsEl.replaceChildren();
+            this.updatePlaybackDisabledState();
+            this.updatePlayButton(this.playing);
+            return;
+        }
 
         if (this.recording) {
             this.recordControlsEl.replaceChildren(recordingBtnsState.content.cloneNode(true));

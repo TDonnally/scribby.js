@@ -1,11 +1,12 @@
 import { Scribby } from "./Scribby.js";
-import { WhisperClient } from "../whisper/whisper.js";
+import type { WhisperClient } from "../whisper/whisper.js";
 import { SpeechOutput } from "./SpeechOutput/SpeechOutput.js";
 
 export enum Input {
     mic = "mic",
     speaker = "speaker"
 }
+
 type TranscriptChunk = {
     id: string;
     text: string;
@@ -20,7 +21,7 @@ export class SpeechToText {
     input: Input;
     el!: HTMLButtonElement;
     outputEl!: HTMLDivElement;
-    whisper!: WhisperClient;
+    whisper: WhisperClient | null = null;
 
     speechOutput!: SpeechOutput;
     waitingSpan: HTMLSpanElement | null = null;
@@ -40,7 +41,6 @@ export class SpeechToText {
 
     private static readonly MULTIPART_MIN_BYTES = 5 * 1024 * 1024;
 
-
     private headerBlob: Blob | null = null;
     private pendingChunks: Blob[] = [];
     private pendingBytes = 0;
@@ -50,7 +50,11 @@ export class SpeechToText {
     private transcriptHeaderBlob: Blob | null = null;
     private transcriptChunks: Blob[] = [];
     private transcriptBytes = 0;
-    private static readonly TRANSCRIBE_MIN_BYTES = 50000;
+
+    private static readonly TRANSCRIBE_MIN_BYTES = 120000;
+    private static readonly TRANSCRIBE_MIN_MS = 10000;
+    private static readonly RECORDER_TIMESLICE_MS = 1000;
+
     private transcriptWindowStartedAt: number | null = null;
 
     constructor(
@@ -68,13 +72,23 @@ export class SpeechToText {
         this.el.classList.add("toolbar-button");
         this.el.innerHTML = this.innerContent;
         this.el.disabled = true;
+
+        if (!this.scribby.whisperEnabled || !this.scribby.modelReadyPromise) {
+            this.el.hidden = true;
+            return;
+        }
+
         await this.scribby.modelReadyPromise;
+
+        if (!this.scribby.whisperEnabled || !this.scribby.whisper) {
+            this.el.hidden = true;
+            return;
+        }
+
         this.whisper = this.scribby.whisper;
         this.el.disabled = false;
 
-        this.waitingSpan = document.createElement("span");
-        this.waitingSpan.classList.add("waiting-span");
-        this.waitingSpan.innerText = "listening.";
+        this.waitingSpan = this.createWaitingSpan();
 
         document.addEventListener("stop-recording", async () => {
             await this.stopRecording();
@@ -82,6 +96,7 @@ export class SpeechToText {
 
         document.addEventListener("request-speech-controller", async (e: Event) => {
             const custom = e as CustomEvent<{ input?: Input; target?: SpeechOutput }>;
+
             if (!custom.detail?.input || !custom.detail?.target) {
                 return;
             }
@@ -103,12 +118,62 @@ export class SpeechToText {
         });
     }
 
+    private createWaitingSpan(): HTMLSpanElement {
+        const span = document.createElement("span");
+        span.classList.add("waiting-span");
+        span.innerText = "listening.";
+        return span;
+    }
+
+    private getTranscriptWindowDurationMs(): number {
+        if (this.transcriptWindowStartedAt === null) {
+            return 0;
+        }
+
+        return Math.max(0, this.getSegmentDurationMs() - this.transcriptWindowStartedAt);
+    }
+
+    private shouldFlushTranscript(): boolean {
+        return (
+            this.transcriptBytes >= SpeechToText.TRANSCRIBE_MIN_BYTES &&
+            this.getTranscriptWindowDurationMs() >= SpeechToText.TRANSCRIBE_MIN_MS
+        );
+    }
+
     private enqueueTranscribe(blob: Blob, startMs: number, endMs: number) {
+        const speechOutput = this.speechOutput;
+        const segmentId = this.activeSegmentId;
+        const timelineOffsetMs = this.segmentTimelineOffsetMs;
+        const threads = this.scribby.whisperThreadCount || 4;
+
         this.transcribeQueue = this.transcribeQueue
             .then(async () => {
-                const transcript = await this.whisper.transcribeBlob(blob, {
-                    language: "en",
-                    threads: 8,
+                const audioSeconds = Math.max(0, (endMs - startMs) / 1000);
+                const label = `whisper ${audioSeconds.toFixed(1)}s ${crypto.randomUUID().slice(0, 8)}`;
+
+                let transcript = "";
+
+                console.time(label);
+
+                try {
+                    if (!this.whisper) {
+                        return;
+                    }
+
+                    transcript = await this.whisper.transcribeBlob(blob, {
+                        language: "en",
+                        threads,
+                    });
+                } finally {
+                    console.timeEnd(label);
+                }
+
+                console.log({
+                    audioSeconds,
+                    threads,
+                    crossOriginIsolated: window.crossOriginIsolated,
+                    hardwareConcurrency: navigator.hardwareConcurrency,
+                    sharedArrayBuffer: typeof SharedArrayBuffer,
                 });
 
                 if (transcript.includes("BLANK_AUDIO")) {
@@ -116,6 +181,7 @@ export class SpeechToText {
                 }
 
                 const text = transcript.trim();
+
                 if (!text) {
                     return;
                 }
@@ -133,11 +199,12 @@ export class SpeechToText {
                 const chunk: TranscriptChunk = {
                     id: crypto.randomUUID(),
                     text,
-                    start_sec: (this.segmentTimelineOffsetMs + startMs) / 1000,
-                    end_sec: (this.segmentTimelineOffsetMs + endMs) / 1000,
-                    segment_id: this.activeSegmentId,
+                    start_sec: (timelineOffsetMs + startMs) / 1000,
+                    end_sec: (timelineOffsetMs + endMs) / 1000,
+                    segment_id: segmentId,
                 };
-                this.speechOutput.addTranscriptChunk(chunk);
+
+                speechOutput.addTranscriptChunk(chunk);
             })
             .catch((err) => console.error("transcribe failed", err));
     }
@@ -244,7 +311,10 @@ export class SpeechToText {
             return;
         }
 
-        const blob = new Blob([this.headerBlob, ...this.pendingChunks], { type: this.currentMimeType });
+        const blob = new Blob([this.headerBlob, ...this.pendingChunks], {
+            type: this.currentMimeType,
+        });
+
         const durationMs = this.getSegmentDurationMs();
 
         if (this.hasUploadedMultipartPart || this.pendingBytes >= SpeechToText.MULTIPART_MIN_BYTES) {
@@ -299,19 +369,23 @@ export class SpeechToText {
         const data = await res.json();
         return data.segment_id;
     }
+
     private getSegmentDurationMs(): number {
         if (!this.segmentStartedAt) {
             return 0;
         }
+
         return Math.max(0, Date.now() - this.segmentStartedAt);
     }
 
     private resetUploadState() {
         this.nextPartNumber = 1;
+
         this.headerBlob = null;
         this.pendingChunks = [];
         this.pendingBytes = 0;
         this.hasUploadedMultipartPart = false;
+
         this.transcriptHeaderBlob = null;
         this.transcriptChunks = [];
         this.transcriptBytes = 0;
@@ -332,8 +406,15 @@ export class SpeechToText {
         this.transcriptHeaderBlob = null;
         this.transcriptChunks = [];
         this.transcriptBytes = 0;
+        this.transcriptWindowStartedAt = null;
 
-        const candidates = ["audio/webm;codecs=opus", "audio/webm", "audio/ogg;codecs=opus", "audio/ogg"];
+        const candidates = [
+            "audio/webm;codecs=opus",
+            "audio/webm",
+            "audio/ogg;codecs=opus",
+            "audio/ogg",
+        ];
+
         const mimeType = candidates.find(t => MediaRecorder.isTypeSupported(t)) || "audio/webm";
         this.currentMimeType = mimeType;
 
@@ -347,6 +428,7 @@ export class SpeechToText {
                 this.transcriptHeaderBlob = e.data;
                 return;
             }
+
             if (this.transcriptWindowStartedAt === null) {
                 this.transcriptWindowStartedAt = this.getSegmentDurationMs();
             }
@@ -357,7 +439,7 @@ export class SpeechToText {
             this.transcriptChunks.push(e.data);
             this.transcriptBytes += e.data.size;
 
-            if (this.transcriptBytes >= SpeechToText.TRANSCRIBE_MIN_BYTES) {
+            if (this.shouldFlushTranscript()) {
                 this.flushPendingTranscript();
             }
 
@@ -383,10 +465,15 @@ export class SpeechToText {
         return recorder;
     }
 
-    private checkVolumeLevel(analyser: AnalyserNode, bufferLength: number, dataArray: Uint8Array<ArrayBuffer>): number {
+    private checkVolumeLevel(
+        analyser: AnalyserNode,
+        bufferLength: number,
+        dataArray: Uint8Array<ArrayBuffer>
+    ): number {
         analyser.getByteTimeDomainData(dataArray);
 
         let sum = 0;
+
         for (let i = 0; i < bufferLength; i++) {
             const value = dataArray[i] - 128;
             sum += value * value;
@@ -400,20 +487,22 @@ export class SpeechToText {
         return volumePercent;
     }
 
-
     public async stopRecording() {
         this.isListening = false;
         this.el.classList.remove("active");
 
-        if (this.recorder) {
+        if (this.recorder && this.recorder.state !== "inactive") {
             this.recorder.stop();
         }
+
         this.recorder = null;
+
         this.stream?.getTracks().forEach((t) => t.stop());
         this.stream = null;
 
         if (this.waitingInterval) {
             clearInterval(this.waitingInterval);
+            this.waitingInterval = null;
         }
 
         if (this.speechOutput) {
@@ -423,8 +512,14 @@ export class SpeechToText {
     }
 
     public async startRecording(target: SpeechOutput | null, inputOverride?: Input) {
+        if (!this.scribby.whisperEnabled || !this.scribby.whisper || !this.scribby.modelReadyPromise) {
+            console.warn("[whisper] recording blocked because local transcription is disabled");
+            return;
+        }
+
         const stopRecording = new CustomEvent("stop-recording");
         document.dispatchEvent(stopRecording);
+
 
         if (inputOverride) {
             this.input = inputOverride;
@@ -432,17 +527,25 @@ export class SpeechToText {
 
         if (this.waitingInterval) {
             clearInterval(this.waitingInterval);
+            this.waitingInterval = null;
+        }
+
+        if (!this.waitingSpan) {
+            this.waitingSpan = this.createWaitingSpan();
         }
 
         const range = this.scribby.selection;
-        if (!range && !target) return;
+
+        if (!range && !target) {
+            return;
+        }
 
         if (!target) {
             const res = await fetch("/audio", {
                 method: "POST",
                 credentials: "include",
                 headers: {
-                    Accept: "application/json"
+                    Accept: "application/json",
                 },
             });
 
@@ -460,9 +563,11 @@ export class SpeechToText {
             this.segmentTimelineOffsetMs = 0;
 
             this.speechOutput = document.createElement("speech-output") as SpeechOutput;
+
             if (this.recordingId) {
                 this.speechOutput.dataset.audioId = this.recordingId;
             }
+
             this.speechOutput.controller = this;
             this.speechOutput.recording = true;
 
@@ -486,6 +591,7 @@ export class SpeechToText {
             this.speechOutput.after(p);
 
             const sel = window.getSelection();
+
             if (sel) {
                 sel.removeAllRanges();
 
@@ -509,8 +615,8 @@ export class SpeechToText {
                 await this.speechOutput.refreshPlayback();
 
                 this.segmentTimelineOffsetMs = this.speechOutput.getTimelineDurationMs();
-
                 this.activeSegmentId = await this.createNewSegment(this.recordingId);
+
                 this.resetUploadState();
 
                 this.speechOutput.recording = true;
@@ -522,10 +628,15 @@ export class SpeechToText {
         }
 
         this.outputEl = this.speechOutput.querySelector(".output") as HTMLDivElement;
+
         if (this.waitingSpan) {
             this.outputEl.append(this.waitingSpan);
-            this.waitingInterval = setInterval(() => {
-                if (!this.waitingSpan) return;
+
+            this.waitingInterval = window.setInterval(() => {
+                if (!this.waitingSpan) {
+                    return;
+                }
+
                 const text = this.waitingSpan.innerText;
                 const count = text.split(".").length - 1;
 
@@ -560,7 +671,9 @@ export class SpeechToText {
                 }
             }
 
-            if (!this.stream) return;
+            if (!this.stream) {
+                return;
+            }
 
             const audioTracks = this.stream.getAudioTracks();
 
@@ -577,17 +690,22 @@ export class SpeechToText {
             const analyser = audioContext.createAnalyser();
             source.connect(analyser);
             analyser.fftSize = 256;
+
             const bufferLength = analyser.frequencyBinCount;
             const dataArray = new Uint8Array(bufferLength);
 
             this.recorder = this.createRecorder(audioStream, analyser, bufferLength, dataArray);
             this.segmentStartedAt = Date.now();
-            this.recorder.start(200);
+
+            this.recorder.start(SpeechToText.RECORDER_TIMESLICE_MS);
 
             audioTracks[0].addEventListener("ended", () => {
                 this.isListening = false;
 
-                this.recorder?.stop();
+                if (this.recorder && this.recorder.state !== "inactive") {
+                    this.recorder.stop();
+                }
+
                 this.recorder = null;
 
                 this.el.classList.remove("active");
@@ -601,7 +719,7 @@ export class SpeechToText {
                 }
             });
         } catch (err) {
-            console.error("getDisplayMedia failed:", err);
+            console.error("audio capture failed:", err);
         }
     }
 }
