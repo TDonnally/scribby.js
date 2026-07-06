@@ -447,7 +447,7 @@ export class LLMSummaryController {
         onChunk?: (chunk: string, full: string) => void,
         signal?: AbortSignal,
     ): Promise<string> {
-        const url = "http://localhost:8080/doc/summarize";
+        const url = "/doc/summarize";
 
         const response = await fetch(url, {
             method: "POST",

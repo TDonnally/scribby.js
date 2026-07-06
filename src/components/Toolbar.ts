@@ -150,6 +150,9 @@ export class Toolbar {
 
         window.addEventListener("resize", this.handleResize);
 
+        window.visualViewport?.addEventListener('resize', this.sync);
+        window.visualViewport?.addEventListener('scroll', this.sync);
+
         return this;
     }
     /**
@@ -246,6 +249,11 @@ export class Toolbar {
         }
 
         this.renderToolbar();
+    };
+    private sync = () => {
+        const vv = window.visualViewport;
+        if (!vv) return;
+        this.el.style.transform = `translate(${vv.offsetLeft}px, ${vv.offsetTop - 32}px) scale(${1 / vv.scale})`;
     };
     private renderToolbar() {
         const isMobile = isMobileToolbarLayout();

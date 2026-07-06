@@ -84,24 +84,37 @@ export class PromptModal extends HTMLElement {
     };
 
     private mount() {
+        const mobile = window.matchMedia("(max-width: 768px)").matches;
+
         this.render();
 
-        this.scribby.el.parentElement!.append(this);
+        if (mobile) {
+            this.classList.add("mobile-overlay");
+            document.querySelector("main")?.classList.add("overlay-active");
+            document.body.append(this);
+        } else {
+            this.scribby.el.parentElement!.append(this);
 
-        const modalRect = this.getBoundingClientRect();
-        const parent = this.offsetParent as HTMLElement;
-        const parentRect = parent.getBoundingClientRect();
+            const modalRect = this.getBoundingClientRect();
+            const parent = this.offsetParent as HTMLElement;
+            const parentRect = parent.getBoundingClientRect();
 
-        const left =
-            this.referenceRect.left -
-            parentRect.left +
-            this.referenceRect.width / 2 -
-            modalRect.width / 2;
+            const left =
+                this.referenceRect.left -
+                parentRect.left +
+                parent.scrollLeft +
+                this.referenceRect.width / 2 -
+                modalRect.width / 2;
 
-        const top = this.referenceRect.bottom - parentRect.top + 12;
+            const top =
+                this.referenceRect.bottom -
+                parentRect.top +
+                parent.scrollTop +
+                12;
 
-        this.style.left = `${left}px`;
-        this.style.top = `${top}px`;
+            this.style.left = `${left}px`;
+            this.style.top = `${top}px`;
+        }
 
         this.textareaEl.focus();
     }
@@ -110,6 +123,8 @@ export class PromptModal extends HTMLElement {
         this.formEl?.removeEventListener("submit", this.onSubmit);
         this.cancelButton?.removeEventListener("click", this.onCancel);
         document.removeEventListener("keydown", this.onKeydown);
+
+        document.querySelector("main")?.classList.remove("overlay-active");
 
         this.remove();
     }

@@ -1186,41 +1186,59 @@ export class Scribby {
         })
 
         document.addEventListener("selectionchange", () => {
+            const activeElement = document.activeElement as HTMLElement | null;
+
+            if (activeElement?.closest(".insert-modal")) {
+                return;
+            }
+
             const sel = window.getSelection();
+
             if (!sel || sel.rangeCount === 0) {
                 this.selection = null;
                 return;
             }
-            if (this.currentTextModal) this.currentTextModal.unmount();
+
             const range = sel.getRangeAt(0);
-            if (this.el.contains(range.commonAncestorContainer)) {
-                this.selection = range;
-                this.el.dispatchEvent(events.activateStyleButtons);
 
-
-                const parent = range.commonAncestorContainer.parentElement;
-                const closestAnchor = parent?.closest("a");
-                const closestCodeBlock = parent?.closest("scribby-code-block");
-                const closestTextBox = parent?.closest("prompt-text-box");
-                // check if we are inside an anchor and activate modal
-                if (closestAnchor && this.currentInsertModal == null) {
-                    const linkModal = new LinkModal(
-                        this,
-                        this.selection.getBoundingClientRect(),
-                        closestAnchor,
-                    );
-                    this.currentTextModal = linkModal;
-                    linkModal.mount();
-                }
-
-                // check if we are inside codemirror/closestTextBox code block
-
-                else if (!closestCodeBlock && !closestTextBox) {
-                    this.el.focus();
-                }
+            if (!this.el.contains(range.commonAncestorContainer)) {
+                return;
             }
 
+            if (this.currentInsertModal) {
+                this.currentInsertModal.close();
+                this.currentInsertModal = null;
+            }
 
+            if (this.currentTextModal) {
+                this.currentTextModal.unmount();
+                this.currentTextModal = null;
+            }
+
+            this.selection = range;
+            this.el.dispatchEvent(events.activateStyleButtons);
+
+            const parent =
+                range.commonAncestorContainer.nodeType === Node.ELEMENT_NODE
+                    ? range.commonAncestorContainer as HTMLElement
+                    : range.commonAncestorContainer.parentElement;
+
+            const closestAnchor = parent?.closest("a");
+            const closestCodeBlock = parent?.closest("scribby-code-block");
+            const closestTextBox = parent?.closest("prompt-text-box");
+
+            if (closestAnchor && this.currentInsertModal == null) {
+                const linkModal = new LinkModal(
+                    this,
+                    this.selection.getBoundingClientRect(),
+                    closestAnchor,
+                );
+
+                this.currentTextModal = linkModal;
+                linkModal.mount();
+            } else if (!closestCodeBlock && !closestTextBox) {
+                this.el.focus();
+            }
         });
 
         return this
