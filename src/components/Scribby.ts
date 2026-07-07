@@ -1225,7 +1225,8 @@ export class Scribby {
 
             const closestAnchor = parent?.closest("a");
             const closestCodeBlock = parent?.closest("scribby-code-block");
-            const closestTextBox = parent?.closest("prompt-text-box");
+            const closestSummary = parent?.closest("summary-output");
+            const closestAudioBlock = parent?.closest("speech-output");
 
             if (closestAnchor && this.currentInsertModal == null) {
                 const linkModal = new LinkModal(
@@ -1236,7 +1237,7 @@ export class Scribby {
 
                 this.currentTextModal = linkModal;
                 linkModal.mount();
-            } else if (!closestCodeBlock && !closestTextBox) {
+            } else if (!closestCodeBlock && !closestSummary && !closestAudioBlock) {
                 this.el.focus();
             }
         });

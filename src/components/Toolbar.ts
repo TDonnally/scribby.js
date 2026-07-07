@@ -123,6 +123,8 @@ export class Toolbar {
 
         this.el.classList.add("toolbar");
 
+        this.el.addEventListener("mousedown", this.preventFocusSteal);
+
         this.textType.mount();
         this.bold.mount();
         this.italic.mount();
@@ -253,7 +255,25 @@ export class Toolbar {
     private sync = () => {
         const vv = window.visualViewport;
         if (!vv) return;
-        this.el.style.transform = `translate(${vv.offsetLeft}px, ${vv.offsetTop - 32}px) scale(${1 / vv.scale})`;
+
+
+        const keyboardInset = window.innerHeight - vv.height * vv.scale;
+
+        if (keyboardInset < 150) {
+            this.el.style.transform = "";
+            return;
+        }
+
+        this.el.style.transform = `translate(${vv.offsetLeft}px, ${vv.offsetTop - 48}px) scale(${1 / vv.scale})`;
+    };
+    private preventFocusSteal = (e: MouseEvent) => {
+        const target = e.target as HTMLElement | null;
+
+        if (target?.closest("input, textarea, select, [contenteditable='true']")) {
+            return;
+        }
+
+        e.preventDefault();
     };
     private renderToolbar() {
         const isMobile = isMobileToolbarLayout();
