@@ -23,7 +23,7 @@ export class Normalizer {
         const allEls = rootEl.querySelectorAll<HTMLElement>("*");
 
         const notInSchema = Array.from(allEls).filter(el => {
-            if (el.closest("scribby-code-block") || el.closest("speech-output") || el.closest("summary-output")) return false;
+            if (el.closest("scribby-code-block") || el.closest("speech-output") || el.closest("summary-output") || el.closest("inline-canvas")) return false;
 
             return !allowedTags.has(el.tagName.toLowerCase());
         });
@@ -100,6 +100,7 @@ export class Normalizer {
             [nodeHierarchy.codeblock]: organizeCodeNode,
             [nodeHierarchy.speechOutput]: organizeSpeechOutput,
             [nodeHierarchy.summaryOutput]:organizeSummaryOutput,
+            [nodeHierarchy.inlineCanvas]:organizeCanvas, 
             /* 
             [nodeHierarchy.tableItem]: organizeTextNode, 
             [nodeHierarchy.tableRow]: organizeTextNode,
@@ -378,6 +379,20 @@ export class Normalizer {
             utils.replaceElementWithChildren(nodeEl);
         }
         function organizeSummaryOutput(node: Node): void {
+            const nodeEl = node as HTMLElement;
+            let container = nodeEl.parentElement as HTMLElement | null;
+
+            while (container && container.parentElement && container.parentElement !== scribbyEl) {
+                container = container.parentElement;
+            }
+
+            if (container && container.parentElement === scribbyEl) {
+                scribbyEl.insertBefore(nodeEl, container.nextSibling);
+            }
+
+            utils.replaceElementWithChildren(nodeEl);
+        }
+        function organizeCanvas(node: Node): void {
             const nodeEl = node as HTMLElement;
             let container = nodeEl.parentElement as HTMLElement | null;
 

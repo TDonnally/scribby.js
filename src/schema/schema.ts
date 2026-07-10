@@ -17,6 +17,7 @@ export enum nodeHierarchy{
     codeblock,
     speechOutput,
     summaryOutput,
+    inlineCanvas
     /*
     tableItem,
     tableRow, 
@@ -204,6 +205,12 @@ export const schema: Map<string, NodeSchema> = new Map([
         allowedParents: new Set(['div', 'li']),
         allowedChildren: new Set([]),
         hierarchyLabel: nodeHierarchy.summaryOutput
+    }],
+    ["inline-canvas", {
+        defaultParent: 'p',
+        allowedParents: new Set(['div', 'li']),
+        allowedChildren: new Set([]),
+        hierarchyLabel: nodeHierarchy.inlineCanvas
     }],
 
 ])

@@ -39,8 +39,11 @@ export class Scribby {
     normalizer!: Normalizer;
     historyManager: HistoryManager;
 
-    timeoutId: number | null;
+    historyUpdateTimeoutId: number | null;
     historyUpdateDelayonInput: number;
+
+    saveTimeoutId: number | null;
+    saveDelayonInput: number;
 
     currentInsertModal: InsertModal | null = null;
     currentTextModal: LinkModal | null = null;
@@ -58,8 +61,10 @@ export class Scribby {
         this.allowedSpanStyles = new Set;
         this.normalizer;
         this.historyManager = new HistoryManager();
-        this.timeoutId = null;
+        this.historyUpdateTimeoutId = null;
         this.historyUpdateDelayonInput = 500;
+        this.saveTimeoutId = null;
+        this.saveDelayonInput = 5000;
     }
     public whisper: WhisperClient | null = null;
     public modelReadyPromise: Promise<void> | null = null;
@@ -996,11 +1001,14 @@ export class Scribby {
 
         this.el.addEventListener("input", (e) => {
 
-            if (this.timeoutId !== null) {
-                clearTimeout(this.timeoutId);
+            if (this.historyUpdateTimeoutId !== null) {
+                clearTimeout(this.historyUpdateTimeoutId);
             }
-            this.timeoutId = window.setTimeout(() => {
-                this.timeoutId = null;
+            if (this.saveTimeoutId) {
+                clearTimeout(this.saveTimeoutId);
+            }
+            this.historyUpdateTimeoutId = window.setTimeout(() => {
+                this.historyUpdateTimeoutId = null;
 
                 const snapshot: Snapshot = {
                     timestamp: Date.now(),
@@ -1009,12 +1017,15 @@ export class Scribby {
                 };
 
                 this.historyManager.push(snapshot);
+            }, this.historyUpdateDelayonInput);
+            this.saveTimeoutId = window.setTimeout(() => {
+                this.saveTimeoutId = null;
 
                 // send out auto save event
                 this.content = this.el.innerHTML
                 const saveEvent = new CustomEvent("save-document")
                 document.dispatchEvent(saveEvent);
-            }, this.historyUpdateDelayonInput);
+            }, this.saveDelayonInput);
             // normalize after input
             this.normalizer.removeNotSupportedNodes(this.el);
             const outOfOrderNodes = this.normalizer.flagNodeHierarchyViolations(this.el);
@@ -1227,6 +1238,7 @@ export class Scribby {
             const closestCodeBlock = parent?.closest("scribby-code-block");
             const closestSummary = parent?.closest("summary-output");
             const closestAudioBlock = parent?.closest("speech-output");
+            const closestCanvas = parent?.closest("inline-canvas");
 
             if (closestAnchor && this.currentInsertModal == null) {
                 const linkModal = new LinkModal(
@@ -1237,7 +1249,7 @@ export class Scribby {
 
                 this.currentTextModal = linkModal;
                 linkModal.mount();
-            } else if (!closestCodeBlock && !closestSummary && !closestAudioBlock) {
+            } else if (!closestCodeBlock && !closestSummary && !closestAudioBlock && !closestCanvas) {
                 this.el.focus();
             }
         });

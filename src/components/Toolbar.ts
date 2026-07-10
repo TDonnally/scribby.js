@@ -19,6 +19,7 @@ export class Toolbar {
     alignLeft: ToolbarStyleButton;
     alignCenter: ToolbarStyleButton;
     alignRight: ToolbarStyleButton;
+    backgroundCanvas: ToolbarInsertButton;
     codeBlock: ToolbarInsertButton;
     inlineCode: ToolbarStyleButton;
     anchor: ToolbarInsertButton;
@@ -80,6 +81,10 @@ export class Toolbar {
         this.alignRight = new ToolbarStyleButton(scribby,
             `<svg fill="currentColor" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3,3H21V5H3V3M9,7H21V9H9V7M3,11H21V13H3V11M9,15H21V17H9V15M3,19H21V21H3V19Z" /></svg>`
             , new Map([["text-align", "right"]]), null, affectedElementType.Block, "align-right");
+        this.backgroundCanvas = new ToolbarInsertButton(scribby,
+            `
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><title>brush</title><path d="M20.71,4.63L19.37,3.29C19,2.9 18.35,2.9 17.96,3.29L9,12.25L11.75,15L20.71,6.04C21.1,5.65 21.1,5 20.71,4.63M7,14A3,3 0 0,0 4,17C4,18.31 2.84,19 2,19C2.92,20.22 4.5,21 6,21A4,4 0 0,0 10,17A3,3 0 0,0 7,14Z" /></svg>
+            `, null, insertElementType.Canvas, "create-canvas");
         this.codeBlock = new ToolbarInsertButton(scribby,
             `
             <svg fill="currentColor" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M8,3A2,2 0 0,0 6,5V9A2,2 0 0,1 4,11H3V13H4A2,2 0 0,1 6,15V19A2,2 0 0,0 8,21H10V19H8V14A2,2 0 0,0 6,12A2,2 0 0,0 8,10V5H10V3M16,3A2,2 0 0,1 18,5V9A2,2 0 0,0 20,11H21V13H20A2,2 0 0,0 18,15V19A2,2 0 0,1 16,21H14V19H16V14A2,2 0 0,1 18,12A2,2 0 0,1 16,10V5H14V3H16Z" /></svg>
@@ -133,6 +138,7 @@ export class Toolbar {
         this.alignLeft.mount();
         this.alignCenter.mount();
         this.alignRight.mount();
+        this.backgroundCanvas.mount();
         this.codeBlock.mount();
         this.inlineCode.mount();
         this.anchor.mount();
@@ -304,6 +310,7 @@ export class Toolbar {
 
             this.el.appendChild(this.createDivider());
 
+            this.el.appendChild(this.backgroundCanvas.el);
             this.el.appendChild(this.codeBlock.el);
             this.el.appendChild(this.inlineCode.el);
             this.el.appendChild(this.anchor.el);
@@ -372,6 +379,7 @@ export class Toolbar {
             "Insert",
             insertIcon,
             [
+                this.backgroundCanvas.el,
                 this.anchor.el,
                 this.codeBlock.el,
                 this.orderedList.el,
@@ -471,6 +479,7 @@ export class Toolbar {
         this.setButtonTooltip(this.alignCenter.el, "Align center", "Ctrl+Shift+E");
         this.setButtonTooltip(this.alignRight.el, "Align right", "Ctrl+Shift+C");
 
+        this.setButtonTooltip(this.codeBlock.el, "Insert canvas");
         this.setButtonTooltip(this.codeBlock.el, "Insert code block", "Ctrl+E");
         this.setButtonTooltip(this.inlineCode.el, "Inline code");
         this.setButtonTooltip(this.anchor.el, "Insert link", "Ctrl+K");

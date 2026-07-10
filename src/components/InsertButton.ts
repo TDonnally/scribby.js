@@ -7,10 +7,10 @@ export enum insertElementType {
     Anchor = "a",
     Image = "img",
     Video = "video",
-    Canvas = "canvas",
+    Canvas = "inline-canvas",
     OrderedList = "ol",
     UnorderedList = "ul",
-    CodeBlock = "code"
+    CodeBlock = "code",
 }
 
 
@@ -83,7 +83,8 @@ export class ToolbarInsertButton {
                 const modal = this.scribby.currentInsertModal;
 
                 const values = await modal.submission();
-                console.log(values)
+                
+                // console.log(values)
                 if (range.toString().length > 0) {
 
                     blockRanges.forEach(({ block, blockRange }) => {
@@ -179,7 +180,6 @@ export class ToolbarInsertButton {
             else if (this.insertElType === insertElementType.CodeBlock) {
                 const container = range.commonAncestorContainer.parentElement;
 
-                // If cursor is inside an existing block, you can remove/unwrap it
                 const existing = container?.closest("scribby-code-block");
                 if (existing) {
                     existing.replaceWith(document.createTextNode(existing.getAttribute("data-value") ?? ""));
@@ -198,7 +198,6 @@ export class ToolbarInsertButton {
                 range.deleteContents();
                 range.insertNode(block);
 
-                // Put your caret after the block (since it’s contenteditable=false)
                 const after = document.createTextNode("\u200B");
                 block.after(after);
 
@@ -208,6 +207,27 @@ export class ToolbarInsertButton {
                     const r = document.createRange();
                     r.setStart(after, 1);
                     r.collapse(true);
+                    sel.addRange(r);
+                }
+            }
+            else if (this.insertElType === insertElementType.Canvas) {
+                const canvas = document.createElement("inline-canvas") as HTMLElement;
+
+                range.deleteContents();
+                range.insertNode(canvas);
+
+                const after = document.createElement("p");
+                canvas.after(after);
+
+                const sel = window.getSelection();
+
+                if (sel) {
+                    sel.removeAllRanges();
+
+                    const r = document.createRange();
+                    r.setStart(after, 0);
+                    r.collapse(true);
+
                     sel.addRange(r);
                 }
             }
