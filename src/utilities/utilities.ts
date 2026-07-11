@@ -1,5 +1,7 @@
 export const BLOCK_SELECTOR = "p,h1,h2,h3,h4,h5,h6,li,blockquote,code";
-export const PROTECTED_BLOCK_SELECTOR = "scribby-code-block, speech-output, summary-output";
+export const PROTECTED_BLOCK_SELECTOR = "scribby-code-block, speech-output, summary-output, inline-canvas";
+
+import { ConfirmOverlay } from "../components/ConfirmOverlay";
 
 export type CaretEdge = "start" | "end";
 /**
@@ -469,3 +471,24 @@ export function getProtectedBlocksInsideSelection(range: Range): HTMLElement[] {
         fragment.querySelectorAll<HTMLElement>(PROTECTED_BLOCK_SELECTOR)
     );
 }
+export const getProtectedBlockLabel = (block: HTMLElement | null): string => {
+    if (!block) return "block";
+
+    if (block.matches("scribby-code-block")) return "code block";
+    if (block.matches("summary-output")) return "summary block";
+    if (block.matches("inline-canvas")) return "drawing canvas";
+
+    return "audio block";
+};
+
+export const confirmProtectedBlockDelete = async (block: HTMLElement | null): Promise<boolean> => {
+    if (!block) return false;
+
+    const label = getProtectedBlockLabel(block);
+
+    return await ConfirmOverlay.open({
+        message: `This action will delete this ${label}. Are you sure?`,
+        continueBtnTxt: "Continue",
+        cancelBtnTxt: "Cancel",
+    });
+};

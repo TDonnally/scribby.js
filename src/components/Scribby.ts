@@ -398,13 +398,31 @@ export class Scribby {
                         : range.startContainer.parentElement;
 
                 if (!startEl) return;
-
-                if (startEl.closest(".cm-content")) {
-                    return;
-                }
+                if (startEl.closest(".cm-content")) return;
 
                 const currentLi = startEl.closest<HTMLElement>("li");
                 const topLevelChild = utils.getTopLevelChild(range.startContainer, this.el);
+                const isBackspace = e.key === "Backspace";
+
+                const place = (r: Range | null): void => {
+                    if (r) this.selection = r;
+                };
+
+                const emitInput = (): void => {
+                    this.el.dispatchEvent(new Event("input"));
+                };
+
+                // After removing a node, guarantee the editor is never empty
+                const finishRemoval = (fallback: () => Range | null): void => {
+                    if (this.el.children.length === 0) {
+                        const p = utils.makePlaceholderP();
+                        this.el.appendChild(p);
+                        place(utils.placeCaretAtStart(p));
+                    } else {
+                        place(fallback());
+                    }
+                    emitInput();
+                };
 
                 if (!range.collapsed) {
                     const protectedBlocks = utils.getProtectedBlocksInsideSelection(range);
@@ -412,45 +430,18 @@ export class Scribby {
                     if (protectedBlocks.length > 0) {
                         e.preventDefault();
 
-                        const block = protectedBlocks[0];
-                        const label =
-                            block.matches("scribby-code-block")
-                                ? "code block"
-                                : block.matches("summary-output")
-                                    ? "summary block"
-                                    : "audio block";
-
-                        const confirmed = await ConfirmOverlay.open({
-                            message: `This action will delete this ${label}. Are you sure?`,
-                            continueBtnTxt: "Continue",
-                            cancelBtnTxt: "Cancel",
-                        });
-
+                        const confirmed = await utils.confirmProtectedBlockDelete(protectedBlocks[0]);
                         if (!confirmed) return;
 
                         range.deleteContents();
-
-                        if (this.el.children.length === 0) {
-                            const p = utils.makePlaceholderP();
-                            this.el.appendChild(p);
-                            const newRange = utils.placeCaretAtStart(p);
-                            if (newRange) this.selection = newRange;
-                        } else {
-                            const newRange = utils.placeRange(range);
-                            if (newRange) this.selection = newRange;
-                        }
-
-                        this.el.dispatchEvent(new Event("input"));
+                        finishRemoval(() => utils.placeRange(range));
                         return;
                     }
 
                     if (currentLi && utils.selectionWouldEmpty(range, currentLi)) {
                         e.preventDefault();
-
-                        const newRange = utils.resetPlaceholderBlock(currentLi);
-                        if (newRange) this.selection = newRange;
-
-                        this.el.dispatchEvent(new Event("input"));
+                        place(utils.resetPlaceholderBlock(currentLi));
+                        emitInput();
                         return;
                     }
 
@@ -458,419 +449,197 @@ export class Scribby {
                         topLevelChild &&
                         topLevelChild.matches(blockSelector) &&
                         utils.selectionWouldEmpty(range, topLevelChild) &&
-                        (
-                            topLevelChild.previousElementSibling?.matches(protectedSelector) ||
-                            topLevelChild.nextElementSibling?.matches(protectedSelector)
-                        )
+                        (topLevelChild.previousElementSibling?.matches(protectedSelector) ||
+                            topLevelChild.nextElementSibling?.matches(protectedSelector))
                     ) {
                         e.preventDefault();
-
-                        const newRange = utils.resetPlaceholderBlock(topLevelChild);
-                        if (newRange) this.selection = newRange;
-
-                        this.el.dispatchEvent(new Event("input"));
+                        place(utils.resetPlaceholderBlock(topLevelChild));
+                        emitInput();
                         return;
                     }
 
                     return;
                 }
 
-                if (
-                    currentLi &&
-                    utils.collapsedDeleteWouldEmpty(range, currentLi, e.key)
-                ) {
+                // One remaining char in a list item
+                if (currentLi && utils.collapsedDeleteWouldEmpty(range, currentLi, e.key)) {
                     e.preventDefault();
-
-                    const newRange = utils.resetPlaceholderBlock(currentLi);
-                    if (newRange) this.selection = newRange;
-
-                    this.el.dispatchEvent(new Event("input"));
+                    place(utils.resetPlaceholderBlock(currentLi));
+                    emitInput();
                     return;
                 }
 
+                // Empty list item
                 if (currentLi && utils.isPlaceholderOnlyBlock(currentLi)) {
                     const list = currentLi.parentElement as HTMLElement | null;
                     const prevLi = currentLi.previousElementSibling as HTMLElement | null;
                     const nextLi = currentLi.nextElementSibling as HTMLElement | null;
+                    const prevIsLi = !!prevLi?.matches("li");
+                    const nextIsLi = !!nextLi?.matches("li");
 
                     e.preventDefault();
 
-                    if (e.key === "Backspace" && prevLi?.matches("li")) {
-                        currentLi.remove();
+                    let target: HTMLElement | null = null;
+                    let caretAtEnd = false;
 
-                        const newRange = utils.placeCaretAtEnd(prevLi);
-                        if (newRange) this.selection = newRange;
-
-                        this.el.dispatchEvent(new Event("input"));
-                        return;
+                    if (isBackspace) {
+                        if (prevIsLi) { target = prevLi; caretAtEnd = true; }
+                        else if (nextIsLi) { target = nextLi; caretAtEnd = false; }
+                    } else {
+                        if (nextIsLi) { target = nextLi; caretAtEnd = false; }
+                        else if (prevIsLi) { target = prevLi; caretAtEnd = true; }
                     }
 
-                    if (e.key === "Delete" && nextLi?.matches("li")) {
+                    if (target) {
                         currentLi.remove();
-
-                        const newRange = utils.placeCaretAtStart(nextLi);
-                        if (newRange) this.selection = newRange;
-
-                        this.el.dispatchEvent(new Event("input"));
-                        return;
-                    }
-
-                    if (e.key === "Backspace" && nextLi?.matches("li")) {
-                        currentLi.remove();
-
-                        const newRange = utils.placeCaretAtStart(nextLi);
-                        if (newRange) this.selection = newRange;
-
-                        this.el.dispatchEvent(new Event("input"));
-                        return;
-                    }
-
-                    if (e.key === "Delete" && prevLi?.matches("li")) {
-                        currentLi.remove();
-
-                        const newRange = utils.placeCaretAtEnd(prevLi);
-                        if (newRange) this.selection = newRange;
-
-                        this.el.dispatchEvent(new Event("input"));
+                        place(caretAtEnd ? utils.placeCaretAtEnd(target) : utils.placeCaretAtStart(target));
+                        emitInput();
                         return;
                     }
 
                     if (list && (list.matches("ul") || list.matches("ol"))) {
                         const p = utils.makePlaceholderP();
                         list.replaceWith(p);
-
-                        const newRange = utils.placeCaretAtStart(p);
-                        if (newRange) this.selection = newRange;
-
-                        this.el.dispatchEvent(new Event("input"));
+                        place(utils.placeCaretAtStart(p));
+                        emitInput();
                         return;
                     }
 
-                    const newRange = utils.resetPlaceholderBlock(currentLi);
-                    if (newRange) this.selection = newRange;
-
+                    place(utils.resetPlaceholderBlock(currentLi));
                     return;
                 }
 
+                // One remaining char in a protected adjacent block
                 if (
                     topLevelChild &&
                     topLevelChild.matches(blockSelector) &&
-                    (
-                        topLevelChild.previousElementSibling?.matches(protectedSelector) ||
-                        topLevelChild.nextElementSibling?.matches(protectedSelector)
-                    ) &&
+                    (topLevelChild.previousElementSibling?.matches(protectedSelector) ||
+                        topLevelChild.nextElementSibling?.matches(protectedSelector)) &&
                     utils.collapsedDeleteWouldEmpty(range, topLevelChild, e.key)
                 ) {
                     e.preventDefault();
-
-                    const newRange = utils.resetPlaceholderBlock(topLevelChild);
-                    if (newRange) this.selection = newRange;
-
-                    this.el.dispatchEvent(new Event("input"));
+                    place(utils.resetPlaceholderBlock(topLevelChild));
+                    emitInput();
                     return;
                 }
 
+                // Caret sitting directly inside a protected block.
                 const directProtectedBlock = startEl.closest<HTMLElement>(protectedSelector);
 
                 if (directProtectedBlock) {
                     e.preventDefault();
 
                     if (directProtectedBlock.matches("scribby-code-block")) {
-                        const newRange = utils.placeCaretInProtectedBlock(directProtectedBlock, "end");
-                        if (newRange) this.selection = newRange;
+                        place(utils.placeCaretInProtectedBlock(directProtectedBlock, "end"));
                         return;
                     }
 
-                    const label = directProtectedBlock.matches("summary-output")
-                        ? "summary block"
-                        : "audio block";
-
-                    const confirmed = await ConfirmOverlay.open({
-                        message: `This action will delete this ${label}. Are you sure?`,
-                        continueBtnTxt: "Continue",
-                        cancelBtnTxt: "Cancel",
-                    });
-
+                    const confirmed = await utils.confirmProtectedBlockDelete(directProtectedBlock);
                     if (!confirmed) return;
 
                     const after = directProtectedBlock.nextElementSibling as HTMLElement | null;
                     const before = directProtectedBlock.previousElementSibling as HTMLElement | null;
                     const caretTarget = after ?? before;
-                    const edge = after ? "start" : "end";
 
                     directProtectedBlock.remove();
 
-                    if (this.el.children.length === 0) {
-                        const p = utils.makePlaceholderP();
-                        this.el.appendChild(p);
-
-                        const newRange = utils.placeCaretAtStart(p);
-                        if (newRange) this.selection = newRange;
-                    } else if (caretTarget && caretTarget.isConnected) {
-                        const newRange =
-                            edge === "start"
+                    finishRemoval(() => {
+                        if (caretTarget && caretTarget.isConnected) {
+                            return after
                                 ? utils.placeCaretAtStart(caretTarget)
                                 : utils.placeCaretAtEnd(caretTarget);
-
-                        if (newRange) this.selection = newRange;
-                    } else {
-                        const first = this.el.firstElementChild as HTMLElement | null;
-
-                        if (first) {
-                            const newRange = utils.placeCaretAtStart(first);
-                            if (newRange) this.selection = newRange;
                         }
-                    }
-
-                    this.el.dispatchEvent(new Event("input"));
+                        const first = this.el.firstElementChild as HTMLElement | null;
+                        return first ? utils.placeCaretAtStart(first) : null;
+                    });
                     return;
                 }
 
-                if (
-                    topLevelChild &&
-                    utils.isPlaceholderOnlyBlock(topLevelChild)
-                ) {
+                // Empty top level block next to a protected block.
+                if (topLevelChild && utils.isPlaceholderOnlyBlock(topLevelChild)) {
                     const previous = topLevelChild.previousElementSibling as HTMLElement | null;
                     const next = topLevelChild.nextElementSibling as HTMLElement | null;
-
-                    if (e.key === "Backspace" && previous?.matches("scribby-code-block")) {
-                        e.preventDefault();
-
-                        const newRange = utils.placeCaretInProtectedBlock(previous, "end");
-                        if (newRange) this.selection = newRange;
-
-                        return;
-                    }
-
-                    if (e.key === "Delete" && next?.matches("scribby-code-block")) {
-                        e.preventDefault();
-
-                        const newRange = utils.placeCaretInProtectedBlock(next, "start");
-                        if (newRange) this.selection = newRange;
-
-                        return;
-                    }
-
-                    if (e.key === "Backspace" && previous?.matches(protectedSelector)) {
-                        e.preventDefault();
-
-                        const label = previous.matches("summary-output") ? "summary block" : "audio block";
-
-                        const confirmed = await ConfirmOverlay.open({
-                            message: `This action will delete this ${label}. Are you sure?`,
-                            continueBtnTxt: "Continue",
-                            cancelBtnTxt: "Cancel",
-                        });
-
-                        if (!confirmed) return;
-
-                        previous.remove();
-
-                        if (this.el.children.length === 0) {
-                            const p = utils.makePlaceholderP();
-                            this.el.appendChild(p);
-
-                            const newRange = utils.placeCaretAtStart(p);
-                            if (newRange) this.selection = newRange;
-                        } else {
-                            const newRange = utils.placeCaretAtStart(topLevelChild);
-                            if (newRange) this.selection = newRange;
-                        }
-
-                        this.el.dispatchEvent(new Event("input"));
-                        return;
-                    }
-
-                    if (e.key === "Delete" && next?.matches(protectedSelector)) {
-                        e.preventDefault();
-
-                        const label = next.matches("summary-output") ? "summary block" : "audio block";
-
-                        const confirmed = await ConfirmOverlay.open({
-                            message: `This action will delete this ${label}. Are you sure?`,
-                            continueBtnTxt: "Continue",
-                            cancelBtnTxt: "Cancel",
-                        });
-
-                        if (!confirmed) return;
-
-                        next.remove();
-
-                        if (this.el.children.length === 0) {
-                            const p = utils.makePlaceholderP();
-                            this.el.appendChild(p);
-
-                            const newRange = utils.placeCaretAtStart(p);
-                            if (newRange) this.selection = newRange;
-                        } else {
-                            const newRange = utils.placeCaretAtStart(topLevelChild);
-                            if (newRange) this.selection = newRange;
-                        }
-
-                        this.el.dispatchEvent(new Event("input"));
-                        return;
-                    }
-
-                    if (e.key === "Backspace" && !previous && next?.matches(protectedSelector)) {
-                        e.preventDefault();
-
-                        const newRange = utils.resetPlaceholderBlock(topLevelChild);
-                        if (newRange) this.selection = newRange;
-
-                        return;
-                    }
-
-                    if (e.key === "Delete" && previous?.matches(protectedSelector) && !next) {
-                        e.preventDefault();
-
-                        const newRange = utils.resetPlaceholderBlock(topLevelChild);
-                        if (newRange) this.selection = newRange;
-
-                        return;
-                    }
-
-                    if (previous?.matches(protectedSelector) && next?.matches(protectedSelector)) {
-                        e.preventDefault();
-
-                        const newRange = utils.resetPlaceholderBlock(topLevelChild);
-                        if (newRange) this.selection = newRange;
-
-                        return;
-                    }
+                    const neighbor = isBackspace ? previous : next;   // block in the key's direction
+                    const opposite = isBackspace ? next : previous;
 
                     e.preventDefault();
 
-                    if (this.el.children.length === 1) {
-                        const newRange = utils.resetPlaceholderBlock(topLevelChild);
-                        if (newRange) this.selection = newRange;
-
+                    if (neighbor?.matches("scribby-code-block")) {
+                        place(utils.placeCaretInProtectedBlock(neighbor, isBackspace ? "end" : "start"));
                         return;
                     }
 
-                    if (e.key === "Backspace") {
-                        if (previous) {
-                            topLevelChild.remove();
+                    if (neighbor?.matches(protectedSelector)) {
+                        const confirmed = await utils.confirmProtectedBlockDelete(neighbor);
+                        if (!confirmed) return;
 
-                            const newRange = utils.placeCaretAtEnd(previous);
-                            if (newRange) this.selection = newRange;
-
-                            this.el.dispatchEvent(new Event("input"));
-                            return;
-                        }
-
-                        if (next) {
-                            topLevelChild.remove();
-
-                            const newRange = utils.placeCaretAtStart(next);
-                            if (newRange) this.selection = newRange;
-
-                            this.el.dispatchEvent(new Event("input"));
-                            return;
-                        }
+                        neighbor.remove();
+                        finishRemoval(() => utils.placeCaretAtStart(topLevelChild));
+                        return;
                     }
 
-                    if (e.key === "Delete") {
-                        if (next) {
-                            topLevelChild.remove();
-
-                            const newRange = utils.placeCaretAtStart(next);
-                            if (newRange) this.selection = newRange;
-
-                            this.el.dispatchEvent(new Event("input"));
-                            return;
-                        }
-
-                        if (previous) {
-                            topLevelChild.remove();
-
-                            const newRange = utils.placeCaretAtEnd(previous);
-                            if (newRange) this.selection = newRange;
-
-                            this.el.dispatchEvent(new Event("input"));
-                            return;
-                        }
+                    if (this.el.children.length === 1 || (!neighbor && opposite?.matches(protectedSelector))) {
+                        place(utils.resetPlaceholderBlock(topLevelChild));
+                        return;
                     }
 
-                    const newRange = utils.resetPlaceholderBlock(topLevelChild);
-                    if (newRange) this.selection = newRange;
+                    const mergeTarget = neighbor ?? opposite;
 
+                    if (mergeTarget) {
+                        topLevelChild.remove();
+                        place(
+                            mergeTarget === previous
+                                ? utils.placeCaretAtEnd(mergeTarget)
+                                : utils.placeCaretAtStart(mergeTarget)
+                        );
+                        emitInput();
+                        return;
+                    }
+
+                    place(utils.resetPlaceholderBlock(topLevelChild));
                     return;
                 }
 
-                if (
-                    topLevelChild &&
-                    e.key === "Backspace" &&
-                    utils.isAtStartOf(range, topLevelChild)
-                ) {
+                if (topLevelChild && isBackspace && utils.isAtStartOf(range, topLevelChild)) {
                     const previous = topLevelChild.previousElementSibling as HTMLElement | null;
 
                     if (previous?.matches("scribby-code-block")) {
                         e.preventDefault();
-
-                        const newRange = utils.placeCaretInProtectedBlock(previous, "end");
-                        if (newRange) this.selection = newRange;
-
+                        place(utils.placeCaretInProtectedBlock(previous, "end"));
                         return;
                     }
 
                     if (previous?.matches(protectedSelector)) {
                         e.preventDefault();
 
-                        const label = previous.matches("summary-output") ? "summary block" : "audio block";
-
-                        const confirmed = await ConfirmOverlay.open({
-                            message: `This action will delete this ${label}. Are you sure?`,
-                            continueBtnTxt: "Continue",
-                            cancelBtnTxt: "Cancel",
-                        });
-
+                        const confirmed = await utils.confirmProtectedBlockDelete(previous);
                         if (!confirmed) return;
 
                         previous.remove();
-
-                        const newRange = utils.placeCaretAtStart(topLevelChild);
-                        if (newRange) this.selection = newRange;
-
-                        this.el.dispatchEvent(new Event("input"));
+                        place(utils.placeCaretAtStart(topLevelChild));
+                        emitInput();
                         return;
                     }
                 }
 
-                if (
-                    topLevelChild &&
-                    e.key === "Delete" &&
-                    utils.isAtEndOf(range, topLevelChild)
-                ) {
+                if (topLevelChild && !isBackspace && utils.isAtEndOf(range, topLevelChild)) {
                     const next = topLevelChild.nextElementSibling as HTMLElement | null;
 
                     if (next?.matches("scribby-code-block")) {
                         e.preventDefault();
-
-                        const newRange = utils.placeCaretInProtectedBlock(next, "start");
-                        if (newRange) this.selection = newRange;
-
+                        place(utils.placeCaretInProtectedBlock(next, "start"));
                         return;
                     }
 
                     if (next?.matches(protectedSelector)) {
                         e.preventDefault();
 
-                        const label = next.matches("summary-output") ? "summary block" : "audio block";
-
-                        const confirmed = await ConfirmOverlay.open({
-                            message: `This action will delete this ${label}. Are you sure?`,
-                            continueBtnTxt: "Continue",
-                            cancelBtnTxt: "Cancel",
-                        });
-
+                        const confirmed = await utils.confirmProtectedBlockDelete(next);
                         if (!confirmed) return;
 
                         next.remove();
-
-                        const newRange = utils.placeCaretAtEnd(topLevelChild);
-                        if (newRange) this.selection = newRange;
-
-                        this.el.dispatchEvent(new Event("input"));
+                        place(utils.placeCaretAtEnd(topLevelChild));
+                        emitInput();
                         return;
                     }
                 }
@@ -881,10 +650,7 @@ export class Scribby {
                     utils.isPlaceholderOnlyBlock(this.el.children[0])
                 ) {
                     e.preventDefault();
-
-                    const newRange = utils.resetPlaceholderBlock(this.el.children[0]);
-                    if (newRange) this.selection = newRange;
-
+                    place(utils.resetPlaceholderBlock(this.el.children[0]));
                     return;
                 }
             }
