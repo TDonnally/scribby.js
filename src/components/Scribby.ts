@@ -11,7 +11,7 @@ import { getLocalWhisperSupport } from "../utilities/platform.js";
 
 import * as utils from "../utilities/utilities.js";
 import { RangeMarker } from "./RangeMarker.js";
-import { ScribbyCodeBlock } from "./CodeBlock.js";
+import { ScribbyCodeBlock } from "./CodeBlock/CodeBlock.js";
 import { SpeechOutput } from "./SpeechOutput/SpeechOutput.js";
 import { PlayButton } from "./SpeechOutput/PlayButton.js";
 import { StopButton } from "./SpeechOutput/StopButton.js";
