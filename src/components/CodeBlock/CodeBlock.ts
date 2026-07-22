@@ -709,6 +709,8 @@ async function loadLanguageExtension(lang: LangId): Promise<Extension> {
     return promise;
 }
 
+
+
 export class ScribbyCodeBlock extends HTMLElement {
     private view?: EditorView;
     private language = new Compartment();
@@ -717,6 +719,9 @@ export class ScribbyCodeBlock extends HTMLElement {
     private outputEl?: HTMLPreElement;
     private runAbortController?: AbortController;
     private languageLoadVersion = 0;
+
+    private editorHost?: HTMLDivElement;
+    private hydrationObserver?: IntersectionObserver;
 
     get value(): string {
         return this.getAttribute("data-value") ?? "";
@@ -789,6 +794,8 @@ export class ScribbyCodeBlock extends HTMLElement {
         const editorHost = document.createElement("div");
         editorHost.classList.add("code-block-editor-host");
 
+        this.editorHost = editorHost;
+
         const output = document.createElement("pre");
         output.classList.add("code-block-output");
         output.setAttribute("aria-live", "polite");
@@ -801,6 +808,12 @@ export class ScribbyCodeBlock extends HTMLElement {
         const startDoc = this.value;
         const initialLang = this.lang;
         select.value = initialLang;
+
+        const placeholder = document.createElement("pre");
+        placeholder.classList.add("code-block-placeholder");
+        placeholder.textContent = startDoc || " ";
+
+        editorHost.appendChild(placeholder);
 
         select.addEventListener("change", (event) => {
             event.stopPropagation();
@@ -828,32 +841,7 @@ export class ScribbyCodeBlock extends HTMLElement {
         this.appendChild(editorHost);
         this.appendChild(output);
 
-        const state = EditorState.create({
-            doc: startDoc,
-            extensions: [
-                lineNumbers(),
-                keymap.of([indentWithTab, ...defaultKeymap]),
-                syntaxHighlighting(vsCodeHighlightStyle),
-                this.language.of([]),
-                EditorView.updateListener.of((update) => {
-                    if (!update.docChanged) return;
-
-                    const text = update.state.doc.toString();
-                    this.setAttribute("data-value", text);
-
-                    this.dispatchEvent(
-                        new CustomEvent("scribby:block-change", { bubbles: true }),
-                    );
-                }),
-            ],
-        });
-
-        this.view = new EditorView({
-            state,
-            parent: editorHost,
-        });
-
-        void this.applyLanguage(initialLang);
+        this.observeForHydration();
 
         editorHost.addEventListener("keydown", async (event) => {
             if (event.key !== "Backspace" && event.key !== "Delete") return;
@@ -897,11 +885,16 @@ export class ScribbyCodeBlock extends HTMLElement {
     disconnectedCallback(): void {
         this.languageLoadVersion++;
 
+        this.hydrationObserver?.disconnect();
+        this.hydrationObserver = undefined;
+
         this.runAbortController?.abort();
         this.runAbortController = undefined;
 
         this.view?.destroy();
         this.view = undefined;
+
+        this.editorHost = undefined;
     }
 
     public getValue(): string {
@@ -918,6 +911,8 @@ export class ScribbyCodeBlock extends HTMLElement {
     }
 
     public focusStart(): void {
+        this.hydrateEditor();
+
         if (!this.view) return;
 
         this.view.focus();
@@ -928,11 +923,18 @@ export class ScribbyCodeBlock extends HTMLElement {
     }
 
     public focusEnd(): void {
-        if (!this.view) return;
+        this.hydrateEditor();
+
+        if (!this.view) {
+            return;
+        }
 
         this.view.focus();
+
         this.view.dispatch({
-            selection: EditorSelection.cursor(this.view.state.doc.length),
+            selection: EditorSelection.cursor(
+                this.view.state.doc.length,
+            ),
             scrollIntoView: true,
         });
     }
@@ -1058,5 +1060,101 @@ export class ScribbyCodeBlock extends HTMLElement {
         this.playButton.classList.toggle("is-running", isRunning);
         this.playButton.setAttribute("aria-busy", String(isRunning));
         this.playButton.title = isRunning ? "Running code" : "Run code";
+    }
+    private observeForHydration(): void {
+        if (!("IntersectionObserver" in window)) {
+            this.hydrateEditor();
+            return;
+        }
+
+        this.hydrationObserver?.disconnect();
+
+        this.hydrationObserver = new IntersectionObserver(
+            (entries) => {
+                for (const entry of entries) {
+                    if (!entry.isIntersecting) {
+                        continue;
+                    }
+
+                    this.hydrateEditor();
+
+                    this.hydrationObserver?.disconnect();
+                    this.hydrationObserver = undefined;
+
+                    break;
+                }
+            },
+            {
+                root: null,
+
+                rootMargin: "600px 0px",
+
+                threshold: 0,
+            },
+        );
+
+        this.hydrationObserver.observe(this);
+    }
+
+    private hydrateEditor(): void {
+        if (this.view) {
+            return;
+        }
+
+        if (!this.editorHost) {
+            return;
+        }
+
+        if (!this.isConnected) {
+            return;
+        }
+        const editorHost = this.editorHost;
+
+        editorHost.replaceChildren();
+
+        const state = EditorState.create({
+            doc: this.value,
+            extensions: [
+                lineNumbers(),
+
+                keymap.of([
+                    indentWithTab,
+                    ...defaultKeymap,
+                ]),
+
+                syntaxHighlighting(vsCodeHighlightStyle),
+
+                this.language.of([]),
+
+                EditorView.updateListener.of((update) => {
+                    if (!update.docChanged) {
+                        return;
+                    }
+
+                    const text = update.state.doc.toString();
+
+                    this.setAttribute(
+                        "data-value",
+                        text,
+                    );
+
+                    this.dispatchEvent(
+                        new CustomEvent(
+                            "scribby:block-change",
+                            {
+                                bubbles: true,
+                            },
+                        ),
+                    );
+                }),
+            ],
+        });
+
+        this.view = new EditorView({
+            state,
+            parent: editorHost,
+        });
+
+        void this.applyLanguage(this.lang);
     }
 }

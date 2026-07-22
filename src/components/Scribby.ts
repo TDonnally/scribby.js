@@ -351,7 +351,7 @@ export class Scribby {
                 if (!range) return;
                 const parent = range.startContainer;
                 const parentEl = parent as HTMLElement;
-                console.log(parent)
+
                 let closestLine: HTMLElement | null;
                 let codeBlock: HTMLElement | null;
                 if (parent.nodeType != Node.ELEMENT_NODE) {
@@ -721,7 +721,6 @@ export class Scribby {
             const fromScribby = e.clipboardData?.getData('application/x-scribby') || false;
 
             if (!html && plain) {
-                console.log("no html")
                 html = '<p>' + plain
                     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
                     .replace(/\r\n/g, '\n')
@@ -742,7 +741,6 @@ export class Scribby {
             if (!fromScribby) {
                 utils.stripAttributes(fragment);
                 const spans = fragment.querySelectorAll("span");
-                console.log(spans)
                 spans.forEach((span) => {
                     utils.replaceElementWithChildren(span)
                 })
@@ -754,7 +752,6 @@ export class Scribby {
 
             // normalize after inserting
             const outOfOrderNodes = this.normalizer.flagNodeHierarchyViolations(range.commonAncestorContainer);
-            console.log(outOfOrderNodes)
             this.normalizer.fixHierarchyViolations(outOfOrderNodes);
         })
         this.el.addEventListener("focusin", (e) => {
@@ -794,7 +791,6 @@ export class Scribby {
             // normalize after input
             this.normalizer.removeNotSupportedNodes(this.el);
             const outOfOrderNodes = this.normalizer.flagNodeHierarchyViolations(this.el);
-            console.log(outOfOrderNodes);
             this.normalizer.fixHierarchyViolations(outOfOrderNodes);
             this.normalizer.removeEmptyNodes(this.el);
 

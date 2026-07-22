@@ -120,7 +120,6 @@ export function changeElementTag(el: Element, tag: string): void {
     replaceElementWithChildren(el);
 }
 export function makeChildSiblingofParent(el: HTMLElement): void {
-    console.log(el)
     const parent = el.parentElement;
     if (!parent || !parent.parentElement) {
         return;
