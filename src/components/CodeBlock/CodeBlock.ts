@@ -883,6 +883,15 @@ export class ScribbyCodeBlock extends HTMLElement {
             utils.placeCaretAtStart(target);
             parent?.dispatchEvent(new Event("input"));
         }, true);
+        editorHost.addEventListener("copy", (e) => {
+            e.stopPropagation();
+        })
+        editorHost.addEventListener("cut", (e) => {
+            e.stopPropagation();
+        })
+        editorHost.addEventListener("paste", (e) => {
+            e.stopPropagation();
+        })
     }
 
     disconnectedCallback(): void {

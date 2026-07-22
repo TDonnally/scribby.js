@@ -656,8 +656,6 @@ export class Scribby {
             }
         })
 
-        const mark = "<!--scribby-origin:1-->"
-        const markRegex = /<!--\s*scribby-origin:1\s*-->/i;
         this.el.addEventListener("copy", (e) => {
 
             if (!e.clipboardData) return;
@@ -670,12 +668,12 @@ export class Scribby {
             }
 
             const html = div.innerHTML
-            const markedHTML = mark + html;
             const text = div.innerText
 
-            e.clipboardData.setData("text/html", markedHTML);
+            e.clipboardData.setData("application/x-scribby", "1");
+            e.clipboardData.setData("text/html", html);
             if (text) {
-                e.clipboardData.setData("text/plain", mark + text);
+                e.clipboardData.setData("text/plain", text);
             }
 
         })
@@ -690,12 +688,12 @@ export class Scribby {
             }
 
             const html = div.innerHTML
-            const markedHTML = mark + html;
             const text = div.innerText
-
-            e.clipboardData.setData("text/html", markedHTML);
+            
+            e.clipboardData.setData("application/x-scribby", "1");
+            e.clipboardData.setData("text/html", html);
             if (text) {
-                e.clipboardData.setData("text/plain", mark + text);
+                e.clipboardData.setData("text/plain", text);
             }
 
             this.selection?.deleteContents();
@@ -720,6 +718,7 @@ export class Scribby {
             }
             let html = e.clipboardData?.getData('text/html') || '';
             const plain = e.clipboardData?.getData('text/plain') || '';
+            const fromScribby = e.clipboardData?.getData('application/x-scribby') || false;
 
             if (!html && plain) {
                 console.log("no html")
@@ -739,7 +738,7 @@ export class Scribby {
             // normalize fragment
             this.normalizer.convertPastedCodeBlocks(fragment);
             this.normalizer.removeNotSupportedNodes(fragment);
-            const fromScribby = !!html && markRegex.test(html);
+
             if (!fromScribby) {
                 utils.stripAttributes(fragment);
                 const spans = fragment.querySelectorAll("span");
