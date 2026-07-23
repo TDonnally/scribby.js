@@ -91,6 +91,8 @@ export class Normalizer {
     fixHierarchyViolations(outOfOrderNodes: Record<nodeHierarchy, Array<Node>>): void {
         const scribbyEl = this.scribbyEl;
         const nodes = outOfOrderNodes;
+        const processedNodes = new Set<Node>();
+
         const nodeTypetoMethod: Record<nodeHierarchy, (node: Node) => void> = {
             [nodeHierarchy.br]: organizeBRNode,
             [nodeHierarchy.inline]: organizeTextNode,
@@ -99,8 +101,8 @@ export class Normalizer {
             [nodeHierarchy.lists]: organizeListNode,
             [nodeHierarchy.codeblock]: organizeCodeNode,
             [nodeHierarchy.speechOutput]: organizeSpeechOutput,
-            [nodeHierarchy.summaryOutput]:organizeSummaryOutput,
-            [nodeHierarchy.inlineCanvas]:organizeCanvas, 
+            [nodeHierarchy.summaryOutput]: organizeSummaryOutput,
+            [nodeHierarchy.inlineCanvas]: organizeCanvas,
             /* 
             [nodeHierarchy.tableItem]: organizeTextNode, 
             [nodeHierarchy.tableRow]: organizeTextNode,
@@ -111,10 +113,61 @@ export class Normalizer {
         }
 
         for (const [k, array] of Object.entries(nodes)) {
-            // walk backwards so that nodes deeper in hierarchy are fixed first
+            const hierarchyType =
+                Number(k) as nodeHierarchy;
+
             for (let i = array.length - 1; i >= 0; i--) {
+
                 const node = array[i];
-                const method = nodeTypetoMethod[Number(k) as nodeHierarchy];
+
+                if (processedNodes.has(node)) {
+                    continue;
+                }
+
+                if (!node.parentElement) {
+                    continue;
+                }
+
+                /*
+                 * Multiple text elements inside the same text element
+                 * should all be grouped
+                 */
+                if (
+                    hierarchyType === nodeHierarchy.textEl
+                ) {
+                    const parent = node.parentElement;
+
+                    const parentTag =
+                        parent.tagName.toLowerCase();
+
+                    if (textTags.includes(parentTag)) {
+
+                        const sameParentNodes =
+                            array.filter((candidate) =>
+                                !processedNodes.has(candidate) &&
+                                candidate.parentElement === parent
+                            );
+
+                        if (sameParentNodes.length > 1) {
+
+                            this.removeNodesParent(
+                                parent,
+                                sameParentNodes
+                            );
+
+                            for (
+                                const processed
+                                of sameParentNodes
+                            ) {
+                                processedNodes.add(processed);
+                            }
+
+                            continue;
+                        }
+                    }
+                }
+
+                const method = nodeTypetoMethod[hierarchyType];
                 if (method) {
                     const siblings = new Array();
                     siblings.push(node)
@@ -141,7 +194,9 @@ export class Normalizer {
                     const tempDiv = document.createElement("div");
                     tempDiv.appendChild(fragment);
                     marker.replaceWith(tempDiv)
+
                     method.call(this, tempDiv);
+
                 }
             }
         }
@@ -476,5 +531,43 @@ export class Normalizer {
 
             pre.replaceWith(block);
         });
+    }
+    private removeNodesParent(
+        parent: HTMLElement,
+        nodes: Node[]
+    ): void {
+        const grandparent = parent.parentNode;
+
+        if (!grandparent) {
+            return;
+        }
+
+        const targets = new Set(nodes);
+
+        const replacement = document.createDocumentFragment();
+
+        let currentSegment: HTMLElement | null = null;
+
+        while (parent.firstChild) {
+            const child = parent.firstChild;
+
+            if (targets.has(child)) {
+                replacement.appendChild(child);
+                currentSegment = null;
+
+                continue;
+            }
+
+            if (!currentSegment) {
+                currentSegment =
+                    parent.cloneNode(false) as HTMLElement;
+
+                replacement.appendChild(currentSegment);
+            }
+
+            currentSegment.appendChild(child);
+        }
+
+        parent.replaceWith(replacement);
     }
 }
