@@ -8,7 +8,7 @@
  * nodes closer to leafs are organized first
  * nodes closer to root are organized last
  */
-export enum nodeHierarchy{
+export enum nodeHierarchy {
     br,
     inline,
     textEl,
@@ -36,47 +36,47 @@ export const schema: Map<string, NodeSchema> = new Map([
     // text
     ["h1", {
         defaultParent: 'div',
-        allowedParents: new Set(['div','blockquote', 'td', 'th']),
+        allowedParents: new Set(['div', 'blockquote', 'td', 'th']),
         allowedChildren: new Set(['span', 'a', 'text']),
         hierarchyLabel: nodeHierarchy.textEl
     }],
     ["h2", {
         defaultParent: 'div',
-        allowedParents: new Set(['div','blockquote', 'td', 'th']),
+        allowedParents: new Set(['div', 'blockquote', 'td', 'th']),
         allowedChildren: new Set(['span', 'a', 'text']),
         hierarchyLabel: nodeHierarchy.textEl
     }],
     ["h3", {
         defaultParent: 'div',
-        allowedParents: new Set(['div','blockquote', 'td', 'th']),
+        allowedParents: new Set(['div', 'blockquote', 'td', 'th']),
         allowedChildren: new Set(['span', 'a', 'text']),
         hierarchyLabel: nodeHierarchy.textEl
     }],
     ["h4", {
         defaultParent: 'div',
-        allowedParents: new Set(['div','blockquote', 'td', 'th']),
+        allowedParents: new Set(['div', 'blockquote', 'td', 'th']),
         allowedChildren: new Set(['span', 'a', 'text']),
         hierarchyLabel: nodeHierarchy.textEl
     }],
     ["h5", {
         defaultParent: 'div',
-        allowedParents: new Set(['div','blockquote', 'td', 'th']),
+        allowedParents: new Set(['div', 'blockquote', 'td', 'th']),
         allowedChildren: new Set(['span', 'a', 'text']),
         hierarchyLabel: nodeHierarchy.textEl
     }],
     ["h6", {
         defaultParent: 'div',
-        allowedParents: new Set(['div','blockquote', 'td', 'th']),
+        allowedParents: new Set(['div', 'blockquote', 'td', 'th']),
         allowedChildren: new Set(['span', 'a', 'text']),
         hierarchyLabel: nodeHierarchy.textEl
     }],
     ["p", {
         defaultParent: 'div',
-        allowedParents: new Set(['div','blockquote', 'td', 'th']),
+        allowedParents: new Set(['div', 'blockquote', 'td', 'th']),
         allowedChildren: new Set(['span', 'a', 'text']),
         hierarchyLabel: nodeHierarchy.textEl
     }],
-    
+
     /*
     ["blockquote", {
         defaultParent: 'div',
@@ -89,38 +89,44 @@ export const schema: Map<string, NodeSchema> = new Map([
     //inline nodes
     ["a", {
         defaultParent: 'p',
-        allowedParents: new Set(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'li', 'td', 'th','code']),
+        allowedParents: new Set(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'li', 'td', 'th', 'code']),
         allowedChildren: new Set(['span', 'text']),
         hierarchyLabel: nodeHierarchy.inline
     }],
     ["span", {
         defaultParent: 'p',
-        allowedParents: new Set(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'td', 'th', 'li','code','speech-output']),
+        allowedParents: new Set(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'td', 'th', 'li', 'code', 'speech-output']),
         allowedChildren: new Set(['text']),
+        hierarchyLabel: nodeHierarchy.inline
+    }],
+    ["code", {
+        defaultParent: 'p',
+        allowedParents: new Set(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'li', 'td', 'th']),
+        allowedChildren: new Set(['span', 'a', 'text', 'br', 'range-marker']),
         hierarchyLabel: nodeHierarchy.inline
     }],
     ["text", {
         defaultParent: 'p',
-        allowedParents: new Set(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'a','span', 'td', 'th', 'li', 'code']),
+        allowedParents: new Set(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'a', 'span', 'td', 'th', 'li', 'code']),
         allowedChildren: new Set([]),
         hierarchyLabel: nodeHierarchy.inline
     }],
     ["br", {
         defaultParent: 'p',
-        allowedParents: new Set(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'a','span', 'td', 'th', 'li','code']),
+        allowedParents: new Set(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'a', 'span', 'td', 'th', 'li', 'code']),
         allowedChildren: new Set([]),
         hierarchyLabel: nodeHierarchy.br
     }],
     // lists
     ["ol", {
         defaultParent: 'div',
-        allowedParents: new Set(['div','td']),
+        allowedParents: new Set(['div', 'td']),
         allowedChildren: new Set(['li']),
         hierarchyLabel: nodeHierarchy.lists
     }],
     ["ul", {
         defaultParent: 'div',
-        allowedParents: new Set(['div','td']),
+        allowedParents: new Set(['div', 'td']),
         allowedChildren: new Set(['li']),
         hierarchyLabel: nodeHierarchy.lists
     }],
@@ -184,7 +190,7 @@ export const schema: Map<string, NodeSchema> = new Map([
      */
     ["range-marker", {
         defaultParent: 'p',
-        allowedParents: new Set(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'a', 'span', 'a', 'ol', 'ul', 'th', 'td','tr','table','code']),
+        allowedParents: new Set(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'a', 'span', 'a', 'ol', 'ul', 'th', 'td', 'tr', 'table', 'code']),
         allowedChildren: new Set([]),
         hierarchyLabel: nodeHierarchy.inline
     }],

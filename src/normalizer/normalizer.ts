@@ -240,6 +240,9 @@ export class Normalizer {
                 parent.insertBefore(codeEl, textNode)
                 codeEl.appendChild(textNode);
             }
+            else if (parentTag === "code") {
+                utils.makeChildSiblingofParent(textNode as HTMLElement);
+            }
             utils.replaceElementWithChildren(textNode as HTMLElement);
         }
         // text element nodes are defined as (h1-p)

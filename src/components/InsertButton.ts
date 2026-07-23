@@ -10,7 +10,8 @@ export enum insertElementType {
     Canvas = "inline-canvas",
     OrderedList = "ol",
     UnorderedList = "ul",
-    CodeBlock = "code",
+    CodeBlock = "scribby-code-block",
+    InlineCode = "code",
 }
 
 
@@ -83,7 +84,7 @@ export class ToolbarInsertButton {
                 const modal = this.scribby.currentInsertModal;
 
                 const values = await modal.submission();
-                
+
                 // console.log(values)
                 if (range.toString().length > 0) {
 
@@ -209,6 +210,27 @@ export class ToolbarInsertButton {
                     r.collapse(true);
                     sel.addRange(r);
                 }
+            }
+            else if (this.insertElType === insertElementType.InlineCode) {
+                const containerEl = range.commonAncestorContainer.nodeType === Node.TEXT_NODE
+                    ? range.commonAncestorContainer.parentElement
+                    : range.commonAncestorContainer as HTMLElement;
+                const existing = containerEl?.closest("code");
+                if (existing && !existing.closest("scribby-code-block")) {
+                    utils.replaceElementWithChildren(existing);
+                    return;
+                }
+
+                blockRanges.forEach(({ blockRange }) => {
+                    if (!blockRange.toString().length) return;
+                    const code = document.createElement("code");
+                    const extracted = blockRange.extractContents();
+                    extracted.querySelectorAll("code").forEach(nested => {
+                        nested.replaceWith(...nested.childNodes);
+                    });
+                    code.appendChild(extracted);
+                    blockRange.insertNode(code);
+                });
             }
             else if (this.insertElType === insertElementType.Canvas) {
                 const canvas = document.createElement("inline-canvas") as HTMLElement;

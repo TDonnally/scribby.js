@@ -87,7 +87,7 @@ export class Scribby {
         this.el = document.createElement("div");
         this.el.contentEditable = 'true';
         this.el.classList.add("scribby");
-        this.el.innerHTML = this.content
+        this.el.innerHTML = this.content;
 
         const initSnapshot: Snapshot = {
             timestamp: Date.now(),
@@ -97,6 +97,7 @@ export class Scribby {
 
         this.historyManager.push(initSnapshot);
 
+        container.dataset.state = "rendered";
         container.replaceChildren(this.el);
         this.toolbar = new Toolbar(this).mount();
         this.normalizer = new Normalizer(this.el);

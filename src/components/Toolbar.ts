@@ -21,7 +21,7 @@ export class Toolbar {
     alignRight: ToolbarStyleButton;
     backgroundCanvas: ToolbarInsertButton;
     codeBlock: ToolbarInsertButton;
-    inlineCode: ToolbarStyleButton;
+    inlineCode: ToolbarInsertButton;
     anchor: ToolbarInsertButton;
     orderedList: ToolbarInsertButton;
     unorderedList: ToolbarInsertButton;
@@ -89,11 +89,10 @@ export class Toolbar {
             `
             <svg fill="currentColor" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M8,3A2,2 0 0,0 6,5V9A2,2 0 0,1 4,11H3V13H4A2,2 0 0,1 6,15V19A2,2 0 0,0 8,21H10V19H8V14A2,2 0 0,0 6,12A2,2 0 0,0 8,10V5H10V3M16,3A2,2 0 0,1 18,5V9A2,2 0 0,0 20,11H21V13H20A2,2 0 0,0 18,15V19A2,2 0 0,1 16,21H14V19H16V14A2,2 0 0,1 18,12A2,2 0 0,1 16,10V5H14V3H16Z" /></svg>
             `, null, insertElementType.CodeBlock, "create-code-block");
-        this.inlineCode = new ToolbarStyleButton(scribby,
+        this.inlineCode = new ToolbarInsertButton(scribby,
             `
             <svg fill="currentColor" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M14.6,16.6L19.2,12L14.6,7.4L16,6L22,12L16,18L14.6,16.6M9.4,16.6L4.8,12L9.4,7.4L8,6L2,12L8,18L9.4,16.6Z" /></svg>
-            `,
-            null, "inline-script", affectedElementType.Span)
+            `, null, insertElementType.InlineCode, "create-inline-code");
         this.anchor = new ToolbarInsertButton(scribby,
             `
             <svg fill="currentColor" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3.9,12C3.9,10.29 5.29,8.9 7,8.9H11V7H7A5,5 0 0,0 2,12A5,5 0 0,0 7,17H11V15.1H7C5.29,15.1 3.9,13.71 3.9,12M8,13H16V11H8V13M17,7H13V8.9H17C18.71,8.9 20.1,10.29 20.1,12C20.1,13.71 18.71,15.1 17,15.1H13V17H17A5,5 0 0,0 22,12A5,5 0 0,0 17,7Z" /></svg>
@@ -479,7 +478,7 @@ export class Toolbar {
         this.setButtonTooltip(this.alignCenter.el, "Align center", "Ctrl+Shift+E");
         this.setButtonTooltip(this.alignRight.el, "Align right", "Ctrl+Shift+C");
 
-        this.setButtonTooltip(this.codeBlock.el, "Insert canvas");
+        this.setButtonTooltip(this.backgroundCanvas.el, "Insert canvas");
         this.setButtonTooltip(this.codeBlock.el, "Insert code block", "Ctrl+E");
         this.setButtonTooltip(this.inlineCode.el, "Inline code");
         this.setButtonTooltip(this.anchor.el, "Insert link", "Ctrl+K");
