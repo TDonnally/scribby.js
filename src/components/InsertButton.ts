@@ -1,5 +1,6 @@
 import { Scribby } from "./Scribby.js";
 import { InsertModal } from "./InsertModal.js";
+import { LatexBlock } from "./LatexBlock/LatexBlock.js";
 
 import * as utils from "../utilities/utilities.js"
 
@@ -12,6 +13,7 @@ export enum insertElementType {
     UnorderedList = "ul",
     CodeBlock = "scribby-code-block",
     InlineCode = "code",
+    Latex = "scribby-latex-block",
 }
 
 
@@ -252,6 +254,41 @@ export class ToolbarInsertButton {
 
                     sel.addRange(r);
                 }
+            }
+            else if (this.insertElType === insertElementType.Latex) {
+                const selectedSyntax = range.toString();
+
+                const latexBlock = document.createElement(
+                    "scribby-latex-block",
+                ) as LatexBlock;
+
+                latexBlock.setAttribute("data-value", selectedSyntax);
+
+                range.deleteContents();
+                range.insertNode(latexBlock);
+
+                const after = document.createTextNode("\u200B");
+                latexBlock.after(after);
+
+                const selection = window.getSelection();
+
+                if (selection) {
+                    selection.removeAllRanges();
+
+                    const caretRange = document.createRange();
+                    caretRange.setStart(after, 1);
+                    caretRange.collapse(true);
+
+                    selection.addRange(caretRange);
+                }
+
+                this.scribby.el.dispatchEvent(new Event("input"));
+
+                queueMicrotask(() => {
+                    latexBlock.openEditor();
+                });
+
+                return;
             }
             else {
                 const newEl = document.createElement(this.insertElType);

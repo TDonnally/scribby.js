@@ -1,5 +1,5 @@
 export const BLOCK_SELECTOR = "p,h1,h2,h3,h4,h5,h6,li,blockquote,code";
-export const PROTECTED_BLOCK_SELECTOR = "scribby-code-block, speech-output, summary-output, inline-canvas";
+export const PROTECTED_BLOCK_SELECTOR = "scribby-code-block, speech-output, summary-output, inline-canvas, scribby-latex-block";
 
 import { ConfirmOverlay } from "../components/ConfirmOverlay";
 
@@ -476,6 +476,7 @@ export const getProtectedBlockLabel = (block: HTMLElement | null): string => {
     if (block.matches("scribby-code-block")) return "code block";
     if (block.matches("summary-output")) return "summary block";
     if (block.matches("inline-canvas")) return "drawing canvas";
+    if (block.matches("scribby-latex-block")) return "formula";
 
     return "audio block";
 };

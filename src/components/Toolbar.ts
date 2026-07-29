@@ -22,6 +22,7 @@ export class Toolbar {
     backgroundCanvas: ToolbarInsertButton;
     codeBlock: ToolbarInsertButton;
     inlineCode: ToolbarInsertButton;
+    latexBlock: ToolbarInsertButton;
     anchor: ToolbarInsertButton;
     orderedList: ToolbarInsertButton;
     unorderedList: ToolbarInsertButton;
@@ -93,6 +94,12 @@ export class Toolbar {
             `
             <svg fill="currentColor" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M14.6,16.6L19.2,12L14.6,7.4L16,6L22,12L16,18L14.6,16.6M9.4,16.6L4.8,12L9.4,7.4L8,6L2,12L8,18L9.4,16.6Z" /></svg>
             `, null, insertElementType.InlineCode, "create-inline-code");
+        this.latexBlock = new ToolbarInsertButton(
+            scribby,
+            `
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><title>math-integral</title><path d="M11.5 19.1C11.3 20.2 10.9 21 10.2 21.5C9.5 22 8.6 22.1 7.5 21.9C7.1 21.8 6.3 21.7 6 21.5L6.5 20C6.8 20.1 7.4 20.3 7.7 20.3C8.8 20.5 9.4 20 9.6 18.8L12 5.2C12.2 4 12.7 3.2 13.4 2.6C14.1 2.1 15.1 1.9 16.2 2.1C16.6 2.2 17.4 2.3 18 2.6L17.5 4C17.3 3.9 16.6 3.8 16.3 3.7C15 3.5 14.3 4.1 14 5.6L11.5 19.1Z" /></svg>
+            `, null, insertElementType.Latex, "create-latex-block",
+        );
         this.anchor = new ToolbarInsertButton(scribby,
             `
             <svg fill="currentColor" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3.9,12C3.9,10.29 5.29,8.9 7,8.9H11V7H7A5,5 0 0,0 2,12A5,5 0 0,0 7,17H11V15.1H7C5.29,15.1 3.9,13.71 3.9,12M8,13H16V11H8V13M17,7H13V8.9H17C18.71,8.9 20.1,10.29 20.1,12C20.1,13.71 18.71,15.1 17,15.1H13V17H17A5,5 0 0,0 22,12A5,5 0 0,0 17,7Z" /></svg>
@@ -140,6 +147,7 @@ export class Toolbar {
         this.backgroundCanvas.mount();
         this.codeBlock.mount();
         this.inlineCode.mount();
+        this.latexBlock.mount();
         this.anchor.mount();
         this.orderedList.mount();
         this.unorderedList.mount();
@@ -312,6 +320,7 @@ export class Toolbar {
             this.el.appendChild(this.backgroundCanvas.el);
             this.el.appendChild(this.codeBlock.el);
             this.el.appendChild(this.inlineCode.el);
+            this.el.appendChild(this.latexBlock.el);
             this.el.appendChild(this.anchor.el);
             this.el.appendChild(this.orderedList.el);
             this.el.appendChild(this.unorderedList.el);
@@ -381,6 +390,7 @@ export class Toolbar {
                 this.backgroundCanvas.el,
                 this.anchor.el,
                 this.codeBlock.el,
+                this.latexBlock.el,
                 this.orderedList.el,
                 this.unorderedList.el,
             ],
@@ -481,6 +491,7 @@ export class Toolbar {
         this.setButtonTooltip(this.backgroundCanvas.el, "Insert canvas");
         this.setButtonTooltip(this.codeBlock.el, "Insert code block", "Ctrl+E");
         this.setButtonTooltip(this.inlineCode.el, "Inline code");
+        this.setButtonTooltip(this.latexBlock.el, "Insert formula");
         this.setButtonTooltip(this.anchor.el, "Insert link", "Ctrl+K");
         this.setButtonTooltip(this.orderedList.el, "Ordered list", "Ctrl+Shift+7");
         this.setButtonTooltip(this.unorderedList.el, "Unordered list", "Ctrl+Shift+8");

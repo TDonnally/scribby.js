@@ -23,7 +23,7 @@ import { PromptModal } from "./LLMOutput/PromptModal.js";
 import { SummaryOutput } from "./LLMOutput/SummaryOutput.js";
 import { PromptTextBox } from "./LLMOutput/PromptTextBox.js";
 
-
+import { LatexBlock } from "./LatexBlock/LatexBlock.js";
 const parser = new DOMParser();
 
 
@@ -117,6 +117,7 @@ export class Scribby {
         customElements.define("prompt-modal", PromptModal);
         customElements.define("summary-output", SummaryOutput);
         customElements.define("prompt-text-box", PromptTextBox);
+        customElements.define("scribby-latex-block", LatexBlock);
 
         this.el.addEventListener("keydown", async (e) => {
             if (e.ctrlKey) {
@@ -690,7 +691,7 @@ export class Scribby {
 
             const html = div.innerHTML
             const text = div.innerText
-            
+
             e.clipboardData.setData("application/x-scribby", "1");
             e.clipboardData.setData("text/html", html);
             if (text) {
@@ -796,6 +797,14 @@ export class Scribby {
             this.normalizer.removeEmptyNodes(this.el);
 
         });
+        this.el.addEventListener(
+            "scribby:block-change",
+            () => {
+                this.el.dispatchEvent(
+                    new Event("input"),
+                );
+            },
+        );
         this.el.addEventListener("activate-style-buttons", (e) => {
             const range = this.selection;
             if (!range) return;
@@ -959,22 +968,55 @@ export class Scribby {
         })
 
         document.addEventListener("selectionchange", () => {
-            const activeElement = document.activeElement as HTMLElement | null;
+            const activeElement =
+                document.activeElement as HTMLElement | null;
 
-            if (activeElement?.closest(".insert-modal")) {
+            /*
+             * Preserve the editor selection while typing inside either
+             * editor modal.
+             */
+            if (
+                activeElement?.closest(
+                    ".insert-modal, .latex-modal",
+                )
+            ) {
                 return;
             }
 
-            const sel = window.getSelection();
+            const selection = window.getSelection();
 
-            if (!sel || sel.rangeCount === 0) {
+            if (!selection || selection.rangeCount === 0) {
                 this.selection = null;
                 return;
             }
 
-            const range = sel.getRangeAt(0);
+            const range = selection.getRangeAt(0);
 
             if (!this.el.contains(range.commonAncestorContainer)) {
+                return;
+            }
+
+            const parent =
+                range.commonAncestorContainer.nodeType === Node.ELEMENT_NODE
+                    ? range.commonAncestorContainer as HTMLElement
+                    : range.commonAncestorContainer.parentElement;
+
+            const closestLatexBlock =
+                parent?.closest<HTMLElement>(
+                    "scribby-latex-block",
+                );
+
+            if (closestLatexBlock) {
+                if (this.currentInsertModal) {
+                    this.currentInsertModal.close();
+                    this.currentInsertModal = null;
+                }
+
+                if (this.currentTextModal) {
+                    this.currentTextModal.unmount();
+                    this.currentTextModal = null;
+                }
+
                 return;
             }
 
@@ -991,18 +1033,20 @@ export class Scribby {
             this.selection = range;
             this.el.dispatchEvent(events.activateStyleButtons);
 
-            const parent =
-                range.commonAncestorContainer.nodeType === Node.ELEMENT_NODE
-                    ? range.commonAncestorContainer as HTMLElement
-                    : range.commonAncestorContainer.parentElement;
-
             const closestAnchor = parent?.closest("a");
-            const closestCodeBlock = parent?.closest("scribby-code-block");
-            const closestSummary = parent?.closest("summary-output");
-            const closestAudioBlock = parent?.closest("speech-output");
-            const closestCanvas = parent?.closest("inline-canvas");
+            const closestCodeBlock =
+                parent?.closest("scribby-code-block");
+            const closestSummary =
+                parent?.closest("summary-output");
+            const closestAudioBlock =
+                parent?.closest("speech-output");
+            const closestCanvas =
+                parent?.closest("inline-canvas");
 
-            if (closestAnchor && this.currentInsertModal == null) {
+            if (
+                closestAnchor &&
+                this.currentInsertModal === null
+            ) {
                 const linkModal = new LinkModal(
                     this,
                     this.selection.getBoundingClientRect(),
@@ -1011,7 +1055,16 @@ export class Scribby {
 
                 this.currentTextModal = linkModal;
                 linkModal.mount();
-            } else if (!closestCodeBlock && !closestSummary && !closestAudioBlock && !closestCanvas) {
+
+                return;
+            }
+
+            if (
+                !closestCodeBlock &&
+                !closestSummary &&
+                !closestAudioBlock &&
+                !closestCanvas
+            ) {
                 this.el.focus();
             }
         });

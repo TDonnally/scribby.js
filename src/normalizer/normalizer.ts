@@ -23,7 +23,7 @@ export class Normalizer {
         const allEls = rootEl.querySelectorAll<HTMLElement>("*");
 
         const notInSchema = Array.from(allEls).filter(el => {
-            if (el.closest("scribby-code-block") || el.closest("speech-output") || el.closest("summary-output") || el.closest("inline-canvas")) return false;
+            if (el.closest(utils.PROTECTED_BLOCK_SELECTOR)) return false;
 
             return !allowedTags.has(el.tagName.toLowerCase());
         });
@@ -72,13 +72,34 @@ export class Normalizer {
                 }
                 const { hierarchyLabel, allowedParents } = entry;
 
-                if (parentTag && !allowedParents.has(parentTag)) {
-                    outOfOrderNodes[hierarchyLabel].push(child)
+                if (childTag === "scribby-latex-block") {
+                    const isDisplay = childEl.dataset.display === "display";
+
+                    const validParent = isDisplay
+                        ? parentTag === "div" || parentTag === "li"
+                        : parentTag === "p" ||
+                        parentTag === "h1" ||
+                        parentTag === "h2" ||
+                        parentTag === "h3" ||
+                        parentTag === "h4" ||
+                        parentTag === "h5" ||
+                        parentTag === "h6" ||
+                        parentTag === "li";
+
+                    if (!validParent) {
+                        outOfOrderNodes[nodeHierarchy.latexBlock].push(child);
+                    }
                 }
-                if (childTag !== "scribby-code-block" && childTag !== "speech-output" && childTag !== "summary-output") {
-                    const grandChildren = Array.from(childEl.childNodes);
-                    children.push(...grandChildren);
+                else if (parentTag && !allowedParents.has(parentTag)) {
+                    outOfOrderNodes[hierarchyLabel].push(child);
                 }
+
+                if (childEl.matches(utils.PROTECTED_BLOCK_SELECTOR)) {
+                    continue;
+                }
+
+                const grandChildren = Array.from(childEl.childNodes);
+                children.push(...grandChildren);
             }
 
         }
@@ -103,6 +124,7 @@ export class Normalizer {
             [nodeHierarchy.speechOutput]: organizeSpeechOutput,
             [nodeHierarchy.summaryOutput]: organizeSummaryOutput,
             [nodeHierarchy.inlineCanvas]: organizeCanvas,
+            [nodeHierarchy.latexBlock]: organizeLatexBlock,
             /* 
             [nodeHierarchy.tableItem]: organizeTextNode, 
             [nodeHierarchy.tableRow]: organizeTextNode,
@@ -464,12 +486,82 @@ export class Normalizer {
 
             utils.replaceElementWithChildren(nodeEl);
         }
+        function organizeLatexBlock(node: Node): void {
+            const nodeEl = node as HTMLElement;
+            const latexBlocks = Array.from(
+                nodeEl.querySelectorAll<HTMLElement>(":scope > scribby-latex-block")
+            );
+
+            for (const latexBlock of latexBlocks) {
+                const isDisplay = latexBlock.dataset.display === "display";
+                let parent = nodeEl.parentElement;
+                let parentTag = parent?.tagName.toLowerCase();
+
+                if (isDisplay) {
+                    if (parentTag === "ol" || parentTag === "ul") {
+                        const listItem = document.createElement("li");
+                        parent?.insertBefore(listItem, nodeEl);
+                        listItem.appendChild(latexBlock);
+                        continue;
+                    }
+
+                    while (
+                        parentTag &&
+                        parentTag !== "div" &&
+                        parentTag !== "li"
+                    ) {
+                        utils.makeChildSiblingofParent(latexBlock);
+                        parent = latexBlock.parentElement;
+                        parentTag = parent?.tagName.toLowerCase();
+                    }
+                }
+                else {
+                    if (parentTag === "ol" || parentTag === "ul") {
+                        const listItem = document.createElement("li");
+                        parent?.insertBefore(listItem, nodeEl);
+                        listItem.appendChild(latexBlock);
+                        continue;
+                    }
+
+                    if (parentTag === "div" && parent) {
+                        const p = document.createElement("p");
+                        parent.insertBefore(p, nodeEl);
+                        p.appendChild(latexBlock);
+                        continue;
+                    }
+
+                    while (
+                        parentTag &&
+                        parentTag !== "p" &&
+                        parentTag !== "h1" &&
+                        parentTag !== "h2" &&
+                        parentTag !== "h3" &&
+                        parentTag !== "h4" &&
+                        parentTag !== "h5" &&
+                        parentTag !== "h6" &&
+                        parentTag !== "li"
+                    ) {
+                        utils.makeChildSiblingofParent(latexBlock);
+                        parent = latexBlock.parentElement;
+                        parentTag = parent?.tagName.toLowerCase();
+                    }
+                }
+            }
+
+            utils.replaceElementWithChildren(nodeEl);
+        }
     }
     removeEmptyNodes(root: Node): void {
         const rootEl = root as HTMLElement;
-        const allNodes = rootEl.querySelectorAll<HTMLElement>(`${utils.BLOCK_SELECTOR}, ul, ol, span`);
+        const allNodes = rootEl.querySelectorAll<HTMLElement>(
+            `${utils.BLOCK_SELECTOR}, ul, ol, span`
+        );
 
         for (const node of allNodes) {
+            if (node.closest(utils.PROTECTED_BLOCK_SELECTOR)) {
+                continue;
+            }
+
             const hasText = node.textContent?.trim().length! > 0;
             const hasBr = node.querySelector("br") !== null;
 

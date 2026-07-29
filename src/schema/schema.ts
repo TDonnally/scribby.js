@@ -17,7 +17,8 @@ export enum nodeHierarchy {
     codeblock,
     speechOutput,
     summaryOutput,
-    inlineCanvas
+    inlineCanvas,
+    latexBlock,
     /*
     tableItem,
     tableRow, 
@@ -37,43 +38,43 @@ export const schema: Map<string, NodeSchema> = new Map([
     ["h1", {
         defaultParent: 'div',
         allowedParents: new Set(['div', 'blockquote', 'td', 'th']),
-        allowedChildren: new Set(['span', 'a', 'text']),
+        allowedChildren: new Set(['span', 'a', 'text', "scribby-latex-block"]),
         hierarchyLabel: nodeHierarchy.textEl
     }],
     ["h2", {
         defaultParent: 'div',
         allowedParents: new Set(['div', 'blockquote', 'td', 'th']),
-        allowedChildren: new Set(['span', 'a', 'text']),
+        allowedChildren: new Set(['span', 'a', 'text', "scribby-latex-block"]),
         hierarchyLabel: nodeHierarchy.textEl
     }],
     ["h3", {
         defaultParent: 'div',
         allowedParents: new Set(['div', 'blockquote', 'td', 'th']),
-        allowedChildren: new Set(['span', 'a', 'text']),
+        allowedChildren: new Set(['span', 'a', 'text', "scribby-latex-block"]),
         hierarchyLabel: nodeHierarchy.textEl
     }],
     ["h4", {
         defaultParent: 'div',
         allowedParents: new Set(['div', 'blockquote', 'td', 'th']),
-        allowedChildren: new Set(['span', 'a', 'text']),
+        allowedChildren: new Set(['span', 'a', 'text', "scribby-latex-block"]),
         hierarchyLabel: nodeHierarchy.textEl
     }],
     ["h5", {
         defaultParent: 'div',
         allowedParents: new Set(['div', 'blockquote', 'td', 'th']),
-        allowedChildren: new Set(['span', 'a', 'text']),
+        allowedChildren: new Set(['span', 'a', 'text', "scribby-latex-block"]),
         hierarchyLabel: nodeHierarchy.textEl
     }],
     ["h6", {
         defaultParent: 'div',
         allowedParents: new Set(['div', 'blockquote', 'td', 'th']),
-        allowedChildren: new Set(['span', 'a', 'text']),
+        allowedChildren: new Set(['span', 'a', 'text', "scribby-latex-block"]),
         hierarchyLabel: nodeHierarchy.textEl
     }],
     ["p", {
         defaultParent: 'div',
         allowedParents: new Set(['div', 'blockquote', 'td', 'th']),
-        allowedChildren: new Set(['span', 'a', 'text']),
+        allowedChildren: new Set(['span', 'a', 'text', "scribby-latex-block"]),
         hierarchyLabel: nodeHierarchy.textEl
     }],
 
@@ -133,7 +134,7 @@ export const schema: Map<string, NodeSchema> = new Map([
     ["li", {
         defaultParent: 'ul',
         allowedParents: new Set(['ol', 'ul']),
-        allowedChildren: new Set(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'span', 'a']),
+        allowedChildren: new Set(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'span', 'a', "scribby-latex-block"]),
         hierarchyLabel: nodeHierarchy.listItem
     }],
     /*
@@ -218,5 +219,10 @@ export const schema: Map<string, NodeSchema> = new Map([
         allowedChildren: new Set([]),
         hierarchyLabel: nodeHierarchy.inlineCanvas
     }],
-
+    ["scribby-latex-block", {
+        defaultParent: "p",
+        allowedParents: new Set([ "div", "li", "h1", "h2", "h3", "h4", "h5", "h6", "p" ]),
+        allowedChildren: new Set([]),
+        hierarchyLabel: nodeHierarchy.latexBlock,
+    }],
 ])
