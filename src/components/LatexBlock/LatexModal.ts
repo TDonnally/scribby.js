@@ -47,6 +47,7 @@ export class LatexModal {
 
         this.modalForm.classList.add("latex-modal", "modal");
         this.modalForm.classList.toggle("mobile-overlay", this.mobile);
+        this.modalForm.dataset.anchor = this.placement;
         this.modalForm.setAttribute("role", "dialog");
         this.modalForm.setAttribute("aria-modal", "true");
         this.modalForm.setAttribute("aria-label", "Edit LaTeX formula");
@@ -63,12 +64,6 @@ export class LatexModal {
                     required
                 ></textarea>
             </label>
-
-            <button
-                class="latex-modal-mode-toggle btn-small"
-                type="button"
-            ></button>
-
             <label class="latex-modal-field latex-modal-label-field">
                 <span>Description</span>
                 <input
@@ -80,6 +75,10 @@ export class LatexModal {
             </label>
 
             <div class="latex-modal-actions row-buttons">
+                <button
+                    class="latex-modal-mode-toggle btn-small"
+                    type="button"
+                ></button>
                 <button
                     class="latex-modal-submit btn-small confirm"
                     type="submit"
