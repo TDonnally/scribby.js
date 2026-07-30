@@ -1,7 +1,12 @@
 /**
  * This is a basic implementation of history management that will work for a single tenant
- * When collaboration modes are introduced we will need to adjust this but it will work for now. 
+ * When collaboration modes are introduced we will need to adjust this but it will work for now.
  */
+import {
+    normalizeLatexSelectionPoint,
+    preserveLatexBlock,
+} from "../components/LatexBlock/utilities.js";
+
 export type SelectionSnapshot = {
     startPath: number[];
     startOffset: number;
@@ -9,6 +14,7 @@ export type SelectionSnapshot = {
     endOffset: number;
     collapsed: boolean;
 };
+
 export type Snapshot = {
     timestamp: number;
     html: string;
@@ -20,7 +26,33 @@ export class HistoryManager {
     private index = -1;
     private limit = 50;
 
-    push(snapshot: Snapshot) {
+    /**
+     * Serializes a clean LaTeX host rather than generated KaTeX children.
+     * Other component types keep their existing history behavior.
+     */
+    public serialize(rootEl: HTMLElement): string {
+        const clone = rootEl.cloneNode(true) as HTMLElement;
+        preserveLatexBlock(clone);
+
+        return clone.innerHTML;
+    }
+
+    public createSnapshot(rootEl: HTMLElement): Snapshot {
+        return {
+            timestamp: Date.now(),
+            html: this.serialize(rootEl),
+            selection: this.captureSelection(rootEl),
+        };
+    }
+
+    public push(snapshot: Snapshot): void {
+        const current = this.history[this.index];
+
+        if (current?.html === snapshot.html) {
+            this.history[this.index] = snapshot;
+            return;
+        }
+
         if (this.index < this.history.length - 1) {
             this.history = this.history.slice(0, this.index + 1);
         }
@@ -29,85 +61,156 @@ export class HistoryManager {
 
         if (this.history.length > this.limit) {
             this.history.shift();
-            this.index = this.history.length - 1;
-        } else {
-            this.index = this.history.length - 1;
         }
+
+        this.index = this.history.length - 1;
     }
-    undo(): Snapshot | null {
+
+    public undo(): Snapshot | null {
         if (this.index <= 0) return null;
+
         this.index--;
         return this.history[this.index];
     }
-    redo(): Snapshot | null {
+
+    public redo(): Snapshot | null {
         if (this.index >= this.history.length - 1) return null;
+
         this.index++;
         return this.history[this.index];
     }
-    hasUndo() {
+
+    public hasUndo(): boolean {
         return this.index > 0;
     }
-    hasRedo() {
+
+    public hasRedo(): boolean {
         return this.index < this.history.length - 1;
     }
 
     /**
-     * Utilities for recreating selections
+     * Utilities for recreating selections.
      */
-    nodeToPath(root: Node, node: Node): number[] {
+    public nodeToPath(root: Node, node: Node): number[] {
         const path: number[] = [];
-        let cur: Node | null = node;
+        let current: Node | null = node;
 
-        while (cur && cur !== root) {
-            const p: Node | null = cur.parentNode;
-            if (!p) break;
+        while (current && current !== root) {
+            const parent: Node | null = current.parentNode;
+            if (!parent) break;
 
-            path.push(Array.prototype.indexOf.call(p.childNodes, cur));
-            cur = p;
+            path.push(
+                Array.prototype.indexOf.call(
+                    parent.childNodes,
+                    current,
+                ),
+            );
+
+            current = parent;
         }
 
         return path.reverse();
     }
 
-    pathToNode(root: Node, path: number[]): Node | null {
-        let cur: Node = root;
-        for (const idx of path) {
-            const next = cur.childNodes[idx];
+    public pathToNode(root: Node, path: number[]): Node | null {
+        let current: Node = root;
+
+        for (const index of path) {
+            const next = current.childNodes[index];
             if (!next) return null;
-            cur = next;
+
+            current = next;
         }
-        return cur;
+
+        return current;
     }
 
-    captureSelection(rootEl: HTMLElement): SelectionSnapshot | null {
-        const sel = window.getSelection();
-        if (!sel || sel.rangeCount === 0) return null;
+    public captureSelection(
+        rootEl: HTMLElement,
+    ): SelectionSnapshot | null {
+        const selection = window.getSelection();
+        if (!selection || selection.rangeCount === 0) return null;
 
-        const r = sel.getRangeAt(0);
-        if (!rootEl.contains(r.commonAncestorContainer)) return null;
+        const range = selection.getRangeAt(0);
+
+        if (!rootEl.contains(range.commonAncestorContainer)) {
+            return null;
+        }
+
+        const start = normalizeLatexSelectionPoint(
+            rootEl,
+            range.startContainer,
+            range.startOffset,
+            range.collapsed ? "after" : "before",
+        );
+
+        const end = normalizeLatexSelectionPoint(
+            rootEl,
+            range.endContainer,
+            range.endOffset,
+            "after",
+        );
 
         return {
-            startPath: this.nodeToPath(rootEl, r.startContainer),
-            startOffset: r.startOffset,
-            endPath: this.nodeToPath(rootEl, r.endContainer),
-            endOffset: r.endOffset,
-            collapsed: r.collapsed,
+            startPath: this.nodeToPath(rootEl, start.node),
+            startOffset: start.offset,
+            endPath: this.nodeToPath(rootEl, end.node),
+            endOffset: end.offset,
+            collapsed: range.collapsed,
         };
     }
 
-    restoreSelection(rootEl: HTMLElement, snap: SelectionSnapshot | null) {
-        if (!snap) return;
+    public restoreSelection(
+        rootEl: HTMLElement,
+        snapshot: SelectionSnapshot | null,
+    ): Range | null {
+        if (!snapshot) return null;
 
-        const startNode = this.pathToNode(rootEl, snap.startPath);
-        const endNode = this.pathToNode(rootEl, snap.endPath);
-        if (!startNode || !endNode) return;
+        const startNode = this.pathToNode(
+            rootEl,
+            snapshot.startPath,
+        );
 
-        const r = document.createRange();
-        r.setStart(startNode, Math.min(snap.startOffset, startNode.nodeType === 3 ? (startNode as Text).length : startNode.childNodes.length));
-        r.setEnd(endNode, Math.min(snap.endOffset, endNode.nodeType === 3 ? (endNode as Text).length : endNode.childNodes.length));
+        const endNode = this.pathToNode(
+            rootEl,
+            snapshot.endPath,
+        );
 
-        const sel = window.getSelection();
-        sel?.removeAllRanges();
-        sel?.addRange(r);
+        if (!startNode || !endNode) return null;
+
+        try {
+            const range = document.createRange();
+
+            range.setStart(
+                startNode,
+                this.clampOffset(startNode, snapshot.startOffset),
+            );
+
+            range.setEnd(
+                endNode,
+                this.clampOffset(endNode, snapshot.endOffset),
+            );
+
+            if (snapshot.collapsed) {
+                range.collapse(true);
+            }
+
+            const selection = window.getSelection();
+            selection?.removeAllRanges();
+            selection?.addRange(range);
+
+            return range;
+        } catch {
+            return null;
+        }
+    }
+
+    private clampOffset(node: Node, offset: number): number {
+        const maximum =
+            node.nodeType === Node.TEXT_NODE
+                ? (node as Text).length
+                : node.childNodes.length;
+
+        return Math.min(Math.max(offset, 0), maximum);
     }
 }

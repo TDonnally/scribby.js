@@ -24,6 +24,16 @@ import { SummaryOutput } from "./LLMOutput/SummaryOutput.js";
 import { PromptTextBox } from "./LLMOutput/PromptTextBox.js";
 
 import { LatexBlock } from "./LatexBlock/LatexBlock.js";
+import {
+    containsInlineLatexBlock,
+    createLatexClipboardPayload,
+    getAdjacentInlineLatexBlock,
+    isCaretAtLatexTextBoundary,
+    mergeTextBlocksPreservingLatexBlock,
+    preserveLatexBlock,
+    removeInlineLatexBlock,
+    splitTextBlockAtInlineLatexBoundary,
+} from "./LatexBlock/utilities.js";
 const parser = new DOMParser();
 
 
@@ -47,6 +57,26 @@ export class Scribby {
 
     currentInsertModal: InsertModal | null = null;
     currentTextModal: LinkModal | null = null;
+
+    private flushPendingHistorySnapshot(): void {
+        if (this.historyUpdateTimeoutId === null) return;
+
+        clearTimeout(this.historyUpdateTimeoutId);
+        this.historyUpdateTimeoutId = null;
+
+        this.historyManager.push(
+            this.historyManager.createSnapshot(this.el),
+        );
+    }
+
+    private restoreHistorySnapshot(snapshot: Snapshot): void {
+        this.el.innerHTML = snapshot.html;
+
+        this.selection = this.historyManager.restoreSelection(
+            this.el,
+            snapshot.selection,
+        );
+    }
 
     constructor(
         selector = "",
@@ -89,13 +119,9 @@ export class Scribby {
         this.el.classList.add("scribby");
         this.el.innerHTML = this.content;
 
-        const initSnapshot: Snapshot = {
-            timestamp: Date.now(),
-            html: this.content,
-            selection: this.historyManager.captureSelection(this.el),
-        }
-
-        this.historyManager.push(initSnapshot);
+        this.historyManager.push(
+            this.historyManager.createSnapshot(this.el),
+        );
 
         container.dataset.state = "rendered";
         container.replaceChildren(this.el);
@@ -120,7 +146,7 @@ export class Scribby {
         customElements.define("scribby-latex-block", LatexBlock);
 
         this.el.addEventListener("keydown", async (e) => {
-            if (e.ctrlKey) {
+            if (e.ctrlKey || e.metaKey) {
                 if (e.shiftKey) {
                     e.preventDefault();
                     const key = e.key.toLowerCase()
@@ -143,19 +169,42 @@ export class Scribby {
                         this.el.dispatchEvent(events.createUnorderedList);
                     }
                 }
-                if (e.key === "z") {
+                const historyKey = e.key.toLowerCase();
+                const wantsUndo =
+                    historyKey === "z" &&
+                    !e.shiftKey;
+
+                const wantsRedo =
+                    historyKey === "y" ||
+                    (historyKey === "z" && e.shiftKey);
+
+                if (wantsUndo) {
                     e.preventDefault();
+
+                    /*
+                     * Preserve the latest debounced edit as the current state
+                     * before moving backward through history.
+                     */
+                    this.flushPendingHistorySnapshot();
+
                     const snapshot = this.historyManager.undo();
                     if (!snapshot) return;
-                    this.el.innerHTML = snapshot.html;
-                    this.historyManager.restoreSelection(this.el, snapshot.selection);
+
+                    this.restoreHistorySnapshot(snapshot);
                 }
-                else if (e.key === "y") {
+                else if (wantsRedo) {
                     e.preventDefault();
+
+                    /*
+                     * A pending edit represents a new branch. Flushing it
+                     * correctly invalidates any older redo branch.
+                     */
+                    this.flushPendingHistorySnapshot();
+
                     const snapshot = this.historyManager.redo();
                     if (!snapshot) return;
-                    this.el.innerHTML = snapshot.html;
-                    this.historyManager.restoreSelection(this.el, snapshot.selection);
+
+                    this.restoreHistorySnapshot(snapshot);
                 }
                 else if (e.key === "b") {
                     e.preventDefault();
@@ -267,6 +316,38 @@ export class Scribby {
                 if (!parent) return;
 
                 const codeBlock = parent.closest("scribby-code-block") as HTMLElement | null;
+
+                /*
+                 * Native contenteditable inserts a BR when splitting directly
+                 * before a contenteditable=false inline component. Split the
+                 * nodes ourselves so a leading formula remains:
+                 *
+                 * <p><scribby-latex-block>...</scribby-latex-block></p>
+                 *
+                 * rather than:
+                 *
+                 * <p><br><scribby-latex-block>...</scribby-latex-block></p>
+                 */
+                if (!codeBlock) {
+                    const latexTextContainer = parent.closest<HTMLElement>(
+                        "p, h1, h2, h3, h4, h5, h6, li",
+                    );
+
+                    if (latexTextContainer) {
+                        const splitRange =
+                            splitTextBlockAtInlineLatexBoundary(
+                                range,
+                                latexTextContainer,
+                            );
+
+                        if (splitRange) {
+                            e.preventDefault();
+                            this.selection = splitRange;
+                            this.el.dispatchEvent(new Event("input"));
+                            return;
+                        }
+                    }
+                }
 
                 // Normal editor text: h1/p/etc.
                 if (!codeBlock) {
@@ -426,6 +507,10 @@ export class Scribby {
                     emitInput();
                 };
 
+                const textContainer = startEl.closest<HTMLElement>(
+                    "p, h1, h2, h3, h4, h5, h6, li",
+                );
+
                 if (!range.collapsed) {
                     const protectedBlocks = utils.getProtectedBlocksInsideSelection(range);
 
@@ -461,6 +546,102 @@ export class Scribby {
                     }
 
                     return;
+                }
+
+                if (textContainer) {
+                    const adjacentLatex = getAdjacentInlineLatexBlock(
+                        range,
+                        textContainer,
+                        isBackspace ? "before" : "after",
+                    );
+
+                    if (adjacentLatex) {
+                        e.preventDefault();
+
+                        const confirmed =
+                            await utils.confirmProtectedBlockDelete(
+                                adjacentLatex,
+                            );
+
+                        if (!confirmed) return;
+
+                        place(
+                            removeInlineLatexBlock(
+                                adjacentLatex,
+                                textContainer,
+                            ),
+                        );
+
+                        emitInput();
+                        return;
+                    }
+
+                    const mergeableTextSelector =
+                        "p, h1, h2, h3, h4, h5, h6, li";
+
+                    if (
+                        isBackspace &&
+                        isCaretAtLatexTextBoundary(
+                            range,
+                            textContainer,
+                            "start",
+                        )
+                    ) {
+                        const previous =
+                            textContainer.previousElementSibling as HTMLElement | null;
+
+                        if (
+                            previous?.matches(mergeableTextSelector) &&
+                            (
+                                containsInlineLatexBlock(textContainer) ||
+                                containsInlineLatexBlock(previous)
+                            )
+                        ) {
+                            e.preventDefault();
+
+                            place(
+                                mergeTextBlocksPreservingLatexBlock(
+                                    textContainer,
+                                    previous,
+                                ),
+                            );
+
+                            emitInput();
+                            return;
+                        }
+                    }
+
+                    if (
+                        !isBackspace &&
+                        isCaretAtLatexTextBoundary(
+                            range,
+                            textContainer,
+                            "end",
+                        )
+                    ) {
+                        const next =
+                            textContainer.nextElementSibling as HTMLElement | null;
+
+                        if (
+                            next?.matches(mergeableTextSelector) &&
+                            (
+                                containsInlineLatexBlock(textContainer) ||
+                                containsInlineLatexBlock(next)
+                            )
+                        ) {
+                            e.preventDefault();
+
+                            place(
+                                mergeTextBlocksPreservingLatexBlock(
+                                    next,
+                                    textContainer,
+                                ),
+                            );
+
+                            emitInput();
+                            return;
+                        }
+                    }
                 }
 
                 // One remaining char in a list item
@@ -659,103 +840,126 @@ export class Scribby {
         })
 
         this.el.addEventListener("copy", (e) => {
+            if (!e.clipboardData || !this.selection) return;
 
-            if (!e.clipboardData) return;
             e.preventDefault();
 
-            const fragment = this.selection?.cloneContents();
-            const div = document.createElement("div");
-            if (fragment) {
-                div.appendChild(fragment);
-            }
+            const payload = createLatexClipboardPayload(
+                this.selection,
+                this.el,
+            );
 
-            const html = div.innerHTML
-            const text = div.innerText
+            e.clipboardData.setData(
+                "application/x-scribby",
+                payload.html,
+            );
+            e.clipboardData.setData("text/html", payload.html);
+            e.clipboardData.setData("text/plain", payload.text);
+        });
 
-            e.clipboardData.setData("application/x-scribby", "1");
-            e.clipboardData.setData("text/html", html);
-            if (text) {
-                e.clipboardData.setData("text/plain", text);
-            }
-
-        })
         this.el.addEventListener("cut", (e) => {
-            if (!e.clipboardData) return;
+            if (!e.clipboardData || !this.selection) return;
+
             e.preventDefault();
 
-            const fragment = this.selection?.cloneContents();
-            const div = document.createElement("div");
-            if (fragment) {
-                div.appendChild(fragment);
+            const payload = createLatexClipboardPayload(
+                this.selection,
+                this.el,
+            );
+
+            e.clipboardData.setData(
+                "application/x-scribby",
+                payload.html,
+            );
+            e.clipboardData.setData("text/html", payload.html);
+            e.clipboardData.setData("text/plain", payload.text);
+
+            payload.range.deleteContents();
+            this.selection = utils.placeRange(payload.range);
+
+            if (this.el.children.length === 0) {
+                const paragraph = utils.makePlaceholderP();
+                this.el.appendChild(paragraph);
+                this.selection = utils.placeCaretAtStart(paragraph);
             }
 
-            const html = div.innerHTML
-            const text = div.innerText
+            this.el.dispatchEvent(new Event("input"));
+        });
 
-            e.clipboardData.setData("application/x-scribby", "1");
-            e.clipboardData.setData("text/html", html);
-            if (text) {
-                e.clipboardData.setData("text/plain", text);
-            }
-
-            this.selection?.deleteContents();
-            if (this.selection?.commonAncestorContainer) {
-                this.normalizer.removeEmptyNodes(this.selection?.commonAncestorContainer);
-            }
-
-        })
         this.el.addEventListener("paste", (e) => {
             /**
              * steps:
              * 1. Clean clipboard
              * 2. Insert into DOM
              * 3. Normalize
-             * */
+             */
             e.preventDefault();
-            const range = this.selection;
-            if (!range) return;
 
-            if (e.clipboardData == null) {
-                return;
-            }
-            let html = e.clipboardData?.getData('text/html') || '';
-            const plain = e.clipboardData?.getData('text/plain') || '';
-            const fromScribby = e.clipboardData?.getData('application/x-scribby') || false;
+            const range = this.selection;
+            if (!range || !e.clipboardData) return;
+
+            const scribbyHtml = e.clipboardData.getData(
+                "application/x-scribby",
+            );
+
+            const regularHtml = e.clipboardData.getData("text/html");
+            const plain = e.clipboardData.getData("text/plain");
+
+            let html =
+                scribbyHtml && scribbyHtml !== "1"
+                    ? scribbyHtml
+                    : regularHtml;
+
+            const fromScribby =
+                scribbyHtml.length > 0 ||
+                html.includes("<scribby-latex-block");
 
             if (!html && plain) {
                 html = '<p>' + plain
-                    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;')
                     .replace(/\r\n/g, '\n')
                     .replace(/\n{2,}/g, '</p><p>')
                     .replace(/\n/g, '<br>') + '</p>';
             }
 
-            const snippet = parser.parseFromString(html, 'text/html');
+            const snippet = parser.parseFromString(html, "text/html");
             const fragment = document.createDocumentFragment();
 
             while (snippet.body.firstChild) {
                 fragment.appendChild(snippet.body.firstChild);
             }
-            // normalize fragment
+
+            if (fromScribby) {
+                preserveLatexBlock(fragment);
+            }
+
             this.normalizer.convertPastedCodeBlocks(fragment);
             this.normalizer.removeNotSupportedNodes(fragment);
 
             if (!fromScribby) {
                 utils.stripAttributes(fragment);
+
                 const spans = fragment.querySelectorAll("span");
                 spans.forEach((span) => {
-                    utils.replaceElementWithChildren(span)
-                })
+                    utils.replaceElementWithChildren(span);
+                });
             }
-            // insert
-            utils.removeAllComments(fragment)
+
+            utils.removeAllComments(fragment);
             range.deleteContents();
             range.insertNode(fragment);
 
-            // normalize after inserting
-            const outOfOrderNodes = this.normalizer.flagNodeHierarchyViolations(range.commonAncestorContainer);
+            const outOfOrderNodes =
+                this.normalizer.flagNodeHierarchyViolations(
+                    range.commonAncestorContainer,
+                );
+
             this.normalizer.fixHierarchyViolations(outOfOrderNodes);
-        })
+            this.el.dispatchEvent(new Event("input"));
+        });
+
         this.el.addEventListener("focusin", (e) => {
             if (this.currentInsertModal) {
                 this.currentInsertModal.unmount();
@@ -774,19 +978,15 @@ export class Scribby {
             this.historyUpdateTimeoutId = window.setTimeout(() => {
                 this.historyUpdateTimeoutId = null;
 
-                const snapshot: Snapshot = {
-                    timestamp: Date.now(),
-                    html: this.el.innerHTML,
-                    selection: this.historyManager.captureSelection(this.el),
-                };
-
-                this.historyManager.push(snapshot);
+                this.historyManager.push(
+                    this.historyManager.createSnapshot(this.el),
+                );
             }, this.historyUpdateDelayonInput);
             this.saveTimeoutId = window.setTimeout(() => {
                 this.saveTimeoutId = null;
 
                 // send out auto save event
-                this.content = this.el.innerHTML
+                this.content = this.historyManager.serialize(this.el)
                 const saveEvent = new CustomEvent("save-document")
                 document.dispatchEvent(saveEvent);
             }, this.saveDelayonInput);
@@ -800,9 +1000,16 @@ export class Scribby {
         this.el.addEventListener(
             "scribby:block-change",
             () => {
+                /*
+                 * The input listener normalizes the inline/display hierarchy
+                 * synchronously, then this immediately commits the component
+                 * operation as one undo step.
+                 */
                 this.el.dispatchEvent(
                     new Event("input"),
                 );
+
+                this.flushPendingHistorySnapshot();
             },
         );
         this.el.addEventListener("activate-style-buttons", (e) => {

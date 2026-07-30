@@ -108,7 +108,8 @@ export class LatexBlock extends HTMLElement {
     }
 
     public connectedCallback(): void {
-        this.setAttribute("contenteditable", "false");
+        this.contentEditable = "false";
+        this.draggable = false;
         this.classList.add("latex-block");
 
         this.normalizeInitialAttributes();
@@ -159,11 +160,13 @@ export class LatexBlock extends HTMLElement {
         this.notifyChange();
     }
 
-    public openEditor(): void {
+    public openEditor(referenceRect?: DOMRectReadOnly): void {
         const isDisplay = this.displayMode === "display";
+
         const anchor = isDisplay && this.settingsButton
             ? this.settingsButton
-            : this;
+            : referenceRect ?? this.getBoundingClientRect();
+
         const placement: LatexModalPlacement = isDisplay
             ? "settings"
             : "inline";
@@ -201,22 +204,26 @@ export class LatexBlock extends HTMLElement {
 
         const shell = document.createElement("div");
         shell.classList.add("latex-block-shell");
+        shell.contentEditable = "false";
 
         const render = document.createElement("div");
         render.classList.add("latex-block-render");
         render.setAttribute("aria-live", "polite");
+        render.contentEditable = "false";
 
         const caption = document.createElement("div");
         caption.classList.add("latex-block-caption");
+        caption.contentEditable = "false";
 
         const settingsButton = document.createElement("button");
         settingsButton.type = "button";
         settingsButton.classList.add("latex-block-settings");
         settingsButton.setAttribute("aria-label", "Edit formula settings");
         settingsButton.setAttribute("title", "Edit formula settings");
+        settingsButton.contentEditable = "false";
         settingsButton.innerHTML = SETTINGS_ICON;
 
-        settingsButton.addEventListener("mousedown", (event) => {
+        settingsButton.addEventListener("pointerdown", (event) => {
             event.preventDefault();
             event.stopPropagation();
         });
@@ -227,15 +234,49 @@ export class LatexBlock extends HTMLElement {
             this.openEditor();
         });
 
-        shell.addEventListener("click", (event) => {
+        /*
+         * Prevent the parent contenteditable editor from placing its caret
+         * inside KaTeX before the click is handled. The zero-sized DOMRect
+         * makes the desktop modal open at the exact pointer position.
+         */
+        shell.addEventListener("pointerdown", (event) => {
             if (this.displayMode !== "inline") return;
+            if (!event.isPrimary || event.button !== 0) return;
 
             const target = event.target as HTMLElement | null;
             if (target?.closest("button")) return;
 
             event.preventDefault();
             event.stopPropagation();
-            this.openEditor();
+
+            this.openEditor(
+                new DOMRect(
+                    event.clientX,
+                    event.clientY,
+                    0,
+                    0,
+                ),
+            );
+        });
+
+        /*
+         * pointerdown opens the editor. Suppress the following click so it
+         * cannot focus the Scribby contenteditable or reopen the modal.
+         */
+        shell.addEventListener("click", (event) => {
+            if (this.displayMode !== "inline") return;
+
+            event.preventDefault();
+            event.stopPropagation();
+        });
+
+        /*
+         * Defensive fallback for browsers that try to dispatch an edit
+         * operation against descendants of a contenteditable=false host.
+         */
+        this.addEventListener("beforeinput", (event) => {
+            event.preventDefault();
+            event.stopPropagation();
         });
 
         this.addEventListener("keydown", (event) => {
