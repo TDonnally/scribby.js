@@ -1,5 +1,6 @@
 import { PromptTextBox } from "./PromptTextBox";
 import { ConfirmOverlay } from "../ConfirmOverlay.js";
+import { preserveLatexBlock } from "../LatexBlock/utilities";
 
 const tpl = document.createElement("template");
 tpl.innerHTML = `
@@ -92,6 +93,17 @@ export class SummaryOutput extends HTMLElement {
 
         if (initialValue) {
             this.Output.innerHTML = initialValue;
+
+            /*
+             * Legacy data-values may contain serialized KaTeX internals.
+             * The HTML parser cannot nest the .latex-block-shell <div>
+             * inside a <p>, so it closes the <p> (popping the custom
+             * element with it) and hoists the shell out as a sibling.
+             * Reset every block to a clean attribute-only host, remove
+             * hoisted shells, and persist the healed serialization.
+             */
+            preserveLatexBlock(this.Output);
+            this.dataset.value = this.serializeOutput();
         }
 
         this.undoButton = this.querySelector('[data-action="undo"]') as HTMLButtonElement;
@@ -142,7 +154,7 @@ export class SummaryOutput extends HTMLElement {
         this.state = state;
 
         const previousMessage = this.OutputContainer.querySelector(".generating-message");
-        
+
         const isBusy = this.state !== "idle";
 
         this.setControlsDisabled(isBusy);
@@ -155,13 +167,13 @@ export class SummaryOutput extends HTMLElement {
 
         const messageTpl = generatingTpl.content.cloneNode(true) as DocumentFragment;
         const message = messageTpl.querySelector(".message") as HTMLParagraphElement;
-        
+
         message.textContent = this.state;
         previousMessage?.remove();
         this.OutputContainer.appendChild(messageTpl);
     }
     public prepareForGeneration() {
-        const currentHTML = this.Output.innerHTML;
+        const currentHTML = this.serializeOutput();
 
 
         if (this.outputIndex < this.previousOutputs.length - 1) {
@@ -178,7 +190,7 @@ export class SummaryOutput extends HTMLElement {
     }
 
     public commitCurrentOutputToHistory() {
-        const currentHTML = this.Output.innerHTML;
+        const currentHTML = this.serializeOutput();
 
         if (!currentHTML.trim()) {
             this.updateHistoryButtons();
@@ -214,6 +226,12 @@ export class SummaryOutput extends HTMLElement {
 
         this.outputIndex += 1;
         this.applyHistoryIndex();
+    }
+
+    private serializeOutput(): string {
+        const clone = this.Output.cloneNode(true) as HTMLDivElement;
+        preserveLatexBlock(clone);
+        return clone.innerHTML;
     }
 
     private handleUndo = (e: Event) => {
@@ -273,7 +291,7 @@ export class SummaryOutput extends HTMLElement {
             return;
         }
 
-        const html = this.dataset.value || this.Output.innerHTML;
+        const html = this.dataset.value || this.serializeOutput();
 
         if (!html.trim()) {
             this.remove();
@@ -282,6 +300,13 @@ export class SummaryOutput extends HTMLElement {
 
         const tpl = document.createElement("template");
         tpl.innerHTML = html;
+
+        /*
+         * Defense for values written before serializeOutput existed:
+         * strip any shells the parser hoisted out of paragraphs and
+         * reset every latex block to a clean host before insertion.
+         */
+        preserveLatexBlock(tpl.content);
 
         const fragment = document.createDocumentFragment();
 

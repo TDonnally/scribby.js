@@ -14,8 +14,23 @@ export class Normalizer {
     ) {
         this.scribbyEl = scribbyEl;
     }
+    removeOrphanedLatexArtifacts(root: ParentNode): void {
+        const orphans = root.querySelectorAll<HTMLElement>(
+            ".latex-block-shell, .latex-block-render, .latex-block-caption, .latex-block-settings, .katex, .katex-display"
+        );
+
+        for (const el of orphans) {
+            if (el.closest("scribby-latex-block")) {
+                continue;
+            }
+            el.remove();
+        }
+    }
     removeNotSupportedNodes(root: Node): void {
         const rootEl = root as HTMLElement;
+
+        this.removeOrphanedLatexArtifacts(rootEl);
+
         const allowedTags = new Set(
             Array.from(schema.keys()).map(k => k.toLowerCase())
         );
