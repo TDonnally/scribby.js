@@ -180,10 +180,28 @@ export class LLMSummaryController {
 
         let input = range.toString();
 
+        const highlightedSpans: HTMLSpanElement[] = [];
+        const blockRanges = utils.getBlockRanges(range.cloneRange(), this.scribby.el);
+
+        for (const { blockRange } of blockRanges.reverse()) {
+            if (blockRange.collapsed) continue;
+
+            const span = document.createElement("span");
+            span.classList.add("highlighted-text");
+            span.appendChild(blockRange.extractContents());
+            blockRange.insertNode(span);
+            highlightedSpans.unshift(span);
+        }
+
         const rangeMarker = document.createElement("range-marker");
-        const endRange = range.cloneRange();
-        endRange.collapse(false);
-        endRange.insertNode(rangeMarker);
+
+        if (highlightedSpans.length) {
+            highlightedSpans[highlightedSpans.length - 1].after(rangeMarker);
+        } else {
+            const endRange = range.cloneRange();
+            endRange.collapse(false);
+            endRange.insertNode(rangeMarker);
+        }
 
         this.menu = document.createElement("prompt-modal") as PromptModal;
 
@@ -201,7 +219,21 @@ export class LLMSummaryController {
         document.removeEventListener("click", this.handleOutsideClick);
         this.menu = null;
 
-        if (!values) return;
+        for (const span of highlightedSpans) {
+            const parent = span.parentElement;
+            span.classList.remove("highlighted-text");
+
+            if (!span.hasAttributes()) {
+                utils.replaceElementWithChildren(span);
+            }
+
+            parent?.normalize();
+        }
+
+        if (!values) {
+            rangeMarker.remove();
+            return;
+        }
 
         const additionalContext = values.additional_context?.trim();
 

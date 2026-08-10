@@ -4,17 +4,14 @@ const promptModalTemplate = document.createElement("template");
 
 promptModalTemplate.innerHTML = `
     <form class="prompt-modal-form">
-        <h4>Generate a Summary</h4>
-        <p class = "small">(This will replace your selection with a summary block)</p>
-        <label for="additional-context">
-            Provide additional context
-        </label>
+        <h4>Have Scribby write some notes</h4>
+        <p class = "small">The highlighted selection will be used in your request</p>
 
         <textarea
             id="additional-context"
             name="additional_context"
             rows="5"
-            placeholder="What are you wanting to change about this excerpt?"
+            placeholder="Ex. Write me section on the Battle of Waterloo"
         ></textarea>
 
         <div class="row-buttons">
