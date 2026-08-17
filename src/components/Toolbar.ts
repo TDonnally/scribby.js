@@ -421,8 +421,7 @@ export class Toolbar {
             const snapshot = this.scribby.historyManager.undo();
             if (!snapshot) return;
 
-            this.scribby.el.innerHTML = snapshot.html;
-            this.scribby.historyManager.restoreSelection(this.scribby.el, snapshot.selection);
+            this.scribby.restoreHistorySnapshot(snapshot);
         });
 
         return undoButton;
@@ -448,8 +447,7 @@ export class Toolbar {
             const snapshot = this.scribby.historyManager.redo();
             if (!snapshot) return;
 
-            this.scribby.el.innerHTML = snapshot.html;
-            this.scribby.historyManager.restoreSelection(this.scribby.el, snapshot.selection);
+            this.scribby.restoreHistorySnapshot(snapshot);
         });
 
         return redoButton;

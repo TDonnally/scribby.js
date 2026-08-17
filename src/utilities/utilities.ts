@@ -1,5 +1,6 @@
 export const BLOCK_SELECTOR = "p,h1,h2,h3,h4,h5,h6,li,blockquote,code";
 export const PROTECTED_BLOCK_SELECTOR = "scribby-code-block, speech-output, summary-output, inline-canvas, scribby-latex-block";
+export const UUID_BLOCKS = `p,h1,h2,h3,h4,h5,h6,ol,ul,blockquote,code,${PROTECTED_BLOCK_SELECTOR}`;
 
 import { ConfirmOverlay } from "../components/ConfirmOverlay";
 
@@ -492,3 +493,14 @@ export const confirmProtectedBlockDelete = async (block: HTMLElement | null): Pr
         cancelBtnTxt: "Cancel",
     });
 };
+
+export function applyUUIDs(root: HTMLElement){
+    const blocks = root.querySelectorAll<HTMLElement>(UUID_BLOCKS);
+
+    for (const block of blocks){
+        if (!block.dataset.uuid){
+            const uuid = crypto.randomUUID();
+            block.dataset.uuid = uuid;
+        }
+    }
+}

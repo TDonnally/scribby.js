@@ -17,7 +17,7 @@ export type SelectionSnapshot = {
 
 export type Snapshot = {
     timestamp: number;
-    html: string;
+    html: HTMLElement;
     selection: SelectionSnapshot | null;
 };
 
@@ -30,11 +30,11 @@ export class HistoryManager {
      * Serializes a clean LaTeX host rather than generated KaTeX children.
      * Other component types keep their existing history behavior.
      */
-    public serialize(rootEl: HTMLElement): string {
+    public serialize(rootEl: HTMLElement): HTMLElement {
         const clone = rootEl.cloneNode(true) as HTMLElement;
         preserveLatexBlock(clone);
 
-        return clone.innerHTML;
+        return clone;
     }
 
     public createSnapshot(rootEl: HTMLElement): Snapshot {
@@ -48,7 +48,7 @@ export class HistoryManager {
     public push(snapshot: Snapshot): void {
         const current = this.history[this.index];
 
-        if (current?.html === snapshot.html) {
+        if (current?.html.isEqualNode(snapshot.html)) {
             this.history[this.index] = snapshot;
             return;
         }
@@ -212,5 +212,57 @@ export class HistoryManager {
                 : node.childNodes.length;
 
         return Math.min(Math.max(offset, 0), maximum);
+    }
+    /**
+     * 1. check each node in DOM tree
+     * 2. If no Diff skip
+     * 3. If diff inside node replace
+     * 4. If node removed in currRoot then remove
+     * 5. If node added in currRoot insert node after previous sibling in old root
+     * 6. If node exists but is in the wrong position, move it
+     */
+    public diffDom(currRoot: HTMLElement, staleRoot: HTMLElement) {
+        const currNodes = Array.from(currRoot.children) as HTMLElement[];
+        const staleNodes = Array.from(staleRoot.children) as HTMLElement[];
+
+        // remove stale nodes that are not in incoming diff
+        for (const node of staleNodes) {
+            const uuid = node.dataset.uuid;
+            if (!uuid) continue;
+
+            const currNode = currRoot.querySelector<HTMLElement>(`[data-uuid="${uuid}"]`);
+
+            if (!currNode) {
+                node.remove();
+            }
+        }
+
+        for (const node of currNodes) {
+            const uuid = node.dataset.uuid;
+            if (!uuid) continue;
+
+            const prevSibling = node.previousElementSibling as HTMLElement | null;
+            const staleNode = staleRoot.querySelector<HTMLElement>(`[data-uuid="${uuid}"]`);
+
+            const targetUUID = prevSibling?.dataset.uuid;
+            const target = targetUUID
+                ? staleRoot.querySelector<HTMLElement>(`[data-uuid="${targetUUID}"]`)
+                : null;
+
+            const nodesAreEqual = node.isEqualNode(staleNode);
+
+            if (staleNode && !nodesAreEqual) {
+                staleNode.replaceWith(node.cloneNode(true));
+            }
+            // case where curr node has no twin stale node
+            else if (!staleNode && target) {
+                target.after(node.cloneNode(true));
+            }
+            // case where no target and no twin stale node
+            // this may happen if editor is emptied or node is first
+            else if (!staleNode && !target) {
+                staleRoot.prepend(node.cloneNode(true));
+            }
+        }
     }
 }

@@ -351,7 +351,7 @@ export class ToolbarStyleButton {
             this.scribby.normalizer.removeEmptyNodes(this.scribby.el);
             const snapshot: Snapshot = {
                 timestamp: Date.now(),
-                html: this.scribby.el.innerHTML,
+                html: this.scribby.el,
                 selection: this.scribby.historyManager.captureSelection(this.el),
             };
 

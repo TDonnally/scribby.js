@@ -39,7 +39,6 @@ const parser = new DOMParser();
 
 export class Scribby {
     selector: string;
-    content: string | null;
     el!: HTMLDivElement;
     toolbar!: Toolbar;
     textElement: string;
@@ -69,8 +68,9 @@ export class Scribby {
         );
     }
 
-    private restoreHistorySnapshot(snapshot: Snapshot): void {
-        this.el.innerHTML = snapshot.html;
+    public restoreHistorySnapshot(snapshot: Snapshot): void {
+
+        this.historyManager.diffDom(snapshot.html, this.el);
 
         this.selection = this.historyManager.restoreSelection(
             this.el,
@@ -84,7 +84,6 @@ export class Scribby {
     ) {
         this.selector = selector;
         this.el;
-        this.content = content;
         this.textElement = "p";
         this.selection;
         this.allowedBlockStyles = new Set;
@@ -111,14 +110,14 @@ export class Scribby {
         if (!container) {
             throw new Error(`No element with selector: ${this.selector}`);
         }
-
-        if (!this.content) this.content = container.innerHTML;
-
+        const initialContent = container.innerHTML;
         this.el = document.createElement("div");
         this.el.contentEditable = 'true';
         this.el.classList.add("scribby");
-        this.el.innerHTML = this.content;
+        this.el.innerHTML = initialContent;
 
+        // Apply UUID
+        utils.applyUUIDs(this.el);
         this.historyManager.push(
             this.historyManager.createSnapshot(this.el),
         );
@@ -948,6 +947,14 @@ export class Scribby {
             }
 
             utils.removeAllComments(fragment);
+            const pastedBlocks = fragment.querySelectorAll<HTMLElement>(
+                utils.UUID_BLOCKS
+            );
+
+            for (const block of pastedBlocks) {
+                block.removeAttribute("data-uuid");
+            }
+
             range.deleteContents();
             range.insertNode(fragment);
 
@@ -986,7 +993,6 @@ export class Scribby {
                 this.saveTimeoutId = null;
 
                 // send out auto save event
-                this.content = this.historyManager.serialize(this.el)
                 const saveEvent = new CustomEvent("save-document")
                 document.dispatchEvent(saveEvent);
             }, this.saveDelayonInput);
@@ -995,6 +1001,7 @@ export class Scribby {
             const outOfOrderNodes = this.normalizer.flagNodeHierarchyViolations(this.el);
             this.normalizer.fixHierarchyViolations(outOfOrderNodes);
             this.normalizer.removeEmptyNodes(this.el);
+            utils.applyUUIDs(this.el);
 
         });
         this.el.addEventListener(
