@@ -19,6 +19,7 @@ A lightweight rich text editor built with TypeScript on top of native DOM APIs a
 ## Installation
 > [!WARNING]
 > npm installation is currently outdated. It is recommneded that you clone the repository and build locally.
+
 From npm:
 
 ```bash
