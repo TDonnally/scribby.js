@@ -2,10 +2,7 @@
  * This is a basic implementation of history management that will work for a single tenant
  * When collaboration modes are introduced we will need to adjust this but it will work for now.
  */
-import {
-    normalizeLatexSelectionPoint,
-    preserveLatexBlock,
-} from "../components/LatexBlock/utilities.js";
+import { normalizeLatexSelectionPoint } from "../components/LatexBlock/utilities.js";
 
 export type SelectionSnapshot = {
     startPath: number[];
@@ -26,21 +23,10 @@ export class HistoryManager {
     private index = -1;
     private limit = 50;
 
-    /**
-     * Serializes a clean LaTeX host rather than generated KaTeX children.
-     * Other component types keep their existing history behavior.
-     */
-    public serialize(rootEl: HTMLElement): HTMLElement {
-        const clone = rootEl.cloneNode(true) as HTMLElement;
-        preserveLatexBlock(clone);
-
-        return clone;
-    }
-
     public createSnapshot(rootEl: HTMLElement): Snapshot {
         return {
             timestamp: Date.now(),
-            html: this.serialize(rootEl),
+            html: rootEl.cloneNode(true) as HTMLElement,
             selection: this.captureSelection(rootEl),
         };
     }
@@ -230,7 +216,7 @@ export class HistoryManager {
             const uuid = node.dataset.uuid;
             if (!uuid) continue;
 
-            const currNode = currRoot.querySelector<HTMLElement>(`[data-uuid="${uuid}"]`);
+            const currNode = currRoot.querySelector<HTMLElement>(`:scope > [data-uuid="${uuid}"]`);
 
             if (!currNode) {
                 node.remove();
@@ -242,11 +228,11 @@ export class HistoryManager {
             if (!uuid) continue;
 
             const prevSibling = node.previousElementSibling as HTMLElement | null;
-            const staleNode = staleRoot.querySelector<HTMLElement>(`[data-uuid="${uuid}"]`);
+            const staleNode = staleRoot.querySelector<HTMLElement>(`:scope > [data-uuid="${uuid}"]`);
 
             const targetUUID = prevSibling?.dataset.uuid;
             const target = targetUUID
-                ? staleRoot.querySelector<HTMLElement>(`[data-uuid="${targetUUID}"]`)
+                ? staleRoot.querySelector<HTMLElement>(`:scope > [data-uuid="${targetUUID}"]`)
                 : null;
 
             const nodesAreEqual = node.isEqualNode(staleNode);

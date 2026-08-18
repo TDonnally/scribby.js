@@ -69,7 +69,6 @@ export class Scribby {
     }
 
     public restoreHistorySnapshot(snapshot: Snapshot): void {
-
         this.historyManager.diffDom(snapshot.html, this.el);
 
         this.selection = this.historyManager.restoreSelection(
@@ -118,9 +117,6 @@ export class Scribby {
 
         // Apply UUID
         utils.applyUUIDs(this.el);
-        this.historyManager.push(
-            this.historyManager.createSnapshot(this.el),
-        );
 
         container.dataset.state = "rendered";
         container.replaceChildren(this.el);
@@ -1283,6 +1279,9 @@ export class Scribby {
             }
         });
 
+        this.historyManager.push(
+            this.historyManager.createSnapshot(this.el),
+        );
         return this
     }
     private initWhisperIfSupported() {
