@@ -712,6 +712,13 @@ async function loadLanguageExtension(lang: LangId): Promise<Extension> {
 
 
 export class ScribbyCodeBlock extends HTMLElement {
+    static get observedAttributes(): string[] {
+        return [
+            "data-value",
+            "data-lang",
+        ];
+    }
+
     private view?: EditorView;
     private language = new Compartment();
     private selectEl?: HTMLSelectElement;
@@ -722,6 +729,7 @@ export class ScribbyCodeBlock extends HTMLElement {
 
     private editorHost?: HTMLDivElement;
     private hydrationObserver?: IntersectionObserver;
+    private applyingValueAttribute = false;
 
     get value(): string {
         return this.getAttribute("data-value") ?? "";
@@ -729,15 +737,6 @@ export class ScribbyCodeBlock extends HTMLElement {
 
     set value(value: string) {
         this.setAttribute("data-value", value);
-        if (!this.view) return;
-
-        this.view.dispatch({
-            changes: {
-                from: 0,
-                to: this.view.state.doc.length,
-                insert: value,
-            },
-        });
     }
 
     get lang(): LangId {
@@ -746,12 +745,49 @@ export class ScribbyCodeBlock extends HTMLElement {
 
     set lang(value: LangId) {
         this.setAttribute("data-lang", value);
+    }
 
-        if (this.selectEl) {
-            this.selectEl.value = value;
+    attributeChangedCallback(
+        name: string,
+        oldValue: string | null,
+        newValue: string | null,
+    ): void {
+        if (oldValue === newValue) return;
+
+        if (name === "data-value") {
+            if (!this.view) return;
+
+            const value = newValue ?? "";
+            const currentValue = this.view.state.doc.toString();
+
+            if (currentValue === value) return;
+
+            this.applyingValueAttribute = true;
+
+            try {
+                this.view.dispatch({
+                    changes: {
+                        from: 0,
+                        to: this.view.state.doc.length,
+                        insert: value,
+                    },
+                });
+            } finally {
+                this.applyingValueAttribute = false;
+            }
+
+            return;
         }
 
-        void this.applyLanguage(value);
+        if (name === "data-lang") {
+            const lang = normalizeLang(newValue);
+
+            if (this.selectEl) {
+                this.selectEl.value = lang;
+            }
+
+            void this.applyLanguage(lang);
+        }
     }
 
     connectedCallback(): void {
@@ -1128,6 +1164,10 @@ export class ScribbyCodeBlock extends HTMLElement {
 
                 EditorView.updateListener.of((update) => {
                     if (!update.docChanged) {
+                        return;
+                    }
+
+                    if (this.applyingValueAttribute) {
                         return;
                     }
 

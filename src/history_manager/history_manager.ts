@@ -3,6 +3,7 @@
  * When collaboration modes are introduced we will need to adjust this but it will work for now.
  */
 import { normalizeLatexSelectionPoint } from "../components/LatexBlock/utilities.js";
+import { PROTECTED_BLOCK_SELECTOR } from "../utilities/utilities.js";
 
 export type SelectionSnapshot = {
     startPath: number[];
@@ -238,7 +239,25 @@ export class HistoryManager {
             const nodesAreEqual = node.isEqualNode(staleNode);
 
             if (staleNode && !nodesAreEqual) {
-                staleNode.replaceWith(node.cloneNode(true));
+                if (node.matches(PROTECTED_BLOCK_SELECTOR)) {
+                    const incomingAttributes = new Set(node.getAttributeNames());
+
+                    staleNode.getAttributeNames().forEach(attr => {
+                        if (!incomingAttributes.has(attr)) {
+                            staleNode.removeAttribute(attr);
+                        }
+                    });
+
+                    node.getAttributeNames().forEach(attr => {
+                        const value = node.getAttribute(attr)!;
+
+                        if (staleNode.getAttribute(attr) !== value) {
+                            staleNode.setAttribute(attr, value);
+                        }
+                    });
+                } else {
+                    staleNode.replaceWith(node.cloneNode(true));
+                }
             }
             // case where curr node has no twin stale node
             else if (!staleNode && target) {

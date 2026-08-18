@@ -201,14 +201,15 @@ export class ToolbarInsertButton {
                 range.deleteContents();
                 range.insertNode(block);
 
-                const after = document.createTextNode("\u200B");
-                block.after(after);
+                const p = document.createElement("p");
+                p.appendChild(document.createTextNode("\u200B"));
+                block.after(p);
 
                 const sel = window.getSelection();
                 if (sel) {
                     sel.removeAllRanges();
                     const r = document.createRange();
-                    r.setStart(after, 1);
+                    r.setStart(p, 1);
                     r.collapse(true);
                     sel.addRange(r);
                 }
@@ -240,8 +241,9 @@ export class ToolbarInsertButton {
                 range.deleteContents();
                 range.insertNode(canvas);
 
-                const after = document.createElement("p");
-                canvas.after(after);
+                const p = document.createElement("p");
+                p.appendChild(document.createTextNode("\u200B"));
+                canvas.after(p);
 
                 const sel = window.getSelection();
 
@@ -249,7 +251,7 @@ export class ToolbarInsertButton {
                     sel.removeAllRanges();
 
                     const r = document.createRange();
-                    r.setStart(after, 0);
+                    r.setStart(p, 0);
                     r.collapse(true);
 
                     sel.addRange(r);
@@ -267,8 +269,9 @@ export class ToolbarInsertButton {
                 range.deleteContents();
                 range.insertNode(latexBlock);
 
-                const after = document.createTextNode("\u200B");
-                latexBlock.after(after);
+                const p = document.createElement("p");
+                p.appendChild(document.createTextNode("\u200B"));
+                latexBlock.after(p);
 
                 const selection = window.getSelection();
 
@@ -276,13 +279,11 @@ export class ToolbarInsertButton {
                     selection.removeAllRanges();
 
                     const caretRange = document.createRange();
-                    caretRange.setStart(after, 1);
+                    caretRange.setStart(p, 1);
                     caretRange.collapse(true);
 
                     selection.addRange(caretRange);
                 }
-
-                this.scribby.el.dispatchEvent(new Event("input"));
 
                 queueMicrotask(() => {
                     latexBlock.openEditor();
