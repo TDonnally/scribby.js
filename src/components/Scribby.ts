@@ -349,31 +349,77 @@ export class Scribby {
                     const block = parent.closest("h1, h2, h3, h4, h5, h6, p") as HTMLElement | null;
                     if (!block) return;
 
+                    const beforeRange = document.createRange();
+                    beforeRange.selectNodeContents(block);
+                    beforeRange.setEnd(range.startContainer, range.startOffset);
+
                     const afterRange = document.createRange();
                     afterRange.selectNodeContents(block);
                     afterRange.setStart(range.startContainer, range.startOffset);
 
+                    const isAtStart = !(beforeRange.toString() ?? "").replace(/[\s\u200B]+/g, "");
                     const isAtEnd = !(afterRange.toString() ?? "").replace(/[\s\u200B]+/g, "");
-
-                    if (!isAtEnd) return;
 
                     e.preventDefault();
 
-                    const nextP = document.createElement("p");
-                    const textNode = document.createTextNode("\u200B");
+                    // line break at end
+                    if (isAtEnd) {
+                        const nextP = document.createElement("p");
+                        const textNode = document.createTextNode("\u200B");
 
-                    nextP.appendChild(textNode);
-                    block.after(nextP);
+                        nextP.dataset.uuid = crypto.randomUUID();
+                        nextP.appendChild(textNode);
+                        block.after(nextP);
+
+                        const newRange = document.createRange();
+                        newRange.setStart(textNode, 1);
+                        newRange.collapse(true);
+
+                        this.selection = utils.placeRange(newRange);
+                        this.el.dispatchEvent(new Event("input"));
+
+                        return;
+                    }
+
+                    // line break at beginning
+                    if (isAtStart) {
+                        const previousBlock = document.createElement(block.tagName.toLowerCase());
+                        const textNode = document.createTextNode("\u200B");
+
+                        previousBlock.dataset.uuid = crypto.randomUUID();
+                        previousBlock.appendChild(textNode);
+                        block.before(previousBlock);
+
+                        const newRange = document.createRange();
+                        newRange.setStart(textNode, 1);
+                        newRange.collapse(true);
+
+                        this.selection = utils.placeRange(newRange);
+                        this.el.dispatchEvent(new Event("input"));
+
+                        return;
+                    }
+
+                    // line break in middle
+                    const nextBlock = document.createElement(block.tagName.toLowerCase());
+
+                    for (const attribute of Array.from(block.attributes)) {
+                        if (attribute.name === "data-uuid") continue;
+
+                        nextBlock.setAttribute(attribute.name, attribute.value);
+                    }
+
+                    nextBlock.dataset.uuid = crypto.randomUUID();
+
+                    const contents = afterRange.extractContents();
+                    nextBlock.appendChild(contents);
+                    block.after(nextBlock);
 
                     const newRange = document.createRange();
-                    newRange.setStart(textNode, 1);
+                    newRange.selectNodeContents(nextBlock);
                     newRange.collapse(true);
 
-                    const selection = window.getSelection();
-                    selection?.removeAllRanges();
-                    selection?.addRange(newRange);
-
-                    this.selection = newRange;
+                    this.selection = utils.placeRange(newRange);
                     this.el.dispatchEvent(new Event("input"));
 
                     return;

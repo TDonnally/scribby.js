@@ -496,11 +496,18 @@ export const confirmProtectedBlockDelete = async (block: HTMLElement | null): Pr
 
 export function applyUUIDs(root: HTMLElement){
     const blocks = root.querySelectorAll<HTMLElement>(UUID_BLOCKS);
+    const seenUUIDs = new Set<string>();
 
     for (const block of blocks){
-        if (!block.dataset.uuid){
-            const uuid = crypto.randomUUID();
-            block.dataset.uuid = uuid;
+        const uuid = block.dataset.uuid;
+
+        if (!uuid || seenUUIDs.has(uuid)){
+            const newUUID = crypto.randomUUID();
+            block.dataset.uuid = newUUID;
+            seenUUIDs.add(newUUID);
+            continue;
         }
+
+        seenUUIDs.add(uuid);
     }
 }
