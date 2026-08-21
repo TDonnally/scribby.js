@@ -144,7 +144,7 @@ export class SpeechToText {
         const speechOutput = this.speechOutput;
         const segmentId = this.activeSegmentId;
         const timelineOffsetMs = this.segmentTimelineOffsetMs;
-        const threads = this.scribby.whisperThreadCount || 4;
+        const threads = this.scribby.whisperThreadCount
 
         this.transcribeQueue = this.transcribeQueue
             .then(async () => {

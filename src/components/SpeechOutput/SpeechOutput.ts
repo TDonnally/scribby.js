@@ -54,7 +54,7 @@ nonRecordingBtnsState.innerHTML = `
 
 export class SpeechOutput extends HTMLElement {
     controller: SpeechToText | null = null;
-    recording: Boolean = false;
+    recording = false;
 
     private recordControlsEl!: HTMLDivElement;
     private outputEl!: HTMLElement;
@@ -70,12 +70,29 @@ export class SpeechOutput extends HTMLElement {
     private transcriptChunks: TranscriptChunk[] = [];
     private activeTranscriptId: string | null = null;
 
-    private typingWorker: Worker | null = null;
-    private visibleTextByChunkId = new Map<string, string>();
-
     private outputContainerEl!: HTMLElement;
     private outputExpandToggleEl!: HTMLButtonElement;
     private outputExpanded = false;
+
+    private initialized = false;
+
+    private readonly onResize = () => {
+        this.refreshButtons();
+    };
+
+    private readonly onStopRecording = async () => {
+        this.recording = false;
+        this.refreshButtons();
+        await this.controller?.stopRecording();
+    };
+
+    private readonly onPauseAllAudio = (e: Event) => {
+        const custom = e as CustomEvent<{ source?: SpeechOutput }>;
+        if (custom.detail?.source === this) {
+            return;
+        }
+        this.pausePlayback();
+    };
 
     connectedCallback() {
         if (!this.firstChild) {
@@ -87,37 +104,41 @@ export class SpeechOutput extends HTMLElement {
         this.outputContainerEl = this.querySelector(".output-container") as HTMLElement;
         this.outputExpandToggleEl = this.querySelector(".output-expand-toggle") as HTMLButtonElement;
 
+        if (!this.initialized) {
+            this.bindElementListeners();
+            this.setupPlayback();
+            this.initialized = true;
+        }
+
+        this.loadTranscriptFromDataset();
+        this.renderTranscript();
+
+        this.refreshButtons();
+
+        const recordingId = this.dataset.audioId;
+        if (recordingId) {
+            this.loadPlaybackManifest(recordingId).catch(console.error);
+        }
+
+        document.addEventListener("stop-recording", this.onStopRecording);
+        document.addEventListener("pause-all-audio", this.onPauseAllAudio);
+        window.addEventListener("resize", this.onResize);
+    }
+
+    disconnectedCallback() {
+        document.removeEventListener("stop-recording", this.onStopRecording);
+        document.removeEventListener("pause-all-audio", this.onPauseAllAudio);
+        window.removeEventListener("resize", this.onResize);
+
+        this.audioEl.pause();
+        this.audioEl.removeAttribute("src");
+        this.audioEl.load();
+    }
+
+    private bindElementListeners() {
         this.outputExpandToggleEl.addEventListener("click", () => {
             this.toggleOutputExpanded();
         });
-
-        if (!this.typingWorker) {
-            this.typingWorker = new Worker("/scripts/text_buffer_loop.js");
-
-            this.typingWorker.onmessage = (e: MessageEvent<{
-                id: string;
-                text: string;
-                done?: boolean;
-            }>) => {
-                const { id, text, done } = e.data;
-
-                const textEl = this.outputEl.querySelector<HTMLElement>(
-                    `.transcript-chunk[data-transcript-id="${id}"] .transcript-text`
-                );
-
-                if (!textEl) {
-                    return;
-                }
-
-                textEl.textContent = done ? text + " " : text;
-
-                if (done) {
-                    this.visibleTextByChunkId.delete(id);
-                } else {
-                    this.visibleTextByChunkId.set(id, text);
-                }
-            };
-        }
 
         this.outputEl.addEventListener("click", async (e: MouseEvent) => {
             const target = e.target as HTMLElement;
@@ -134,17 +155,6 @@ export class SpeechOutput extends HTMLElement {
 
             await this.seekPlayback(startSec);
         });
-
-        this.loadTranscriptFromDataset();
-        this.renderTranscript();
-
-        this.refreshButtons();
-        this.setupPlayback();
-
-        const recordingId = this.dataset.audioId;
-        if (recordingId) {
-            this.loadPlaybackManifest(recordingId).catch(console.error);
-        }
 
         this.addEventListener("start-recording", (e: Event) => {
             const custom = e as CustomEvent<{ input?: Input }>;
@@ -178,31 +188,6 @@ export class SpeechOutput extends HTMLElement {
             const custom = e as CustomEvent<{ time: number }>;
             await this.seekPlayback(custom.detail.time);
         });
-
-        document.addEventListener("stop-recording", async () => {
-            this.recording = false;
-            this.refreshButtons();
-            await this.controller?.stopRecording();
-        });
-
-        document.addEventListener("pause-all-audio", (e: Event) => {
-            const custom = e as CustomEvent<{ source?: SpeechOutput }>;
-            if (custom.detail?.source === this) {
-                return;
-            }
-            this.pausePlayback();
-        });
-        window.addEventListener("resize", (e) => {this.refreshButtons()});
-    }
-
-    disconnectedCallback() {
-        this.typingWorker?.terminate();
-        this.typingWorker = null;
-
-        this.audioEl.pause();
-        this.audioEl.removeAttribute("src");
-        this.audioEl.load();
-        window.removeEventListener("resize", (e) => {this.refreshButtons()});
     }
 
     public refreshButtons() {
@@ -228,6 +213,7 @@ export class SpeechOutput extends HTMLElement {
         this.updatePlaybackDisabledState();
         this.updatePlayButton(this.playing);
     }
+
     public async refreshPlayback(): Promise<void> {
         const recordingId = this.dataset.audioId;
         if (!recordingId) {
@@ -289,14 +275,7 @@ export class SpeechOutput extends HTMLElement {
         this.transcriptChunks.push(chunk);
         this.saveTranscriptToDataset();
 
-        this.visibleTextByChunkId.set(chunk.id, "");
-        this.renderTranscript();
-
-        this.typingWorker?.postMessage({
-            id: chunk.id,
-            text: chunk.text,
-            delayMs: 20,
-        });
+        this.outputEl.append(this.createChunkElement(chunk));
     }
 
     private loadTranscriptFromDataset() {
@@ -323,39 +302,38 @@ export class SpeechOutput extends HTMLElement {
             .join(" ");
     }
 
+    private createChunkElement(chunk: TranscriptChunk): HTMLElement {
+        const span = document.createElement("span");
+        span.classList.add("transcript-chunk");
+        span.dataset.transcriptId = chunk.id;
+        span.dataset.startSec = String(chunk.start_sec);
+        span.dataset.endSec = String(chunk.end_sec);
+
+        if (chunk.id === this.activeTranscriptId) {
+            span.classList.add("active");
+        }
+
+        const timestamp = document.createElement("button");
+        timestamp.type = "button";
+        timestamp.classList.add("transcript-time");
+        timestamp.textContent = this.formatTime(chunk.start_sec);
+
+        const text = document.createElement("span");
+        text.classList.add("transcript-text");
+        text.textContent = chunk.text + " ";
+
+        span.append(timestamp, text);
+        return span;
+    }
+
     private renderTranscript() {
-        this.outputEl.replaceChildren();
+        const fragment = document.createDocumentFragment();
 
         for (const chunk of this.transcriptChunks) {
-            const span = document.createElement("span");
-            span.classList.add("transcript-chunk");
-            span.dataset.transcriptId = chunk.id;
-            span.dataset.startSec = String(chunk.start_sec);
-            span.dataset.endSec = String(chunk.end_sec);
-
-            if (chunk.id === this.activeTranscriptId) {
-                span.classList.add("active");
-            }
-
-            const timestamp = document.createElement("button");
-            timestamp.type = "button";
-            timestamp.classList.add("transcript-time");
-            timestamp.textContent = this.formatTime(chunk.start_sec);
-
-            const text = document.createElement("span");
-            text.classList.add("transcript-text");
-
-            const visibleText = this.visibleTextByChunkId.get(chunk.id);
-
-            if (visibleText !== undefined) {
-                text.textContent = visibleText;
-            } else {
-                text.textContent = chunk.text + " ";
-            }
-
-            span.append(timestamp, text);
-            this.outputEl.append(span);
+            fragment.append(this.createChunkElement(chunk));
         }
+
+        this.outputEl.replaceChildren(fragment);
     }
 
     private syncTranscriptHighlight(forcedTime?: number) {
@@ -418,6 +396,7 @@ export class SpeechOutput extends HTMLElement {
             playButton.setPlaying(playing);
         }
     }
+
     private updatePlaybackDisabledState() {
         const playButton = this.querySelector("play-button");
         const scrubber = this.querySelector("audio-scrubber");
@@ -461,6 +440,7 @@ export class SpeechOutput extends HTMLElement {
         const offset = this.playbackOffsets[this.playbackSegmentIndex] ?? 0;
         return offset + (this.audioEl.currentTime || 0);
     }
+
     public getTimelineDurationMs(): number {
         const audioDurationMs = this.getTotalPlaybackDuration() * 1000;
 
@@ -607,6 +587,7 @@ export class SpeechOutput extends HTMLElement {
 
         await this.playSegmentAt(index, localTime);
     }
+
     private toggleOutputExpanded() {
         this.outputExpanded = !this.outputExpanded;
 

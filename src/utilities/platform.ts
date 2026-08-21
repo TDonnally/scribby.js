@@ -1,6 +1,7 @@
 export const MOBILE_TOOLBAR_BREAKPOINT = 1000;
 export const LOCAL_WHISPER_MIN_AVAILABLE_THREADS = 8;
-export const LOCAL_WHISPER_TRANSCRIPTION_THREADS = 4;
+export const LOCAL_WHISPER_RESERVED_THREADS = 2;
+export const LOCAL_WHISPER_MAX_TRANSCRIPTION_THREADS = 8;
 
 export function isMobileToolbarLayout(): boolean {
     return window.innerWidth <= MOBILE_TOOLBAR_BREAKPOINT;
@@ -26,7 +27,27 @@ export type LocalWhisperSupport = {
     transcriptionThreads: number;
 };
 
+function getTranscriptionThreadCount(availableThreads: number): number {
+    const usable = availableThreads - LOCAL_WHISPER_RESERVED_THREADS;
+
+    return Math.max(
+        1,
+        Math.min(usable, LOCAL_WHISPER_MAX_TRANSCRIPTION_THREADS),
+    );
+}
+
+let cachedLocalWhisperSupport: LocalWhisperSupport | null = null;
+
 export function getLocalWhisperSupport(): LocalWhisperSupport {
+    if (cachedLocalWhisperSupport) {
+        return cachedLocalWhisperSupport;
+    }
+
+    cachedLocalWhisperSupport = computeLocalWhisperSupport();
+    return cachedLocalWhisperSupport;
+}
+
+function computeLocalWhisperSupport(): LocalWhisperSupport {
     const availableThreads = navigator.hardwareConcurrency || 0;
 
     if (isMobileDevice()) {
@@ -60,6 +81,6 @@ export function getLocalWhisperSupport(): LocalWhisperSupport {
         enabled: true,
         reason: null,
         availableThreads,
-        transcriptionThreads: LOCAL_WHISPER_TRANSCRIPTION_THREADS,
+        transcriptionThreads: getTranscriptionThreadCount(availableThreads),
     };
 }

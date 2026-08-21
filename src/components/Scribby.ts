@@ -1325,9 +1325,9 @@ export class Scribby {
             }
         });
 
-        this.historyManager.push(
+        /*this.historyManager.push(
             this.historyManager.createSnapshot(this.el),
-        );
+        );*/
         return this
     }
     private initWhisperIfSupported() {
