@@ -200,6 +200,8 @@ export class SpeechToText {
                 };
 
                 speechOutput.addTranscriptChunk(chunk);
+                const saveEvent = new CustomEvent("save-document")
+                document.dispatchEvent(saveEvent);
             })
             .catch((err) => console.error("transcribe failed", err));
     }
@@ -731,7 +733,8 @@ export class SpeechToText {
 
             this.isListening = true;
             this.el.classList.add("active");
-
+            const saveEvent = new CustomEvent("save-document")
+            document.dispatchEvent(saveEvent);
             const constraints = {
                 video: this.input === Input.mic ? false : true,
                 audio: true,
