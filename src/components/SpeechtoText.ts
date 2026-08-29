@@ -31,6 +31,8 @@ export class SpeechToText {
 
     private stream: MediaStream | null = null;
     private recorder: MediaRecorder | null = null;
+    private audioContext: AudioContext | null = null;
+    private pcmNode: AudioWorkletNode | null = null;
     private transcribeQueue: Promise<void> = Promise.resolve();
 
     private recordingId: string | null = null;
@@ -38,6 +40,7 @@ export class SpeechToText {
     private nextPartNumber = 1;
     private segmentStartedAt: number | null = null;
     private segmentTimelineOffsetMs = 0;
+    private recordingGeneration = 0;
 
     private static readonly MULTIPART_MIN_BYTES = 5 * 1024 * 1024;
 
@@ -47,15 +50,14 @@ export class SpeechToText {
     private hasUploadedMultipartPart = false;
     private currentMimeType = "audio/webm";
 
-    private transcriptHeaderBlob: Blob | null = null;
-    private transcriptChunks: Blob[] = [];
-    private transcriptBytes = 0;
+    private pcmWindow: Float32Array[] = [];
+    private pcmWindowSamples = 0;
+    private pcmFlushedSamples = 0;
 
-    private static readonly TRANSCRIBE_MIN_BYTES = 120000;
-    private static readonly TRANSCRIBE_MIN_MS = 10000;
+    private static readonly TRANSCRIBE_SAMPLE_RATE = 16000;
+    private static readonly TRANSCRIBE_MIN_SAMPLES = 16000 * 10;
     private static readonly RECORDER_TIMESLICE_MS = 1000;
-
-    private transcriptWindowStartedAt: number | null = null;
+    private static readonly PCM_WORKLET_URL = "/scripts/pcm-tap.js";
 
     constructor(
         scribby: Scribby,
@@ -73,19 +75,15 @@ export class SpeechToText {
         this.el.innerHTML = this.innerContent;
         this.el.disabled = true;
 
-        if (!this.scribby.whisperEnabled || !this.scribby.modelReadyPromise) {
+        if (!this.scribby.whisperEnabled) {
             this.el.hidden = true;
             return;
         }
 
-        await this.scribby.modelReadyPromise;
-
-        if (!this.scribby.whisperEnabled || !this.scribby.whisper) {
-            this.el.hidden = true;
-            return;
-        }
-
-        this.whisper = this.scribby.whisper;
+        /*
+         * Whisper is intentionally not initialized here. The worker and model
+         * are created only when recording actually starts.
+         */
         this.el.disabled = false;
 
         this.waitingSpan = this.createWaitingSpan();
@@ -125,26 +123,21 @@ export class SpeechToText {
         return span;
     }
 
-    private getTranscriptWindowDurationMs(): number {
-        if (this.transcriptWindowStartedAt === null) {
-            return 0;
-        }
-
-        return Math.max(0, this.getSegmentDurationMs() - this.transcriptWindowStartedAt);
-    }
-
     private shouldFlushTranscript(): boolean {
-        return (
-            this.transcriptBytes >= SpeechToText.TRANSCRIBE_MIN_BYTES &&
-            this.getTranscriptWindowDurationMs() >= SpeechToText.TRANSCRIBE_MIN_MS
-        );
+        return this.pcmWindowSamples >= SpeechToText.TRANSCRIBE_MIN_SAMPLES;
     }
 
-    private enqueueTranscribe(blob: Blob, startMs: number, endMs: number) {
+    private enqueueTranscribe(samples: Float32Array, startMs: number, endMs: number) {
         const speechOutput = this.speechOutput;
         const segmentId = this.activeSegmentId;
         const timelineOffsetMs = this.segmentTimelineOffsetMs;
-        const threads = this.scribby.whisperThreadCount
+        const threads = this.scribby.whisperThreadCount;
+        const whisper = this.whisper;
+
+        if (!whisper) {
+            console.warn("[whisper] dropped window, no client", { startMs, endMs });
+            return;
+        }
 
         this.transcribeQueue = this.transcribeQueue
             .then(async () => {
@@ -156,33 +149,35 @@ export class SpeechToText {
                 console.time(label);
 
                 try {
-                    if (!this.whisper) {
-                        return;
-                    }
+                    console.log("[whisper] starting transcription", {
+                        samples: samples.length,
+                        byteLength: samples.byteLength,
+                        startMs,
+                        endMs,
+                        threads,
+                    });
 
-                    transcript = await this.whisper.transcribeBlob(blob, {
+                    transcript = await whisper.transcribeSamples(samples, {
                         language: "en",
                         threads,
+                    });
+
+                    console.log("[whisper] transcription result", {
+                        transcript,
                     });
                 } finally {
                     console.timeEnd(label);
                 }
 
-                console.log({
-                    audioSeconds,
-                    threads,
-                    crossOriginIsolated: window.crossOriginIsolated,
-                    hardwareConcurrency: navigator.hardwareConcurrency,
-                    sharedArrayBuffer: typeof SharedArrayBuffer,
-                });
-
                 if (transcript.includes("BLANK_AUDIO")) {
+                    console.debug("[whisper] blank window", { startMs, endMs });
                     return;
                 }
 
                 const text = transcript.trim();
 
                 if (!text) {
+                    console.debug("[whisper] empty window", { startMs, endMs });
                     return;
                 }
 
@@ -311,7 +306,15 @@ export class SpeechToText {
             return;
         }
 
-        const blob = new Blob([this.headerBlob, ...this.pendingChunks], {
+        /*
+         * The header belongs only to the first part. Later parts are raw
+         * continuations of the same stream.
+         */
+        const parts = this.nextPartNumber === 1
+            ? [this.headerBlob, ...this.pendingChunks]
+            : [...this.pendingChunks];
+
+        const blob = new Blob(parts, {
             type: this.currentMimeType,
         });
 
@@ -334,22 +337,51 @@ export class SpeechToText {
     }
 
     private flushPendingTranscript(): void {
-        if (!this.transcriptHeaderBlob || this.transcriptChunks.length === 0) {
+        console.log("[pcm] flushPendingTranscript called", {
+            pcmWindowSamples: this.pcmWindowSamples,
+            chunks: this.pcmWindow.length,
+        });
+
+        if (this.pcmWindowSamples === 0) {
+            console.warn("[pcm] flush aborted: zero samples");
             return;
         }
 
-        const startMs = this.transcriptWindowStartedAt ?? 0;
-        const endMs = this.getSegmentDurationMs();
+        const samples = new Float32Array(this.pcmWindowSamples);
+        let offset = 0;
 
-        const blob = new Blob([this.transcriptHeaderBlob, ...this.transcriptChunks], {
-            type: this.currentMimeType,
+        for (const chunk of this.pcmWindow) {
+            samples.set(chunk, offset);
+            offset += chunk.length;
+        }
+
+        let sum = 0;
+
+        for (const sample of samples) {
+            sum += sample * sample;
+        }
+
+        console.log("[pcm] assembled window", {
+            samples: samples.length,
+            bytes: samples.byteLength,
+            rms: Math.sqrt(sum / samples.length),
         });
 
-        this.enqueueTranscribe(blob, startMs, endMs);
+        const rate = SpeechToText.TRANSCRIBE_SAMPLE_RATE;
+        const startMs = (this.pcmFlushedSamples / rate) * 1000;
+        const endMs = ((this.pcmFlushedSamples + this.pcmWindowSamples) / rate) * 1000;
 
-        this.transcriptChunks = [];
-        this.transcriptBytes = 0;
-        this.transcriptWindowStartedAt = endMs;
+        this.pcmFlushedSamples += this.pcmWindowSamples;
+        this.pcmWindow = [];
+        this.pcmWindowSamples = 0;
+
+        console.log("[pcm] enqueueing whisper", {
+            startMs,
+            endMs,
+            samples: samples.length,
+        });
+
+        this.enqueueTranscribe(samples, startMs, endMs);
     }
 
     private async createNewSegment(recordingId: string): Promise<string> {
@@ -386,27 +418,24 @@ export class SpeechToText {
         this.pendingBytes = 0;
         this.hasUploadedMultipartPart = false;
 
-        this.transcriptHeaderBlob = null;
-        this.transcriptChunks = [];
-        this.transcriptBytes = 0;
-        this.transcriptWindowStartedAt = null;
+        this.pcmWindow = [];
+        this.pcmWindowSamples = 0;
+        this.pcmFlushedSamples = 0;
     }
 
     private createRecorder(
         audioStream: MediaStream,
         analyser: AnalyserNode,
         bufferLength: number,
-        dataArray: Uint8Array<ArrayBuffer>
+        dataArray: Uint8Array<ArrayBuffer>,
+        whisper: WhisperClient,
+        releaseWhisper: () => void,
+        generation: number,
     ): MediaRecorder {
         this.headerBlob = null;
         this.pendingChunks = [];
         this.pendingBytes = 0;
         this.hasUploadedMultipartPart = false;
-
-        this.transcriptHeaderBlob = null;
-        this.transcriptChunks = [];
-        this.transcriptBytes = 0;
-        this.transcriptWindowStartedAt = null;
 
         const candidates = [
             "audio/webm;codecs=opus",
@@ -425,23 +454,11 @@ export class SpeechToText {
 
             if (!this.headerBlob) {
                 this.headerBlob = e.data;
-                this.transcriptHeaderBlob = e.data;
                 return;
-            }
-
-            if (this.transcriptWindowStartedAt === null) {
-                this.transcriptWindowStartedAt = this.getSegmentDurationMs();
             }
 
             this.pendingChunks.push(e.data);
             this.pendingBytes += e.data.size;
-
-            this.transcriptChunks.push(e.data);
-            this.transcriptBytes += e.data.size;
-
-            if (this.shouldFlushTranscript()) {
-                this.flushPendingTranscript();
-            }
 
             if (volume < 1 && this.pendingBytes >= SpeechToText.MULTIPART_MIN_BYTES) {
                 this.flushPendingAudio(false).catch((err) => {
@@ -452,6 +469,22 @@ export class SpeechToText {
 
         recorder.onstop = () => {
             this.flushPendingTranscript();
+
+            /*
+             * flushPendingTranscript() synchronously appends the final Whisper
+             * job to transcribeQueue. Keep this worker lease alive until that
+             * queue is completely drained, then Scribby can terminate the
+             * worker and release its WASM heap.
+             */
+            const finalTranscription = this.transcribeQueue;
+
+            finalTranscription.finally(() => {
+                releaseWhisper();
+
+                if (this.recordingGeneration === generation && this.whisper === whisper) {
+                    this.whisper = null;
+                }
+            });
 
             this.flushPendingAudio(true)
                 .catch((err) => {
@@ -487,18 +520,38 @@ export class SpeechToText {
         return volumePercent;
     }
 
+    private teardownPcmTap() {
+        if (!this.pcmNode) {
+            return;
+        }
+
+        this.pcmNode.port.onmessage = null;
+        this.pcmNode.disconnect();
+        this.pcmNode = null;
+    }
+
     public async stopRecording() {
         this.isListening = false;
         this.el.classList.remove("active");
 
-        if (this.recorder && this.recorder.state !== "inactive") {
-            this.recorder.stop();
+        const recorder = this.recorder;
+        this.recorder = null;
+
+        if (recorder && recorder.state !== "inactive") {
+            recorder.stop();
         }
 
-        this.recorder = null;
+        this.teardownPcmTap();
 
         this.stream?.getTracks().forEach((t) => t.stop());
         this.stream = null;
+
+        const audioContext = this.audioContext;
+        this.audioContext = null;
+
+        if (audioContext) {
+            await audioContext.close().catch(() => { });
+        }
 
         if (this.waitingInterval) {
             clearInterval(this.waitingInterval);
@@ -512,14 +565,13 @@ export class SpeechToText {
     }
 
     public async startRecording(target: SpeechOutput | null, inputOverride?: Input) {
-        if (!this.scribby.whisperEnabled || !this.scribby.whisper || !this.scribby.modelReadyPromise) {
+        if (!this.scribby.whisperEnabled) {
             console.warn("[whisper] recording blocked because local transcription is disabled");
             return;
         }
 
         const stopRecording = new CustomEvent("stop-recording");
         document.dispatchEvent(stopRecording);
-
 
         if (inputOverride) {
             this.input = inputOverride;
@@ -540,118 +592,146 @@ export class SpeechToText {
             return;
         }
 
-        if (!target) {
-            const res = await fetch("/audio", {
-                method: "POST",
-                credentials: "include",
-                headers: {
-                    Accept: "application/json",
-                },
-            });
+        const generation = ++this.recordingGeneration;
 
-            if (!res.ok) {
-                const msg = await res.text().catch(() => "");
-                console.error(`Create audio failed: ${res.status}`, msg);
-                return;
-            }
+        const whisperLease = await this.scribby.acquireWhisper();
 
-            const data = await res.json();
-
-            this.recordingId = data.recording_id;
-            this.activeSegmentId = data.segment_id;
-            this.resetUploadState();
-            this.segmentTimelineOffsetMs = 0;
-
-            this.speechOutput = document.createElement("speech-output") as SpeechOutput;
-
-            if (this.recordingId) {
-                this.speechOutput.dataset.audioId = this.recordingId;
-            }
-
-            this.speechOutput.controller = this;
-            this.speechOutput.recording = true;
-
-            let container =
-                range!.startContainer.nodeType === Node.TEXT_NODE
-                    ? range!.startContainer.parentElement
-                    : range!.startContainer as HTMLElement | null;
-
-            while (container && container.parentElement && container.parentElement !== this.scribby.el) {
-                container = container.parentElement;
-            }
-
-            if (container && container.parentElement === this.scribby.el) {
-                this.scribby.el.insertBefore(this.speechOutput, container.nextSibling);
-            } else {
-                range!.insertNode(this.speechOutput);
-            }
-
-            const p = document.createElement("p");
-            p.appendChild(document.createElement("br"));
-            this.speechOutput.after(p);
-
-            const sel = window.getSelection();
-
-            if (sel) {
-                sel.removeAllRanges();
-
-                const r = document.createRange();
-                r.setStart(p, 0);
-                r.collapse(true);
-
-                sel.addRange(r);
-            }
-        } else {
-            this.speechOutput = target;
-            this.speechOutput.controller = this;
-            this.recordingId = this.speechOutput.dataset.audioId || null;
-
-            if (!this.recordingId) {
-                console.error("Missing recording id on speech output");
-                return;
-            }
-
-            try {
-                await this.speechOutput.refreshPlayback();
-
-                this.segmentTimelineOffsetMs = this.speechOutput.getTimelineDurationMs();
-                this.activeSegmentId = await this.createNewSegment(this.recordingId);
-
-                this.resetUploadState();
-
-                this.speechOutput.recording = true;
-                this.speechOutput.refreshButtons();
-            } catch (err) {
-                console.error(err);
-                return;
-            }
+        if (!whisperLease) {
+            console.warn("[whisper] worker could not be initialized");
+            return;
         }
 
-        this.outputEl = this.speechOutput.querySelector(".output") as HTMLDivElement;
+        const whisper = whisperLease.client;
+        this.whisper = whisper;
 
-        if (this.waitingSpan) {
-            this.outputEl.append(this.waitingSpan);
+        let recorderOwnsWhisperLease = false;
+        let whisperLeaseReleased = false;
 
-            this.waitingInterval = window.setInterval(() => {
-                if (!this.waitingSpan) {
+        const releaseWhisper = () => {
+            if (whisperLeaseReleased) {
+                return;
+            }
+
+            whisperLeaseReleased = true;
+            whisperLease.release();
+
+            if (this.recordingGeneration === generation && this.whisper === whisper) {
+                this.whisper = null;
+            }
+        };
+
+        try {
+            if (!target) {
+                const res = await fetch("/audio", {
+                    method: "POST",
+                    credentials: "include",
+                    headers: {
+                        Accept: "application/json",
+                    },
+                });
+
+                if (!res.ok) {
+                    const msg = await res.text().catch(() => "");
+                    console.error(`Create audio failed: ${res.status}`, msg);
                     return;
                 }
 
-                const text = this.waitingSpan.innerText;
-                const count = text.split(".").length - 1;
+                const data = await res.json();
 
-                if (count < 3) {
-                    this.waitingSpan.textContent = text + ".";
-                } else {
-                    this.waitingSpan.textContent = text.slice(0, -2);
+                this.recordingId = data.recording_id;
+                this.activeSegmentId = data.segment_id;
+                this.resetUploadState();
+                this.segmentTimelineOffsetMs = 0;
+
+                this.speechOutput = document.createElement("speech-output") as SpeechOutput;
+
+                if (this.recordingId) {
+                    this.speechOutput.dataset.audioId = this.recordingId;
                 }
-            }, 1000);
-        }
 
-        this.isListening = true;
-        this.el.classList.add("active");
+                this.speechOutput.controller = this;
+                this.speechOutput.recording = true;
 
-        try {
+                let container =
+                    range!.startContainer.nodeType === Node.TEXT_NODE
+                        ? range!.startContainer.parentElement
+                        : range!.startContainer as HTMLElement | null;
+
+                while (container && container.parentElement && container.parentElement !== this.scribby.el) {
+                    container = container.parentElement;
+                }
+
+                if (container && container.parentElement === this.scribby.el) {
+                    this.scribby.el.insertBefore(this.speechOutput, container.nextSibling);
+                } else {
+                    range!.insertNode(this.speechOutput);
+                }
+
+                const p = document.createElement("p");
+                p.appendChild(document.createElement("br"));
+                this.speechOutput.after(p);
+
+                const sel = window.getSelection();
+
+                if (sel) {
+                    sel.removeAllRanges();
+
+                    const r = document.createRange();
+                    r.setStart(p, 0);
+                    r.collapse(true);
+
+                    sel.addRange(r);
+                }
+            } else {
+                this.speechOutput = target;
+                this.speechOutput.controller = this;
+                this.recordingId = this.speechOutput.dataset.audioId || null;
+
+                if (!this.recordingId) {
+                    console.error("Missing recording id on speech output");
+                    return;
+                }
+
+                try {
+                    await this.speechOutput.refreshPlayback();
+
+                    this.segmentTimelineOffsetMs = this.speechOutput.getTimelineDurationMs();
+                    this.activeSegmentId = await this.createNewSegment(this.recordingId);
+
+                    this.resetUploadState();
+
+                    this.speechOutput.recording = true;
+                    this.speechOutput.refreshButtons();
+                } catch (err) {
+                    console.error(err);
+                    return;
+                }
+            }
+
+            this.outputEl = this.speechOutput.querySelector(".output") as HTMLDivElement;
+
+            if (this.waitingSpan) {
+                this.outputEl.append(this.waitingSpan);
+
+                this.waitingInterval = window.setInterval(() => {
+                    if (!this.waitingSpan) {
+                        return;
+                    }
+
+                    const text = this.waitingSpan.innerText;
+                    const count = text.split(".").length - 1;
+
+                    if (count < 3) {
+                        this.waitingSpan.textContent = text + ".";
+                    } else {
+                        this.waitingSpan.textContent = text.slice(0, -2);
+                    }
+                }, 1000);
+            }
+
+            this.isListening = true;
+            this.el.classList.add("active");
+
             const constraints = {
                 video: this.input === Input.mic ? false : true,
                 audio: true,
@@ -684,9 +764,26 @@ export class SpeechToText {
 
             const audioStream = new MediaStream(audioTracks);
 
-            const audioContext = new AudioContext();
-            const source = audioContext.createMediaStreamSource(audioStream);
+            /*
+             * Running the graph at Whisper's rate means the worklet emits
+             * exactly the mono 16k float samples the model expects.
+             */
+            const audioContext = new AudioContext({
+                sampleRate: SpeechToText.TRANSCRIBE_SAMPLE_RATE,
+            });
 
+            this.audioContext = audioContext;
+
+            if (audioContext.state !== "running") {
+                await audioContext.resume();
+            }
+
+            console.log("[pcm] audio context", {
+                state: audioContext.state,
+                sampleRate: audioContext.sampleRate,
+            });
+
+            const source = audioContext.createMediaStreamSource(audioStream);
             const analyser = audioContext.createAnalyser();
             source.connect(analyser);
             analyser.fftSize = 256;
@@ -694,23 +791,111 @@ export class SpeechToText {
             const bufferLength = analyser.frequencyBinCount;
             const dataArray = new Uint8Array(bufferLength);
 
-            this.recorder = this.createRecorder(audioStream, analyser, bufferLength, dataArray);
+            await audioContext.audioWorklet.addModule(SpeechToText.PCM_WORKLET_URL);
+
+            const pcmNode = new AudioWorkletNode(audioContext, "pcm-tap", {
+                numberOfInputs: 1,
+                numberOfOutputs: 1,
+                channelCount: 1,
+                channelCountMode: "explicit",
+            });
+
+            pcmNode.onprocessorerror = (e) => {
+                console.error("[pcm] AudioWorklet processor crashed", e);
+            };
+
+            /*
+             * A node with no downstream path is never pulled, so route the tap
+             * into a silent gain to keep it processing.
+             */
+            const mute = audioContext.createGain();
+            mute.gain.value = 0;
+
+            source.connect(pcmNode);
+            pcmNode.connect(mute);
+            mute.connect(audioContext.destination);
+
+            let pcmDebugCount = 0;
+
+            pcmNode.port.onmessage = (e: MessageEvent<Float32Array>) => {
+                pcmDebugCount++;
+
+                const samples = e.data;
+
+                this.pcmWindow.push(samples);
+                this.pcmWindowSamples += samples.length;
+
+                if (pcmDebugCount === 1 || pcmDebugCount % 100 === 0) {
+                    let sum = 0;
+                    let min = Infinity;
+                    let max = -Infinity;
+
+                    for (const sample of samples) {
+                        sum += sample * sample;
+                        min = Math.min(min, sample);
+                        max = Math.max(max, sample);
+                    }
+
+                    console.log("[pcm] received", {
+                        messages: pcmDebugCount,
+                        chunkSamples: samples.length,
+                        windowSamples: this.pcmWindowSamples,
+                        rms: Math.sqrt(sum / samples.length),
+                        min,
+                        max,
+                    });
+                }
+
+                if (this.shouldFlushTranscript()) {
+                    console.log("[pcm] threshold reached", {
+                        samples: this.pcmWindowSamples,
+                    });
+
+                    this.flushPendingTranscript();
+                }
+            };
+
+            this.pcmNode = pcmNode;
+
+            const recorder = this.createRecorder(
+                audioStream,
+                analyser,
+                bufferLength,
+                dataArray,
+                whisper,
+                releaseWhisper,
+                generation,
+            );
+
+            this.recorder = recorder;
             this.segmentStartedAt = Date.now();
 
-            this.recorder.start(SpeechToText.RECORDER_TIMESLICE_MS);
+            recorder.start(SpeechToText.RECORDER_TIMESLICE_MS);
+            recorderOwnsWhisperLease = true;
 
             audioTracks[0].addEventListener("ended", () => {
                 this.isListening = false;
 
-                if (this.recorder && this.recorder.state !== "inactive") {
-                    this.recorder.stop();
+                if (recorder.state !== "inactive") {
+                    recorder.stop();
                 }
 
-                this.recorder = null;
+                if (this.recorder === recorder) {
+                    this.recorder = null;
+                }
 
                 this.el.classList.remove("active");
 
+                if (this.pcmNode === pcmNode) {
+                    this.teardownPcmTap();
+                }
+
                 audioStream.getTracks().forEach((t) => t.stop());
+
+                if (this.audioContext === audioContext) {
+                    this.audioContext = null;
+                }
+
                 audioContext.close().catch(() => { });
 
                 if (this.speechOutput) {
@@ -720,6 +905,10 @@ export class SpeechToText {
             });
         } catch (err) {
             console.error("audio capture failed:", err);
+        } finally {
+            if (!recorderOwnsWhisperLease) {
+                releaseWhisper();
+            }
         }
     }
 }

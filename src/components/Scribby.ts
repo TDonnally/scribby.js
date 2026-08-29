@@ -1,3 +1,6 @@
+
+
+
 import { Normalizer } from "../normalizer/normalizer.js";
 
 import { Toolbar } from "./Toolbar.js";
@@ -98,12 +101,11 @@ export class Scribby {
     public modelReadyPromise: Promise<void> | null = null;
     public whisperEnabled = false;
     public whisperThreadCount = 0;
+
+    private whisperLeaseCount = 0;
+
     async mount() {
-        (globalThis as any).Module = {
-            print: () => { },
-            printErr: () => { },
-        };
-        this.initWhisperIfSupported();
+        this.initWhisperSupport();
 
         const container = document.querySelector<HTMLDivElement>(`${this.selector}`);
         if (!container) {
@@ -1330,51 +1332,116 @@ export class Scribby {
         );*/
         return this
     }
-    private initWhisperIfSupported() {
+    private initWhisperSupport() {
         const support = getLocalWhisperSupport();
 
         this.whisperEnabled = support.enabled;
         this.whisperThreadCount = support.transcriptionThreads;
+        this.modelReadyPromise = null;
 
         if (!support.enabled) {
-            this.modelReadyPromise = null;
-
             console.info("[whisper] disabled", {
                 reason: support.reason,
                 availableThreads: support.availableThreads,
                 crossOriginIsolated: window.crossOriginIsolated,
                 sharedArrayBuffer: typeof SharedArrayBuffer !== "undefined",
             });
+        }
+    }
 
-            return;
+    private async ensureWhisperReady(): Promise<WhisperClient | null> {
+        if (!this.whisperEnabled) {
+            return null;
         }
 
-        this.modelReadyPromise = (async () => {
-            const { WhisperClient } = await import("../whisper/whisper.js");
+        if (this.whisper && this.modelReadyPromise) {
+            await this.modelReadyPromise;
+            return this.whisper;
+        }
 
-            (globalThis as any).Module = {
-                print: () => { },
-                printErr: () => { },
-            };
+        const { WhisperClient } = await import("../whisper/whisper.js");
+        const whisper = new WhisperClient();
 
-            const whisper = new WhisperClient();
-            this.whisper = whisper;
+        this.whisper = whisper;
 
+        const readyPromise = (async () => {
             await whisper.initRuntime("/whisper/main.js");
 
-            console.log("[whisper] runtime ready");
+            console.log("[whisper] worker runtime ready");
 
             await whisper.loadModel("/whisper/ggml-tiny.bin", (p) => {
                 console.log("[whisper] model", Math.round(p * 100), "%");
             });
 
-            console.log("[whisper] model ready");
-        })().catch((err) => {
-            this.whisperEnabled = false;
-            this.whisperThreadCount = 0;
-            this.whisper = null;
+            console.log("[whisper] worker model ready");
+        })();
 
+        this.modelReadyPromise = readyPromise;
+
+        try {
+            await readyPromise;
+            return whisper;
+        } catch (err) {
+            if (this.whisper === whisper) {
+                whisper.terminate();
+                this.whisper = null;
+                this.modelReadyPromise = null;
+            }
+
+            throw err;
+        }
+    }
+
+    public async acquireWhisper(): Promise<{
+        client: WhisperClient;
+        release: () => void;
+    } | null> {
+        if (!this.whisperEnabled) {
+            return null;
+        }
+
+        /*
+         * Reserve the lease before awaiting initialization. This prevents an
+         * older recording from terminating the shared worker while a new
+         * recording is in the middle of acquiring it.
+         */
+        this.whisperLeaseCount += 1;
+
+        try {
+            const client = await this.ensureWhisperReady();
+
+            if (!client) {
+                this.whisperLeaseCount = Math.max(0, this.whisperLeaseCount - 1);
+                return null;
+            }
+
+            let released = false;
+
+            return {
+                client,
+                release: () => {
+                    if (released) {
+                        return;
+                    }
+
+                    released = true;
+                    this.whisperLeaseCount = Math.max(0, this.whisperLeaseCount - 1);
+
+                    if (this.whisperLeaseCount !== 0 || this.whisper !== client) {
+                        return;
+                    }
+
+                    client.terminate();
+                    this.whisper = null;
+                    this.modelReadyPromise = null;
+
+                    console.log("[whisper] worker terminated");
+                },
+            };
+        } catch (err) {
+            this.whisperLeaseCount = Math.max(0, this.whisperLeaseCount - 1);
             console.error("[whisper] init/load failed", err);
-        });
+            return null;
+        }
     }
 }

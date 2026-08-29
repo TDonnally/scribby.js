@@ -1,186 +1,196 @@
 type WhisperOpts = {
     language?: string;
-    threads?: number;   // 8 is default
+    threads?: number;
 };
 
 type ProgressCb = (p01: number) => void;
 
-declare global {
-    interface Window {
-        Module: any;
-    }
-}
+type WorkerRequest = {
+    id: string;
+    type: "init-runtime" | "load-model" | "transcribe";
+    mainJsUrl?: string;
+    modelUrl?: string;
+    audio?: Float32Array;
+    language?: string;
+    threads?: number;
+    translate?: boolean;
+};
 
-const DB_NAME = "whisper-cache";
-const DB_VERSION = 1;
-const STORE = "models";
+type WorkerResponse = {
+    id: string;
+    type: "result" | "error" | "progress";
+    result?: unknown;
+    error?: string;
+    progress?: number;
+};
 
-function openDb(): Promise<IDBDatabase> {
-    return new Promise((resolve, reject) => {
-        const req = indexedDB.open(DB_NAME, DB_VERSION);
-        req.onupgradeneeded = () => {
-            const db = req.result;
-            if (!db.objectStoreNames.contains(STORE)) db.createObjectStore(STORE);
-        };
-        req.onsuccess = () => resolve(req.result);
-        req.onerror = () => reject(req.error);
-    });
-}
-
-async function idbGet(key: string): Promise<Uint8Array | null> {
-    const db = await openDb();
-    return new Promise((resolve, reject) => {
-        const tx = db.transaction(STORE, "readonly");
-        const os = tx.objectStore(STORE);
-        const req = os.get(key);
-        req.onsuccess = () => resolve(req.result ?? null);
-        req.onerror = () => reject(req.error);
-    });
-}
-
-async function idbPut(key: string, value: Uint8Array): Promise<void> {
-    const db = await openDb();
-    return new Promise((resolve, reject) => {
-        const tx = db.transaction(STORE, "readwrite");
-        const os = tx.objectStore(STORE);
-        const req = os.put(value, key);
-        req.onsuccess = () => resolve();
-        req.onerror = () => reject(req.error);
-    });
-}
-
-async function fetchWithProgress(url: string, onProgress?: ProgressCb): Promise<Uint8Array> {
-    const res = await fetch(url);
-    if (!res.ok) throw new Error(`fetch failed ${res.status}: ${url}`);
-
-    const lenHdr = res.headers.get("content-length");
-    const total = lenHdr ? parseInt(lenHdr, 10) : 0;
-
-    if (!res.body) {
-        const buf = new Uint8Array(await res.arrayBuffer());
-        onProgress?.(1);
-        return buf;
-    }
-
-    const reader = res.body.getReader();
-    const chunks: Uint8Array[] = [];
-    let received = 0;
-
-    while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        chunks.push(value);
-        received += value.byteLength;
-        if (total) onProgress?.(received / total);
-    }
-
-    const out = new Uint8Array(received);
-    let off = 0;
-    for (const c of chunks) {
-        out.set(c, off);
-        off += c.byteLength;
-    }
-    onProgress?.(1);
-    return out;
-}
-
-function ensureWasmModelInFS(modelBytes: Uint8Array, fsName: string) {
-    const Module = window.Module;
-    if (!Module) throw new Error("Module not loaded yet");
-
-    try { Module.FS_unlink(fsName); } catch { }
-    Module.FS_createDataFile("/", fsName, modelBytes, true, true);
-}
-
-function loadScript(src: string): Promise<void> {
-    return new Promise((resolve, reject) => {
-        const s = document.createElement("script");
-        s.src = src;
-        s.async = true;
-        s.onload = () => resolve();
-        s.onerror = () => reject(new Error(`failed to load script: ${src}`));
-        document.head.appendChild(s);
-    });
-}
-
-export async function loadWhisperRuntime(mainJsUrl: string): Promise<any> {
-    if (window.Module?.init && window.Module?.full_default) return window.Module;
-
-    window.Module = window.Module ?? {};
-    window.Module.print = window.Module.print ?? ((...args: any[]) => console.log("[whisper]", ...args));
-
-    /**
-     * Some log messages are printing like errors and I can't figure out why.
-     * Commenting out Error logs for the time being.
-     */
-
-    //window.Module.printErr = window.Module.printErr ?? ((...args: any[]) => console.error("[whisper]", ...args));
-
-    const ready = new Promise<any>((resolve) => {
-        const prev = window.Module.onRuntimeInitialized;
-        window.Module.onRuntimeInitialized = () => {
-            prev?.();
-            resolve(window.Module);
-        };
-    });
-
-    await loadScript(mainJsUrl);
-    return ready;
-}
-
+type PendingRequest = {
+    resolve: (value: any) => void;
+    reject: (reason?: any) => void;
+    onProgress?: ProgressCb;
+};
 
 async function decodeToMono16kFloat(blob: Blob): Promise<Float32Array> {
     const kSampleRate = 16000;
 
     const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
     const OfflineCtx = window.OfflineAudioContext || (window as any).webkitOfflineAudioContext;
-    if (!AudioCtx || !OfflineCtx) throw new Error("WebAudio not supported");
 
+    if (!AudioCtx || !OfflineCtx) {
+        throw new Error("WebAudio not supported");
+    }
 
     const ctx = new AudioCtx({ sampleRate: kSampleRate });
-    const buf = await blob.arrayBuffer();
-    const decoded = await ctx.decodeAudioData(buf.slice(0) as ArrayBuffer);
 
-    const offline = new OfflineCtx(1, decoded.length, kSampleRate);
-    const src = offline.createBufferSource();
-    src.buffer = decoded;
-    src.connect(offline.destination);
-    src.start(0);
+    try {
+        const buf = await blob.arrayBuffer();
+        const decoded = await ctx.decodeAudioData(buf.slice(0) as ArrayBuffer);
+        const outputLength = Math.max(1, Math.ceil(decoded.duration * kSampleRate));
 
-    const rendered = await offline.startRendering();
-    const audio = rendered.getChannelData(0);
+        const offline = new OfflineCtx(1, outputLength, kSampleRate);
+        const src = offline.createBufferSource();
+        src.buffer = decoded;
+        src.connect(offline.destination);
+        src.start(0);
 
-    try { await ctx.close(); } catch { }
-    return audio;
+        const rendered = await offline.startRendering();
+        const renderedAudio = rendered.getChannelData(0);
+
+        return new Float32Array(renderedAudio);
+    } finally {
+        try {
+            await ctx.close();
+        } catch { }
+    }
 }
 
 export class WhisperClient {
-    private module!: any;
-    private instance: any = null;
-    private modelFsName = "whisper.bin";
+    private worker: Worker | null = null;
+    private pending = new Map<string, PendingRequest>();
+    private runtimeReady = false;
+    private modelReady = false;
+
+    constructor(
+        private workerUrl = "/scripts/whisper_worker.js",
+    ) { }
+
+    private ensureWorker(): Worker {
+        if (this.worker) {
+            return this.worker;
+        }
+
+        const worker = new Worker(this.workerUrl);
+
+        worker.onmessage = (e: MessageEvent<WorkerResponse>) => {
+            const message = e.data;
+            const pending = this.pending.get(message.id);
+
+            if (!pending) {
+                return;
+            }
+
+            if (message.type === "progress") {
+                pending.onProgress?.(message.progress ?? 0);
+                return;
+            }
+
+            this.pending.delete(message.id);
+
+            if (message.type === "error") {
+                pending.reject(new Error(message.error || "Whisper worker failed"));
+                return;
+            }
+
+            pending.resolve(message.result);
+        };
+
+        worker.onerror = (e: ErrorEvent) => {
+            const error = new Error(e.message || "Whisper worker crashed");
+            this.rejectAllPending(error);
+            this.destroyWorker();
+        };
+
+        worker.onmessageerror = () => {
+            const error = new Error("Whisper worker message could not be decoded");
+            this.rejectAllPending(error);
+            this.destroyWorker();
+        };
+
+        this.worker = worker;
+        return worker;
+    }
+
+    private sendRequest<T>(
+        request: Omit<WorkerRequest, "id">,
+        transfer: Transferable[] = [],
+        onProgress?: ProgressCb,
+    ): Promise<T> {
+        const worker = this.ensureWorker();
+        const id = crypto.randomUUID();
+
+        return new Promise<T>((resolve, reject) => {
+            this.pending.set(id, {
+                resolve,
+                reject,
+                onProgress,
+            });
+
+            try {
+                worker.postMessage({
+                    ...request,
+                    id,
+                } satisfies WorkerRequest, transfer);
+            } catch (err) {
+                this.pending.delete(id);
+                reject(err);
+            }
+        });
+    }
+
+    private rejectAllPending(error: Error) {
+        for (const pending of this.pending.values()) {
+            pending.reject(error);
+        }
+
+        this.pending.clear();
+    }
+
+    private destroyWorker() {
+        this.worker?.terminate();
+        this.worker = null;
+        this.runtimeReady = false;
+        this.modelReady = false;
+    }
 
     async initRuntime(mainJsUrl: string) {
-        this.module = await loadWhisperRuntime(mainJsUrl);
+        if (this.runtimeReady) {
+            return;
+        }
+
+        await this.sendRequest<void>({
+            type: "init-runtime",
+            mainJsUrl,
+        });
+
+        this.runtimeReady = true;
     }
 
     async loadModel(modelUrl: string, onProgress?: ProgressCb) {
-        if (!this.module) throw new Error("Call initRuntime() first");
+        if (!this.runtimeReady) {
+            throw new Error("Call initRuntime() first");
+        }
 
-        let bytes = await idbGet(modelUrl);
-
-        if (!bytes) {
-            bytes = await fetchWithProgress(modelUrl, onProgress);
-            await idbPut(modelUrl, bytes);
-        } else {
+        if (this.modelReady) {
             onProgress?.(1);
+            return;
         }
 
-        ensureWasmModelInFS(bytes, this.modelFsName);
+        await this.sendRequest<void>({
+            type: "load-model",
+            modelUrl,
+        }, [], onProgress);
 
-        if (!this.instance) {
-            this.instance = this.module.init(this.modelFsName);
-            if (!this.instance) throw new Error("Module.init() failed");
-        }
+        this.modelReady = true;
     }
 
     async transcribeBlob(blob: Blob, opts: WhisperOpts = {}) {
@@ -191,27 +201,65 @@ export class WhisperClient {
         return this.runBlob(blob, { ...opts, translate: true });
     }
 
-    private async runBlob(blob: Blob, args: WhisperOpts & { translate: boolean }): Promise<string> {
-        if (!this.instance) throw new Error("Call loadModel() first");
+    private async runBlob(
+        blob: Blob,
+        args: WhisperOpts & { translate: boolean },
+    ): Promise<string> {
+        if (!this.modelReady) {
+            throw new Error("Call loadModel() first");
+        }
 
         const audio = await decodeToMono16kFloat(blob);
         const lang = args.language ?? "en";
-        const threads = args.threads ?? 8
+        const threads = args.threads ?? 8;
 
-        const result = this.module.full_default(this.instance, audio, lang, threads, args.translate);
+        const text = await this.sendRequest<string>({
+            type: "transcribe",
+            audio,
+            language: lang,
+            threads,
+            translate: args.translate,
+        }, [audio.buffer]);
 
-        if (result !== 0) {
-            throw new Error(`Whisper error: ${result}`);
-        }
-
-        while (this.module.is_running()) {
-            await new Promise(resolve => setTimeout(resolve, 100));
-        }
-
-        this.module.wait();
-
-        const text: string = this.module.get_text(this.instance);
         return text ?? "";
     }
-    
+
+    async transcribeSamples(
+        audio: Float32Array,
+        opts: WhisperOpts = {},
+    ): Promise<string> {
+        if (!this.modelReady) {
+            throw new Error("Call loadModel() first");
+        }
+
+        console.log("[whisper-client] sending audio to worker", {
+            samples: audio.length,
+            bytes: audio.byteLength,
+            language: opts.language ?? "en",
+            threads: opts.threads ?? 8,
+        });
+
+        const text = await this.sendRequest<string>({
+            type: "transcribe",
+            audio,
+            language: opts.language ?? "en",
+            threads: opts.threads ?? 8,
+            translate: false,
+        }, [audio.buffer]);
+
+        console.log("[whisper-client] worker returned", {
+            text,
+        });
+
+        return text ?? "";
+    }
+
+    terminate() {
+        if (!this.worker) {
+            return;
+        }
+
+        this.rejectAllPending(new Error("Whisper worker terminated"));
+        this.destroyWorker();
+    }
 }
