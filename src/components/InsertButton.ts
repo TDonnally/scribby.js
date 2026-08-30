@@ -53,7 +53,6 @@ export class ToolbarInsertButton {
             const range = this.scribby.selection;
             if (!range) return;
             const rangeMarker = document.createElement("range-marker");
-            const rangeLength = range?.toString().length;
             const blockRanges = utils.getBlockRanges(range, this.scribby.el);
 
             /**
@@ -159,25 +158,33 @@ export class ToolbarInsertButton {
                 else {
                     const list = document.createElement(this.insertElType);
 
-                    blockRanges.forEach(({ blockRange }) => {
+                    const blocks = blockRanges.map(({ block }) => block as HTMLElement);
+                    const firstBlock = blocks[0];
+
+                    if (!firstBlock) return;
+
+                    for (const block of blocks) {
                         const listEl = document.createElement("li");
 
-                        if (!blockRange.toString().length) {
-                            listEl.innerText = "\u200B";
+                        if (!(block.textContent ?? "").replace(/[\s\u200B]+/g, "")) {
+                            listEl.appendChild(document.createTextNode("\u200B"));
                         }
                         else {
-                            const extractedContents = blockRange.extractContents();
-                            listEl.appendChild(extractedContents);
+                            while (block.firstChild) {
+                                listEl.appendChild(block.firstChild);
+                            }
                         }
 
                         list.appendChild(listEl);
-                    });
+                    }
 
-                    range.deleteContents();
-                    range.insertNode(list);
+                    firstBlock.before(list);
 
-                    const lastListItem = list.lastElementChild;
-                    lastListItem?.appendChild(rangeMarker);
+                    for (const block of blocks) {
+                        block.remove();
+                    }
+
+                    list.lastElementChild?.appendChild(rangeMarker);
                 }
             }
             else if (this.insertElType === insertElementType.CodeBlock) {

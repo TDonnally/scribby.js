@@ -6,7 +6,6 @@
 
 import { Scribby } from "./Scribby.js";
 import * as utils from "../utilities/utilities.js"
-import { Snapshot } from "../history_manager/history_manager.js";
 
 export enum affectedElementType {
     Block = "block",
@@ -348,14 +347,7 @@ export class ToolbarStyleButton {
             fMarkerParent?.normalize();
             bMarkerParent?.normalize();
 
-            this.scribby.normalizer.removeEmptyNodes(this.scribby.el);
-            const snapshot: Snapshot = {
-                timestamp: Date.now(),
-                html: this.scribby.el,
-                selection: this.scribby.historyManager.captureSelection(this.el),
-            };
-
-            this.scribby.historyManager.push(snapshot);
+            this.scribby.el.dispatchEvent(new Event("input"));
         })
     }
 }
