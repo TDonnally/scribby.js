@@ -30,6 +30,8 @@ export default defineConfig({
     plugins: [copyKatexAssets()],
 
     build: {
+        minify: false,
+
         lib: {
             entry: "src/index.ts",
             formats: ["es"],
