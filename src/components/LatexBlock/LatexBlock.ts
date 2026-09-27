@@ -1,4 +1,4 @@
-import katex from "katex";
+import { renderLatex } from "./utilities.js";
 
 import { LatexModal, type LatexModalPlacement } from "./LatexModal.js";
 
@@ -30,11 +30,11 @@ export function parseLatexMarkdown(source: string): ParsedLatexMarkdown {
         end: string;
         mode: LatexDisplayMode;
     }> = [
-        { start: "$$", end: "$$", mode: "display" },
-        { start: "\\[", end: "\\]", mode: "display" },
-        { start: "\\(", end: "\\)", mode: "inline" },
-        { start: "$", end: "$", mode: "inline" },
-    ];
+            { start: "$$", end: "$$", mode: "display" },
+            { start: "\\[", end: "\\]", mode: "display" },
+            { start: "\\(", end: "\\)", mode: "inline" },
+            { start: "$", end: "$", mode: "inline" },
+        ];
 
     for (const wrapper of wrappers) {
         const minimumLength = wrapper.start.length + wrapper.end.length;
@@ -355,12 +355,8 @@ export class LatexBlock extends HTMLElement {
         }
 
         try {
-            katex.render(latex, this.renderEl, {
+            renderLatex(latex, this.renderEl, {
                 displayMode: isDisplay,
-                output: "htmlAndMathml",
-                throwOnError: false,
-                strict: "warn",
-                trust: false,
             });
         } catch (error) {
             this.classList.add("has-latex-error");

@@ -1,2 +1,3 @@
 import { Scribby } from "./components/Scribby.js";
-export { Scribby };
+import { setLatexRenderer, type LatexRenderer, type LatexRenderOptions } from "./components/LatexBlock/utilities.js";
+export { Scribby, setLatexRenderer, LatexRenderer, LatexRenderOptions };

@@ -666,3 +666,31 @@ function setBrowserRange(range: Range): void {
     selection?.removeAllRanges();
     selection?.addRange(range);
 }
+
+export interface LatexRenderOptions {
+    displayMode: boolean;
+}
+
+export type LatexRenderer = (
+    latex: string,
+    element: HTMLElement,
+    options: LatexRenderOptions,
+) => void;
+
+let latexRenderer: LatexRenderer | null = null;
+
+export function setLatexRenderer(renderer: LatexRenderer): void {
+    latexRenderer = renderer;
+}
+
+export function renderLatex(
+    latex: string,
+    element: HTMLElement,
+    options: LatexRenderOptions,
+): void {
+    if (!latexRenderer) {
+        throw new Error("No LaTeX renderer has been configured.");
+    }
+
+    latexRenderer(latex, element, options);
+}
