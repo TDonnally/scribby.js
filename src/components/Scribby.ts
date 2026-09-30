@@ -1,6 +1,3 @@
-
-
-
 import { Normalizer } from "../normalizer/normalizer.js";
 
 import { Toolbar } from "./Toolbar.js";
@@ -1325,9 +1322,6 @@ export class Scribby {
             }
         });
 
-        /*this.historyManager.push(
-            this.historyManager.createSnapshot(this.el),
-        );*/
         return this
     }
     private initWhisperSupport() {
