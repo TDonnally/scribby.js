@@ -227,8 +227,6 @@ export class Scribby {
 
             }
             if (e.key === "Tab") {
-
-
                 e.preventDefault();
                 const range = this.selection;
                 if (!range) return;
