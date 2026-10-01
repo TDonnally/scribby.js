@@ -1,7 +1,7 @@
 import type { Scribby } from "../../Scribby.js"
 import { LinkModal } from "../../LinkModal.js";
 
-export function changeSelection(scribby: Scribby, e: Event) {
+export function handleChangeSelection(scribby: Scribby) {
     const activeElement = document.activeElement as HTMLElement | null;
 
     // if we are in a modal do not change the stored selection
@@ -91,7 +91,7 @@ export function changeSelection(scribby: Scribby, e: Event) {
     }
 }
 
-export function focusIn(scribby: Scribby, e: Event) {
+export function handleFocusIn(scribby: Scribby, e: Event) {
     if (scribby.currentInsertModal) {
         scribby.currentInsertModal.unmount();
         scribby.currentInsertModal = null;

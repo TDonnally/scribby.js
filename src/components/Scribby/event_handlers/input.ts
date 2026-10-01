@@ -31,7 +31,7 @@ export function handleInput(scribby: Scribby, e: Event) {
     utils.applyUUIDs(scribby.el);
 }
 
-export function handleCustomBlockChange(scribby: Scribby, e: Event) {
+export function handleCustomBlockChange(scribby: Scribby) {
     scribby.el.dispatchEvent(
         new Event("input"),
     );
