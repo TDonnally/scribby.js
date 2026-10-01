@@ -30,3 +30,11 @@ export function handleInput(scribby: Scribby, e: Event) {
     scribby.normalizer.removeEmptyNodes(scribby.el);
     utils.applyUUIDs(scribby.el);
 }
+
+export function handleCustomBlockChange(scribby: Scribby, e: Event) {
+    scribby.el.dispatchEvent(
+        new Event("input"),
+    );
+
+    scribby.flushPendingHistorySnapshot();
+}

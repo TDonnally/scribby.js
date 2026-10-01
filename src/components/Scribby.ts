@@ -34,7 +34,6 @@ import {
     removeInlineLatexBlock,
     splitTextBlockAtInlineLatexBoundary,
 } from "./LatexBlock/utilities.js";
-const parser = new DOMParser();
 
 
 export class Scribby {
@@ -57,29 +56,10 @@ export class Scribby {
     currentInsertModal: InsertModal | null = null;
     currentTextModal: LinkModal | null = null;
 
-    private flushPendingHistorySnapshot(): void {
-        if (this.historyUpdateTimeoutId === null) return;
-
-        clearTimeout(this.historyUpdateTimeoutId);
-        this.historyUpdateTimeoutId = null;
-
-        this.historyManager.push(
-            this.historyManager.createSnapshot(this.el),
-        );
-    }
-
-    public restoreHistorySnapshot(snapshot: Snapshot): void {
-        this.historyManager.diffDom(snapshot.html, this.el);
-
-        this.selection = this.historyManager.restoreSelection(
-            this.el,
-            snapshot.selection,
-        );
-    }
+    parser: DOMParser = new DOMParser();
 
     constructor(
         selector = "",
-        content: string | null = null
     ) {
         this.selector = selector;
         this.el;
@@ -962,7 +942,7 @@ export class Scribby {
                     .replace(/\n/g, '<br>') + '</p>';
             }
 
-            const snippet = parser.parseFromString(html, "text/html");
+            const snippet = this.parser.parseFromString(html, "text/html");
             const fragment = document.createDocumentFragment();
 
             while (snippet.body.firstChild) {
@@ -1324,6 +1304,27 @@ export class Scribby {
 
         return this
     }
+    // history methods
+    public flushPendingHistorySnapshot(): void {
+        if (this.historyUpdateTimeoutId === null) return;
+
+        clearTimeout(this.historyUpdateTimeoutId);
+        this.historyUpdateTimeoutId = null;
+
+        this.historyManager.push(
+            this.historyManager.createSnapshot(this.el),
+        );
+    }
+
+    public restoreHistorySnapshot(snapshot: Snapshot): void {
+        this.historyManager.diffDom(snapshot.html, this.el);
+
+        this.selection = this.historyManager.restoreSelection(
+            this.el,
+            snapshot.selection,
+        );
+    }
+    // whisper methods
     private initWhisperSupport() {
         const support = getLocalWhisperSupport();
 
