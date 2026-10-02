@@ -27,7 +27,7 @@ import { LatexBlock } from "./LatexBlock/LatexBlock.js";
 
 
 export class Scribby {
-    selector: string;
+    container!: HTMLElement;
     el!: HTMLDivElement;
     toolbar!: Toolbar;
     textElement: string;
@@ -50,10 +50,7 @@ export class Scribby {
 
     abortController: AbortController | null;
 
-    constructor(
-        selector = "",
-    ) {
-        this.selector = selector;
+    constructor() {
         this.el;
         this.textElement = "p";
         this.selection;
@@ -88,13 +85,10 @@ export class Scribby {
 
     private whisperLeaseCount = 0;
 
-    async mount() {
+    async mount(container: HTMLElement) {
         this.initWhisperSupport();
 
-        const container = document.querySelector<HTMLDivElement>(`${this.selector}`);
-        if (!container) {
-            throw new Error(`No element with selector: ${this.selector}`);
-        }
+        this.container = container;
         const initialContent = container.innerHTML;
         this.el = document.createElement("div");
         this.el.contentEditable = 'true';
