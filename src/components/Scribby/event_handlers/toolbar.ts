@@ -156,7 +156,7 @@ export function activateToolbarStyleButtons(scribby: Scribby) {
 
     const dropDownOpen = document.querySelector(".dropdown-open");
 
-    dropDownOpen!.textContent = blockTags.length > 1 ? "Body" : scribby.container.querySelector(`[data-tag="${blockTags[0]}"]`)?.textContent ?? "Body";
+    dropDownOpen!.textContent = blockTags.length > 1 ? "Body" : scribby.toolbar.el.querySelector(`[data-tag="${blockTags[0]}"]`)?.textContent ?? "Body";
 
     let attributes: Record<string, string> = {}
     for (var i = 0; i < blocks.length; i++) {
@@ -178,7 +178,7 @@ export function activateToolbarStyleButtons(scribby: Scribby) {
         }
         attributes = newAttributes;
     }
-    const blockStyleButtons = scribby.container.querySelectorAll<HTMLElement>(`[data-button-type="block"]`);
+    const blockStyleButtons = scribby.toolbar.el.querySelectorAll<HTMLElement>(`[data-button-type="block"]`);
     blockStyleButtons.forEach((el) => {
         const key = el.dataset.key;
         if (key && el.dataset.attribute == attributes[key]) {
@@ -224,7 +224,7 @@ export function activateToolbarStyleButtons(scribby: Scribby) {
             for (let i = 0; i < nodes.length; i++) {
                 const node = nodes[i];
                 if (node.nodeType === Node.TEXT_NODE) {
-                    const spanStyleButtons = scribby.container.querySelectorAll<HTMLElement>(`[data-button-type="span"]`);
+                    const spanStyleButtons = scribby.toolbar.el.querySelectorAll<HTMLElement>(`[data-button-type="span"]`);
                     spanStyleButtons.forEach((el) => {
                         el.classList.remove("active");
                     })
@@ -267,7 +267,7 @@ export function activateToolbarStyleButtons(scribby: Scribby) {
         }
     }
 
-    const spanStyleButtons = scribby.container.querySelectorAll<HTMLElement>(`[data-button-type="span"]`);
+    const spanStyleButtons = scribby.toolbar.el.querySelectorAll<HTMLElement>(`[data-button-type="span"]`);
     spanStyleButtons.forEach((el) => {
         const key = el.dataset.key;
         const attr = el.dataset.attribute;

@@ -63,6 +63,7 @@ export class Scribby {
         this.saveTimeoutId = null;
         this.saveDelayonInput = 5000;
         this.abortController = null;
+        this.initWhisperSupport();
         // initialize web components
         customElements.define("range-marker", RangeMarker);
         customElements.define("scribby-code-block", ScribbyCodeBlock);
@@ -85,9 +86,9 @@ export class Scribby {
 
     private whisperLeaseCount = 0;
 
-    async mount(container: HTMLElement) {
-        this.initWhisperSupport();
-
+    mount(container: HTMLElement): Scribby {
+        this.disconnectEditor();
+        
         this.container = container;
         const initialContent = container.innerHTML;
         this.el = document.createElement("div");
@@ -108,6 +109,18 @@ export class Scribby {
         connectEditorEventHandlers(this);
 
         return this
+    }
+    public disconnectEditor(): void {
+        this.abortController?.abort();
+        this.abortController = null;
+
+        if (this.toolbar?.el?.isConnected) {
+            this.toolbar.el.remove();
+        }
+
+        if (this.el?.isConnected) {
+            utils.replaceElementWithChildren(this.el);
+        }
     }
     // history methods
     public flushPendingHistorySnapshot(): void {
