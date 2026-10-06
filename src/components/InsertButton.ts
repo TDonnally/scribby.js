@@ -304,8 +304,10 @@ export class ToolbarInsertButton {
                 utils.placeCaretatEndofElement(newEl);
             }
             this.scribby.el.dispatchEvent(new Event('input'));
-            utils.placeCaretatEndofElement(rangeMarker);
-            rangeMarker.remove();
+            if (rangeMarker.isConnected) {
+                utils.placeCaretatEndofElement(rangeMarker);
+                rangeMarker.remove();
+            }
         })
     }
 }

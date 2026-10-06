@@ -20,13 +20,13 @@ export class ToolbarDropdownButton{
     }
     mount(){
         this.el = document.createElement("div");
-        this.el.classList.add("dropdown-menu-container");
+        this.el.classList.add("scribby-dropdown-menu-container");
         const openButton = document.createElement("button");
         openButton.type = "button";
         openButton.classList.add("dropdown-open");
         
         const buttonsContainer = document.createElement("div");
-        buttonsContainer.classList.add("dropdown-menu");
+        buttonsContainer.classList.add("scribby-dropdown-menu");
         this.dropdownMenuButtons.forEach(btn => {
             btn.mount();
             buttonsContainer.appendChild(btn.el);

@@ -62,8 +62,8 @@ export class LatexBlock extends HTMLElement {
         return ["data-value", "data-display", "data-label"];
     }
 
-    private renderEl?: HTMLDivElement;
-    private captionEl?: HTMLDivElement;
+    private renderEl?: HTMLSpanElement;
+    private captionEl?: HTMLSpanElement;
     private settingsButton?: HTMLButtonElement;
     private modal?: LatexModal;
     private hasMounted = false;
@@ -161,6 +161,8 @@ export class LatexBlock extends HTMLElement {
     }
 
     public openEditor(referenceRect?: DOMRectReadOnly): void {
+        if (!this.isEditable()) return;
+
         const isDisplay = this.displayMode === "display";
 
         const anchor = isDisplay && this.settingsButton
@@ -199,19 +201,27 @@ export class LatexBlock extends HTMLElement {
         this.openEditor();
     }
 
+    /**
+     * Formulas are only editable inside a mounted Scribby editor. Anywhere
+     * else, such as a notecard being studied, they render read-only.
+     */
+    private isEditable(): boolean {
+        return this.parentElement?.isContentEditable ?? false;
+    }
+
     private mountComponent(): void {
         this.hasMounted = true;
 
-        const shell = document.createElement("div");
+        const shell = document.createElement("span");
         shell.classList.add("latex-block-shell");
         shell.contentEditable = "false";
 
-        const render = document.createElement("div");
+        const render = document.createElement("span");
         render.classList.add("latex-block-render");
         render.setAttribute("aria-live", "polite");
         render.contentEditable = "false";
 
-        const caption = document.createElement("div");
+        const caption = document.createElement("span");
         caption.classList.add("latex-block-caption");
         caption.contentEditable = "false";
 
@@ -240,6 +250,7 @@ export class LatexBlock extends HTMLElement {
          * makes the desktop modal open at the exact pointer position.
          */
         shell.addEventListener("pointerdown", (event) => {
+            if (!this.isEditable()) return;
             if (this.displayMode !== "inline") return;
             if (!event.isPrimary || event.button !== 0) return;
 
@@ -264,6 +275,7 @@ export class LatexBlock extends HTMLElement {
          * cannot focus the Scribby contenteditable or reopen the modal.
          */
         shell.addEventListener("click", (event) => {
+            if (!this.isEditable()) return;
             if (this.displayMode !== "inline") return;
 
             event.preventDefault();
@@ -280,6 +292,7 @@ export class LatexBlock extends HTMLElement {
         });
 
         this.addEventListener("keydown", (event) => {
+            if (!this.isEditable()) return;
             if (this.displayMode !== "inline") return;
             if (event.key !== "Enter" && event.key !== " ") return;
 
@@ -327,6 +340,7 @@ export class LatexBlock extends HTMLElement {
         if (!this.renderEl || !this.captionEl || !this.settingsButton) return;
 
         const isDisplay = this.displayMode === "display";
+        const editable = this.isEditable();
         const latex = this.value.trim();
         const label = this.label.trim();
 
@@ -335,8 +349,8 @@ export class LatexBlock extends HTMLElement {
         this.classList.toggle("is-display", isDisplay);
         this.classList.toggle("is-empty", latex.length === 0);
 
-        this.tabIndex = isDisplay ? -1 : 0;
-        this.settingsButton.hidden = !isDisplay;
+        this.tabIndex = isDisplay || !editable ? -1 : 0;
+        this.settingsButton.hidden = !isDisplay || !editable;
 
         this.captionEl.textContent = label;
         this.captionEl.hidden = !isDisplay || label.length === 0;
