@@ -9,6 +9,10 @@ export class LinkModal {
     referenceRect: DOMRect;
     anchor: HTMLAnchorElement;
     resolveFn!: (value: Record<string, string> | null) => void;
+
+    private scrollParent!: HTMLElement;
+    private scrollOrigin = { left: 0, top: 0 };
+
     constructor(
         scribby: Scribby,
         referenceRect: DOMRect,
@@ -25,30 +29,46 @@ export class LinkModal {
         this.modalForm = document.createElement("form");
         this.anchor = anchor;
     }
+
+    private positionModal = () => {
+        const parentRect = this.scrollParent.getBoundingClientRect();
+        const dx = parentRect.left - this.scrollParent.scrollLeft - this.scrollOrigin.left;
+        const dy = parentRect.top - this.scrollParent.scrollTop - this.scrollOrigin.top;
+        const modalRect = this.modalForm.getBoundingClientRect();
+
+        const left =
+            this.referenceRect.left +
+            dx +
+            (this.referenceRect.width / 2) -
+            (modalRect.width / 2);
+
+        const top = this.referenceRect.bottom + dy + 12;
+
+        this.modalForm.style.left = `${left}px`;
+        this.modalForm.style.top = `${top}px`;
+    };
+
     mount() {
         this.modalForm.classList.add("link-modal");
         this.modalForm.classList.add("modal");
         this.modalForm.innerHTML = this.innerContent;
-        this.scribby.el.parentElement!.append(this.modalForm);
-        // positioning
-        const modalRect = this.modalForm.getBoundingClientRect();
-        const parent = this.modalForm.offsetParent as HTMLElement;
-        const parentRect = parent.getBoundingClientRect();
+        this.modalForm.setAttribute("popover", "manual");
 
-        const left =
-            this.referenceRect.left -
-            parentRect.left +
-            parent.scrollLeft +
-            (this.referenceRect.width / 2) -
-            (modalRect.width / 2);
+        this.scrollParent = this.scribby.el.parentElement!;
 
-        const top =
-            this.referenceRect.bottom -
-            parentRect.top +
-            parent.scrollTop +
-            12;
-        this.modalForm.style.left = `${left}px`;
-        this.modalForm.style.top = `${top}px`;
+        const parentRect = this.scrollParent.getBoundingClientRect();
+
+        this.scrollOrigin = {
+            left: parentRect.left - this.scrollParent.scrollLeft,
+            top: parentRect.top - this.scrollParent.scrollTop,
+        };
+
+        document.body.append(this.modalForm);
+        this.modalForm.showPopover();
+        this.positionModal();
+
+        window.addEventListener("scroll", this.positionModal, true);
+        window.addEventListener("resize", this.positionModal);
 
         // buttons
         const editButton = this.modalForm.querySelector(".edit");
@@ -85,6 +105,8 @@ export class LinkModal {
 
     }
     unmount() {
+        window.removeEventListener("scroll", this.positionModal, true);
+        window.removeEventListener("resize", this.positionModal);
         this.modalForm.remove();
     }
 }

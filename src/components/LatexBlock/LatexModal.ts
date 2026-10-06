@@ -24,6 +24,7 @@ export class LatexModal {
     private pendingMode: LatexDisplayMode;
     private mounted = false;
     private mobile = false;
+    private anchorOffset = { left: 0, top: 0 };
 
     constructor(
         block: LatexBlock,
@@ -51,6 +52,7 @@ export class LatexModal {
         this.modalForm.setAttribute("role", "dialog");
         this.modalForm.setAttribute("aria-modal", "true");
         this.modalForm.setAttribute("aria-label", "Edit LaTeX formula");
+        this.modalForm.setAttribute("popover", "manual");
 
         this.modalForm.innerHTML = `
             <label class="latex-modal-field">
@@ -128,7 +130,17 @@ export class LatexModal {
             this.modalForm.style.position = "fixed";
         }
 
+        if (!(this.anchor instanceof HTMLElement)) {
+            const blockRect = this.block.getBoundingClientRect();
+
+            this.anchorOffset = {
+                left: this.anchor.left - blockRect.left,
+                top: this.anchor.top - blockRect.top,
+            };
+        }
+
         document.body.appendChild(this.modalForm);
+        this.modalForm.showPopover();
         this.mounted = true;
 
         if (!this.mobile) {
@@ -299,20 +311,31 @@ export class LatexModal {
         this.labelInput.disabled = !isDisplay;
     }
 
+    private getAnchorRect(): DOMRectReadOnly | null {
+        if (this.anchor instanceof HTMLElement && this.anchor.isConnected) {
+            return this.anchor.getBoundingClientRect();
+        }
+
+        if (!this.block.isConnected) return null;
+
+        const blockRect = this.block.getBoundingClientRect();
+
+        if (this.anchor instanceof HTMLElement) return blockRect;
+
+        return new DOMRect(
+            blockRect.left + this.anchorOffset.left,
+            blockRect.top + this.anchorOffset.top,
+            this.anchor.width,
+            this.anchor.height,
+        );
+    }
+
     private positionModal = (): void => {
         if (!this.mounted || this.mobile) return;
 
-        if (
-            this.anchor instanceof HTMLElement &&
-            !this.anchor.isConnected
-        ) {
-            return;
-        }
+        const anchorRect = this.getAnchorRect();
 
-        const anchorRect =
-            this.anchor instanceof HTMLElement
-                ? this.anchor.getBoundingClientRect()
-                : this.anchor;
+        if (!anchorRect) return;
 
         const modalRect = this.modalForm.getBoundingClientRect();
         const viewport = window.visualViewport;

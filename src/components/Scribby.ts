@@ -86,8 +86,8 @@ export class Scribby {
 
     private whisperLeaseCount = 0;
 
-    mount(container: HTMLElement): Scribby {
-        this.disconnectEditor();
+    mount(container: HTMLElement, preserveToolbar: boolean = false, toolbarContainer?: HTMLElement, toolbarHidden: boolean = false): Scribby {
+        this.disconnectEditor(preserveToolbar);
         
         this.container = container;
         const initialContent = container.innerHTML;
@@ -96,25 +96,36 @@ export class Scribby {
         this.el.classList.add("scribby");
         this.el.innerHTML = initialContent;
 
-        // Apply UUID
         utils.applyUUIDs(this.el);
 
         container.dataset.state = "rendered";
         container.replaceChildren(this.el);
-        this.toolbar = new Toolbar(this).mount();
+
+        if (!preserveToolbar || !this.toolbar) {
+            this.toolbar = new Toolbar(this).mount();
+            this.toolbar.el.hidden = toolbarHidden;
+        }
+
         this.normalizer = new Normalizer(this.el);
 
-        this.el.insertAdjacentElement("beforebegin", this.toolbar.el);
+        if (!preserveToolbar) {
+            if (toolbarContainer) {
+                toolbarContainer.appendChild(this.toolbar.el);
+            }
+            else {
+                this.el.insertAdjacentElement("beforebegin", this.toolbar.el);
+            }
+        }
 
         connectEditorEventHandlers(this);
 
         return this
     }
-    public disconnectEditor(): void {
+    public disconnectEditor(preserveToolbar: boolean = false): void {
         this.abortController?.abort();
         this.abortController = null;
 
-        if (this.toolbar?.el?.isConnected) {
+        if (!preserveToolbar && this.toolbar?.el?.isConnected) {
             this.toolbar.el.remove();
         }
 

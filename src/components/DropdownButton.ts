@@ -22,6 +22,7 @@ export class ToolbarDropdownButton{
         this.el = document.createElement("div");
         this.el.classList.add("dropdown-menu-container");
         const openButton = document.createElement("button");
+        openButton.type = "button";
         openButton.classList.add("dropdown-open");
         
         const buttonsContainer = document.createElement("div");
@@ -31,6 +32,29 @@ export class ToolbarDropdownButton{
             buttonsContainer.appendChild(btn.el);
         })
         openButton.innerText = this.dropdownMenuButtons[0].el.innerText;
+
+        const close = () => {
+            buttonsContainer.classList.remove("show");
+            openButton.classList.remove("active");
+        };
+
+        openButton.addEventListener("click", () => {
+            const isOpen = buttonsContainer.classList.toggle("show");
+            openButton.classList.toggle("active", isOpen);
+        });
+
+        buttonsContainer.addEventListener("click", (e) => {
+            const button = (e.target as HTMLElement | null)?.closest("button");
+            if (!button) return;
+
+            openButton.innerText = button.innerText;
+            close();
+        });
+
+        document.addEventListener("click", (e) => {
+            if (!this.el.contains(e.target as Node)) close();
+        });
+
         this.el.append(openButton, buttonsContainer)
     }
 }

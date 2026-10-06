@@ -29,6 +29,9 @@ export class PromptModal extends HTMLElement {
     private textareaEl!: HTMLTextAreaElement;
     private cancelButton!: HTMLButtonElement;
 
+    private scrollParent!: HTMLElement;
+    private scrollOrigin = { left: 0, top: 0 };
+
     private resolveFn!: (value: Record<string, string> | null) => void;
 
     constructor() {
@@ -80,37 +83,52 @@ export class PromptModal extends HTMLElement {
         this.unmount();
     };
 
+    private positionModal = () => {
+        const parentRect = this.scrollParent.getBoundingClientRect();
+        const dx = parentRect.left - this.scrollParent.scrollLeft - this.scrollOrigin.left;
+        const dy = parentRect.top - this.scrollParent.scrollTop - this.scrollOrigin.top;
+        const modalRect = this.getBoundingClientRect();
+
+        const left =
+            this.referenceRect.left +
+            dx +
+            this.referenceRect.width / 2 -
+            modalRect.width / 2;
+
+        const top = this.referenceRect.bottom + dy + 12;
+
+        this.style.left = `${left}px`;
+        this.style.top = `${top}px`;
+    };
+
     private mount() {
         const mobile = window.matchMedia("(max-width: 768px)").matches;
 
         this.render();
+        this.setAttribute("popover", "manual");
 
         if (mobile) {
             this.classList.add("mobile-overlay");
             document.querySelector("main")?.classList.add("overlay-active");
-            document.body.append(this);
-        } else {
-            this.scribby.el.parentElement!.append(this);
+        }
 
-            const modalRect = this.getBoundingClientRect();
-            const parent = this.offsetParent as HTMLElement;
-            const parentRect = parent.getBoundingClientRect();
+        document.body.append(this);
+        this.showPopover();
 
-            const left =
-                this.referenceRect.left -
-                parentRect.left +
-                parent.scrollLeft +
-                this.referenceRect.width / 2 -
-                modalRect.width / 2;
+        if (!mobile) {
+            this.scrollParent = this.scribby.el.parentElement!;
 
-            const top =
-                this.referenceRect.bottom -
-                parentRect.top +
-                parent.scrollTop +
-                12;
+            const parentRect = this.scrollParent.getBoundingClientRect();
 
-            this.style.left = `${left}px`;
-            this.style.top = `${top}px`;
+            this.scrollOrigin = {
+                left: parentRect.left - this.scrollParent.scrollLeft,
+                top: parentRect.top - this.scrollParent.scrollTop,
+            };
+
+            this.positionModal();
+
+            window.addEventListener("scroll", this.positionModal, true);
+            window.addEventListener("resize", this.positionModal);
         }
 
         this.textareaEl.focus();
@@ -120,6 +138,8 @@ export class PromptModal extends HTMLElement {
         this.formEl?.removeEventListener("submit", this.onSubmit);
         this.cancelButton?.removeEventListener("click", this.onCancel);
         document.removeEventListener("keydown", this.onKeydown);
+        window.removeEventListener("scroll", this.positionModal, true);
+        window.removeEventListener("resize", this.positionModal);
 
         document.querySelector("main")?.classList.remove("overlay-active");
 

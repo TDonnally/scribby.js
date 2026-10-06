@@ -13,6 +13,8 @@ export class InsertModal {
 
     private isMounted = false;
     private hasResolved = false;
+    private scrollParent!: HTMLElement;
+    private scrollOrigin = { left: 0, top: 0 };
 
     constructor(
         scribby: Scribby,
@@ -73,6 +75,24 @@ export class InsertModal {
         this.finish(null);
     };
 
+    private positionModal = () => {
+        const parentRect = this.scrollParent.getBoundingClientRect();
+        const dx = parentRect.left - this.scrollParent.scrollLeft - this.scrollOrigin.left;
+        const dy = parentRect.top - this.scrollParent.scrollTop - this.scrollOrigin.top;
+        const modalRect = this.modalForm.getBoundingClientRect();
+
+        const left =
+            this.referenceRect.left +
+            dx +
+            this.referenceRect.width / 2 -
+            modalRect.width / 2;
+
+        const top = this.referenceRect.bottom + dy + 12;
+
+        this.modalForm.style.left = `${left}px`;
+        this.modalForm.style.top = `${top}px`;
+    };
+
     private finish(value: Record<string, string> | null) {
         if (this.hasResolved) return;
 
@@ -109,31 +129,25 @@ export class InsertModal {
 
         this.modalForm.innerHTML = this.innerContent;
         this.modalForm.append(this.buttonRow);
+        this.modalForm.setAttribute("popover", "manual");
 
-        if (mobile) {
-            document.body.append(this.modalForm);
-        } else {
-            this.scribby.el.parentElement!.append(this.modalForm);
+        document.body.append(this.modalForm);
+        this.modalForm.showPopover();
 
-            const modalRect = this.modalForm.getBoundingClientRect();
-            const parent = this.modalForm.offsetParent as HTMLElement;
-            const parentRect = parent.getBoundingClientRect();
+        if (!mobile) {
+            this.scrollParent = this.scribby.el.parentElement!;
 
-            const left =
-                this.referenceRect.left -
-                parentRect.left +
-                parent.scrollLeft +
-                this.referenceRect.width / 2 -
-                modalRect.width / 2;
+            const parentRect = this.scrollParent.getBoundingClientRect();
 
-            const top =
-                this.referenceRect.bottom -
-                parentRect.top +
-                parent.scrollTop +
-                12;
+            this.scrollOrigin = {
+                left: parentRect.left - this.scrollParent.scrollLeft,
+                top: parentRect.top - this.scrollParent.scrollTop,
+            };
 
-            this.modalForm.style.left = `${left}px`;
-            this.modalForm.style.top = `${top}px`;
+            this.positionModal();
+
+            window.addEventListener("scroll", this.positionModal, true);
+            window.addEventListener("resize", this.positionModal);
         }
 
         document.addEventListener("keydown", this.onKeydown);
@@ -153,6 +167,8 @@ export class InsertModal {
 
         document.removeEventListener("keydown", this.onKeydown);
         document.removeEventListener("click", this.onOutsideClick, true);
+        window.removeEventListener("scroll", this.positionModal, true);
+        window.removeEventListener("resize", this.positionModal);
 
         document.querySelector("main")?.classList.remove("overlay-active");
 
